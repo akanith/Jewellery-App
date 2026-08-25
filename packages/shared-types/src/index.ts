@@ -157,6 +157,94 @@ export interface ShopSettings {
   updatedAt: string;
 }
 
+export interface AdminDashboardStats {
+  totalCustomers: number;
+  activeSchemes: number;
+  totalCollections: number;
+  pendingInstallments: number;
+}
+
+export interface ReportKPI {
+  todayCollection: number;
+  monthlyCollection: number;
+  yearlyCollection: number;
+  activeCustomers: number;
+  netNewCustomers: number;
+  completedSchemes: number;
+  pendingInstallments: number;
+  redemptionValue: number;
+}
+
+export interface CollectionTrendPoint {
+  month: string;
+  amount: number;
+}
+
+export interface PaymentMethodBreakdown {
+  method: string;
+  amount: number;
+  percentage: number;
+}
+
+export interface CustomerGrowthTrendPoint {
+  month: string;
+  count: number;
+}
+
+export interface SchemeLifecycleStats {
+  active: number;
+  pending: number;
+  readyForRedemption: number;
+  inactive: number;
+}
+
+export interface ReportMilestones {
+  highestCollectionMonth: { label: string; amount: number };
+  recordNewCustomersMonth: { label: string; count: number };
+  highestRedemptionPeriod: { label: string; amount: number };
+}
+
+export interface RecentReportTransaction {
+  id: string;
+  customerName: string;
+  amount: number;
+  paymentMethod: string;
+  date: string;
+  status: string;
+}
+
+export interface ReportAnalyticsData {
+  kpi: ReportKPI;
+  collectionTrend: CollectionTrendPoint[];
+  paymentMethodBreakdown: PaymentMethodBreakdown[];
+  customerGrowthTrend: CustomerGrowthTrendPoint[];
+  lifecycle: SchemeLifecycleStats;
+  milestones: ReportMilestones;
+  recentTransactions: RecentReportTransaction[];
+}
+
+export type NotificationType = 'PAYMENT' | 'SCHEME' | 'REMINDER' | 'REDEMPTION' | 'ANNOUNCEMENT';
+
+export interface NotificationMetadata {
+  amount?: number;
+  paymentId?: string;
+  customerSchemeId?: string;
+  redemptionId?: string;
+  installmentId?: string;
+  [key: string]: unknown;
+}
+
+export interface Notification {
+  id: string;
+  customerId: string | null;
+  title: string;
+  message: string;
+  type: NotificationType;
+  isRead: boolean;
+  metadata: NotificationMetadata | null;
+  createdAt: string;
+}
+
 export interface ApiResponse<T> {
   data: T | null;
   error: {

@@ -1,11 +1,15 @@
 'use client';
 
-import { useState } from 'react';
-import { X, Save, User, Phone, MapPin, CheckCircle2 } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { X, Save, User, Phone, MapPin, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
+import { CustomerService } from '@/features/customers';
+import { CustomerStatus } from '@ramyas-jeweller/shared-types';
+import { AppError } from '@/lib/errors/app-error';
 
 interface EditCustomerModalProps {
   isOpen: boolean;
   onClose: () => void;
+  customerId?: string;
   customerData?: {
     name: string;
     mobile: string;
@@ -15,35 +19,89 @@ interface EditCustomerModalProps {
     relationship?: string;
     status?: string;
   };
-  onSave?: (updatedData: any) => void;
+  onSave?: () => void;
 }
 
-export function EditCustomerModal({ isOpen, onClose, customerData, onSave }: EditCustomerModalProps) {
-  const [name, setName] = useState(customerData?.name || 'Ananya Sharma');
-  const [mobile, setMobile] = useState(customerData?.mobile || '+91 98421 43307');
-  const [altMobile, setAltMobile] = useState(customerData?.altMobile || '+91 98765 43210');
-  const [address, setAddress] = useState(customerData?.address || '91 Main Road, Dindigul - 624001');
-  const [nomineeName, setNomineeName] = useState(customerData?.nomineeName || 'Suresh Sharma');
+export function EditCustomerModal({ isOpen, onClose, customerId, customerData, onSave }: EditCustomerModalProps) {
+  const [name, setName] = useState(customerData?.name || '');
+  const [mobile, setMobile] = useState(customerData?.mobile || '');
+  const [altMobile, setAltMobile] = useState(customerData?.altMobile || '');
+  const [address, setAddress] = useState(customerData?.address || '');
+  const [nomineeName, setNomineeName] = useState(customerData?.nomineeName || '');
   const [relationship, setRelationship] = useState(customerData?.relationship || 'Spouse');
-  const [status, setStatus] = useState(customerData?.status || 'Active Member');
+  const [status, setStatus] = useState<CustomerStatus>('ACTIVE');
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (customerData) {
+      setName(customerData.name || '');
+      setMobile(customerData.mobile || '');
+      setAltMobile(customerData.altMobile || '');
+      setAddress(customerData.address || '');
+      setNomineeName(customerData.nomineeName || '');
+      setRelationship(customerData.relationship || 'Spouse');
+      if (customerData.status === 'ACTIVE' || customerData.status === 'Active Member') {
+        setStatus('ACTIVE');
+      } else if (customerData.status === 'INACTIVE' || customerData.status === 'Inactive') {
+        setStatus('INACTIVE');
+      } else {
+        setStatus('SUSPENDED');
+      }
+    }
+  }, [customerData]);
 
   if (!isOpen) return null;
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSavedSuccess(true);
-    if (onSave) {
-      onSave({ name, mobile, altMobile, address, nomineeName, relationship, status });
+
+    if (isSubmitting) return;
+
+    setErrorMessage(null);
+
+    const cleanedMobile = mobile.trim().replace(/\D/g, '');
+    if (!cleanedMobile || !/^[6-9]\d{9}$/.test(cleanedMobile)) {
+      setErrorMessage('A valid 10-digit mobile number starting with 6, 7, 8, or 9 is required.');
+      return;
     }
-    setTimeout(() => {
-      setSavedSuccess(false);
-      onClose();
-    }, 1200);
+
+    setIsSubmitting(true);
+
+    try {
+      if (customerId) {
+        await CustomerService.updateCustomer(customerId, {
+          fullName: name.trim(),
+          mobileNumber: cleanedMobile,
+          address: address.trim(),
+          nomineeName: nomineeName.trim(),
+          nomineeRelationship: relationship,
+          status: status,
+        });
+      }
+
+      setSavedSuccess(true);
+      if (onSave) {
+        onSave();
+      }
+      setTimeout(() => {
+        setSavedSuccess(false);
+        onClose();
+      }, 1000);
+    } catch (err) {
+      if (err instanceof AppError) {
+        setErrorMessage(err.toUserMessage());
+      } else {
+        setErrorMessage('Failed to update customer profile in database.');
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-hidden bg-slate-900/50 backdrop-blur-xs flex justify-end">
+    <div className="fixed inset-0 z-50 overflow-hidden bg-slate-900/50 backdrop-blur-xs flex justify-end font-sans">
       {/* Drawer Panel */}
       <div className="w-full max-w-lg bg-white h-full shadow-2xl flex flex-col justify-between overflow-y-auto animate-in slide-in-from-right duration-300">
         {/* Header */}
@@ -51,7 +109,7 @@ export function EditCustomerModal({ isOpen, onClose, customerData, onSave }: Edi
           <div>
             <h2 className="text-xl font-extrabold text-blue-950">Edit Customer Profile</h2>
             <p className="text-xs text-slate-500 mt-0.5">
-              Update personal and contact details for Ananya Sharma (RJ-2023-441).
+              Update personal and contact details for {name || 'Customer'}.
             </p>
           </div>
           <button
@@ -67,7 +125,14 @@ export function EditCustomerModal({ isOpen, onClose, customerData, onSave }: Edi
           {savedSuccess && (
             <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold flex items-center gap-2 animate-in fade-in duration-200">
               <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-              <span>Customer profile updated successfully!</span>
+              <span>Customer profile updated in database successfully!</span>
+            </div>
+          )}
+
+          {errorMessage && (
+            <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-red-800 text-xs font-bold flex items-center gap-2 animate-in fade-in duration-200">
+              <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+              <span>{errorMessage}</span>
             </div>
           )}
 
@@ -85,7 +150,8 @@ export function EditCustomerModal({ isOpen, onClose, customerData, onSave }: Edi
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                disabled={isSubmitting}
+                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all disabled:opacity-50"
                 required
               />
             </div>
@@ -99,7 +165,8 @@ export function EditCustomerModal({ isOpen, onClose, customerData, onSave }: Edi
                   type="text"
                   value={mobile}
                   onChange={(e) => setMobile(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                  disabled={isSubmitting}
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all disabled:opacity-50"
                   required
                 />
               </div>
@@ -112,7 +179,8 @@ export function EditCustomerModal({ isOpen, onClose, customerData, onSave }: Edi
                   type="text"
                   value={altMobile}
                   onChange={(e) => setAltMobile(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                  disabled={isSubmitting}
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all disabled:opacity-50"
                 />
               </div>
             </div>
@@ -125,7 +193,8 @@ export function EditCustomerModal({ isOpen, onClose, customerData, onSave }: Edi
                 rows={2}
                 value={address}
                 onChange={(e) => setAddress(e.target.value)}
-                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                disabled={isSubmitting}
+                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all disabled:opacity-50"
               />
             </div>
           </div>
@@ -145,7 +214,8 @@ export function EditCustomerModal({ isOpen, onClose, customerData, onSave }: Edi
                   type="text"
                   value={nomineeName}
                   onChange={(e) => setNomineeName(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                  disabled={isSubmitting}
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all disabled:opacity-50"
                 />
               </div>
 
@@ -156,7 +226,8 @@ export function EditCustomerModal({ isOpen, onClose, customerData, onSave }: Edi
                 <select
                   value={relationship}
                   onChange={(e) => setRelationship(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                  disabled={isSubmitting}
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all disabled:opacity-50"
                 >
                   <option value="Spouse">Spouse</option>
                   <option value="Parent">Parent</option>
@@ -172,12 +243,13 @@ export function EditCustomerModal({ isOpen, onClose, customerData, onSave }: Edi
               </label>
               <select
                 value={status}
-                onChange={(e) => setStatus(e.target.value)}
-                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                onChange={(e) => setStatus(e.target.value as CustomerStatus)}
+                disabled={isSubmitting}
+                className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all disabled:opacity-50"
               >
-                <option value="Active Member">Active Member</option>
-                <option value="Completed">Completed</option>
-                <option value="Inactive">Inactive</option>
+                <option value="ACTIVE">ACTIVE</option>
+                <option value="INACTIVE">INACTIVE</option>
+                <option value="SUSPENDED">SUSPENDED</option>
               </select>
             </div>
           </div>
@@ -188,17 +260,28 @@ export function EditCustomerModal({ isOpen, onClose, customerData, onSave }: Edi
           <button
             type="button"
             onClick={onClose}
-            className="flex-1 py-3 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-xl transition-all shadow-2xs"
+            disabled={isSubmitting}
+            className="flex-1 py-3 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-xl transition-all shadow-2xs disabled:opacity-50"
           >
             Cancel
           </button>
           <button
             type="button"
             onClick={handleSave}
-            className="flex-1 py-3 bg-blue-900 hover:bg-blue-950 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 transition-all shadow-md shadow-blue-900/20"
+            disabled={isSubmitting}
+            className="flex-1 py-3 bg-blue-900 hover:bg-blue-950 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 transition-all shadow-md shadow-blue-900/20 disabled:opacity-50 cursor-pointer"
           >
-            <Save className="w-4 h-4" />
-            <span>Save Changes</span>
+            {isSubmitting ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>Updating...</span>
+              </>
+            ) : (
+              <>
+                <Save className="w-4 h-4" />
+                <span>Save Changes</span>
+              </>
+            )}
           </button>
         </div>
       </div>

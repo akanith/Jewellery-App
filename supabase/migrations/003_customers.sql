@@ -4,7 +4,7 @@
 CREATE SEQUENCE IF NOT EXISTS public.customer_number_seq START 1001;
 
 CREATE TABLE IF NOT EXISTS public.customers (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT extensions.uuid_generate_v4(),
     customer_number TEXT NOT NULL UNIQUE DEFAULT ('RJ-CUST-' || lpad(nextval('public.customer_number_seq')::text, 6, '0')),
     profile_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
     full_name TEXT NOT NULL,

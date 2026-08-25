@@ -2,7 +2,7 @@
 -- Reusable savings plan configurations
 
 CREATE TABLE IF NOT EXISTS public.scheme_plans (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT extensions.uuid_generate_v4(),
     code TEXT NOT NULL UNIQUE,
     title TEXT NOT NULL,
     description TEXT,

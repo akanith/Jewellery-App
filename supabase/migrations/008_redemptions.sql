@@ -4,7 +4,7 @@
 CREATE SEQUENCE IF NOT EXISTS public.redemption_number_seq START 70001;
 
 CREATE TABLE IF NOT EXISTS public.redemptions (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT extensions.uuid_generate_v4(),
     redemption_number TEXT NOT NULL UNIQUE DEFAULT ('RJ-RED-' || lpad(nextval('public.redemption_number_seq')::text, 7, '0')),
     customer_scheme_id UUID NOT NULL UNIQUE REFERENCES public.customer_schemes(id) ON DELETE RESTRICT,
     customer_id UUID NOT NULL REFERENCES public.customers(id) ON DELETE RESTRICT,

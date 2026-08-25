@@ -12,8 +12,11 @@ import {
   PlusCircle, 
   HelpCircle, 
   UserCheck, 
-  Gem
+  Gem,
+  LogOut
 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { AuthService } from '@/features/auth';
 
 const navItems = [
   { name: 'Home', href: '/', icon: Home },
@@ -26,6 +29,12 @@ const navItems = [
 
 export function AdminSidebar() {
   const pathname = usePathname();
+  const router = useRouter();
+
+  const handleLogout = async () => {
+    await AuthService.signOut();
+    router.replace('/login');
+  };
 
   return (
     <aside className="w-64 bg-white border-r border-slate-200 flex flex-col justify-between h-screen sticky top-0 z-30 select-none">
@@ -93,7 +102,13 @@ export function AdminSidebar() {
             <h4 className="text-xs font-bold text-slate-900 truncate">Owner Profile</h4>
             <p className="text-[11px] text-slate-500 truncate">Admin Access</p>
           </div>
-          <UserCheck className="w-4 h-4 text-emerald-500 shrink-0" />
+          <button
+            onClick={handleLogout}
+            title="Log Out"
+            className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+          >
+            <LogOut className="w-4 h-4" />
+          </button>
         </div>
       </div>
     </aside>

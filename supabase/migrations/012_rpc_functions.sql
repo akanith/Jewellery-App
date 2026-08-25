@@ -104,7 +104,28 @@ BEGIN
         status = CASE WHEN v_paid_count >= v_total_installments THEN 'COMPLETED' ELSE 'ACTIVE' END
     WHERE id = p_customer_scheme_id;
 
-    -- 8. Record Audit Log
+    -- 8. Create In-App Notifications
+    INSERT INTO public.notifications (customer_id, title, message, type, metadata)
+    VALUES (
+        v_customer_id,
+        'Payment Recorded',
+        'Your installment payment of ₹' || p_amount::text || ' has been successfully recorded.',
+        'PAYMENT',
+        jsonb_build_object('payment_id', v_payment_id, 'amount', p_amount, 'customer_scheme_id', p_customer_scheme_id)
+    );
+
+    IF v_paid_count >= v_total_installments THEN
+        INSERT INTO public.notifications (customer_id, title, message, type, metadata)
+        VALUES (
+            v_customer_id,
+            'Scheme Completed!',
+            'Congratulations! You have completed all installments for your savings scheme.',
+            'SCHEME',
+            jsonb_build_object('customer_scheme_id', p_customer_scheme_id)
+        );
+    END IF;
+
+    -- 9. Record Audit Log
     INSERT INTO public.audit_logs (actor_id, action, entity_type, entity_id, new_values)
     VALUES (
         auth.uid(),
@@ -210,7 +231,17 @@ BEGIN
     SET status = 'REDEEMED'
     WHERE id = p_customer_scheme_id;
 
-    -- 6. Record Audit Log
+    -- 6. Create In-App Notification
+    INSERT INTO public.notifications (customer_id, title, message, type, metadata)
+    VALUES (
+        v_customer_id,
+        'Scheme Redeemed',
+        'Your scheme redemption of ₹' || v_final_value::text || ' has been completed successfully.',
+        'REDEMPTION',
+        jsonb_build_object('redemption_id', v_redemption_id, 'customer_scheme_id', p_customer_scheme_id, 'final_value', v_final_value)
+    );
+
+    -- 7. Record Audit Log
     INSERT INTO public.audit_logs (actor_id, action, entity_type, entity_id, new_values)
     VALUES (
         auth.uid(),

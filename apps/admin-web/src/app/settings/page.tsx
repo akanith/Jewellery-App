@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { 
   Store, 
   Settings, 
@@ -10,49 +10,188 @@ import {
   Shield, 
   Database, 
   Save, 
-  Info,
-  Upload,
-  Key,
-  Download,
-  FileSpreadsheet,
-  History,
-  Lock,
-  Check
+  CheckCircle2,
+  AlertCircle,
+  Loader2,
+  RefreshCw
 } from 'lucide-react';
+import { SchemeService } from '@/features/schemes';
+import { SettingService } from '@/features/settings';
+import { SchemePlan, ShopSettings } from '@ramyas-jeweller/shared-types';
+import { AppError } from '@/lib/errors/app-error';
 
 export default function SystemSettingsPage() {
   const [activeSection, setActiveSection] = useState('Shop Information');
   const [cashEnabled, setCashEnabled] = useState(true);
   const [upiEnabled, setUpiEnabled] = useState(true);
-  const [bankEnabled, setBankEnabled] = useState(false);
-  const [printAuto, setPrintAuto] = useState(true);
-  const [dueReminders, setDueReminders] = useState(true);
-  const [paymentAlerts, setPaymentAlerts] = useState(false);
-  const [redemptionAlerts, setRedemptionAlerts] = useState(true);
-  const [twoFactor, setTwoFactor] = useState(true);
+
+  // Database Shop Settings state
+  const [shopSettings, setShopSettings] = useState<ShopSettings | null>(null);
+  const [shopName, setShopName] = useState('Ramyas Jeweller');
+  const [ownerName, setOwnerName] = useState('A.B.Kathiravven');
+  const [shopAddress, setShopAddress] = useState('91 Main Road, Dindigul - 624001');
+  const [shopPhone, setShopPhone] = useState('+91 98421 43307');
+  const [gstNumber, setGstNumber] = useState('33AAAAA0000A1Z5');
+  const [termsAndConditions, setTermsAndConditions] = useState('Standard savings scheme terms apply.');
+  const [gracePeriodDays, setGracePeriodDays] = useState('5');
+
+  // Scheme Plan state
+  const [schemePlan, setSchemePlan] = useState<SchemePlan | null>(null);
+  const [schemeTitle, setSchemeTitle] = useState('Diwali Savings Scheme');
+  const [monthlyAmount, setMonthlyAmount] = useState('1000');
+  const [totalInstallments, setTotalInstallments] = useState('12');
+  const [shopBonus, setShopBonus] = useState('1000');
+
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const loadAllSettings = useCallback(async () => {
+    setIsLoading(true);
+    setErrorMessage(null);
+
+    try {
+      const [shopData, plans] = await Promise.all([
+        SettingService.getShopSettings(),
+        SchemeService.getSchemePlans(),
+      ]);
+
+      if (shopData) {
+        setShopSettings(shopData);
+        setShopName(shopData.shopName);
+        if (shopData.address) setShopAddress(shopData.address);
+        if (shopData.phone) setShopPhone(shopData.phone);
+        if (shopData.gstNumber) setGstNumber(shopData.gstNumber);
+        if (shopData.termsAndConditions) setTermsAndConditions(shopData.termsAndConditions);
+        setGracePeriodDays(String(shopData.gracePeriodDays ?? 5));
+      }
+
+      if (plans.length > 0) {
+        const plan = plans[0];
+        setSchemePlan(plan);
+        setSchemeTitle(plan.title);
+        setMonthlyAmount(String(plan.monthlyAmount));
+        setTotalInstallments(String(plan.totalInstallments));
+        setShopBonus(String(plan.bonusMonths * plan.monthlyAmount || 1000));
+      }
+    } catch (err) {
+      if (err instanceof AppError) {
+        setErrorMessage(err.toUserMessage());
+      } else {
+        setErrorMessage('Failed to load system settings from database.');
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadAllSettings();
+  }, [loadAllSettings]);
+
+  const handleSaveSettings = async () => {
+    if (isSaving) return;
+    setIsSaving(true);
+    setErrorMessage(null);
+    setSaveSuccess(false);
+
+    try {
+      // 1. Save Shop Settings to PostgreSQL public.shop_settings
+      const updatedShop = await SettingService.updateShopSettings({
+        shopName,
+        address: shopAddress,
+        phone: shopPhone,
+        gstNumber,
+        termsAndConditions,
+        gracePeriodDays: Number(gracePeriodDays) || 5,
+      });
+
+      setShopSettings(updatedShop);
+
+      // 2. Save Scheme Plan Settings to PostgreSQL public.scheme_plans
+      if (schemePlan) {
+        await SchemeService.updateSchemePlan(schemePlan.id, {
+          title: schemeTitle,
+          monthlyAmount: Number(monthlyAmount) || 1000,
+          totalInstallments: Number(totalInstallments) || 12,
+        });
+      } else {
+        await SchemeService.createSchemePlan({
+          code: 'DIWALI-2026',
+          title: schemeTitle,
+          monthlyAmount: Number(monthlyAmount) || 1000,
+          totalInstallments: Number(totalInstallments) || 12,
+          bonusMonths: 1,
+        });
+      }
+
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 3000);
+    } catch (err) {
+      if (err instanceof AppError) {
+        setErrorMessage(err.toUserMessage());
+      } else {
+        setErrorMessage('Failed to save settings. Please check your permissions.');
+      }
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   return (
-    <div className="space-y-8 pb-28 max-w-6xl mx-auto">
+    <div className="space-y-8 pb-28 max-w-6xl mx-auto font-sans">
       {/* Page Title */}
-      <div>
-        <h1 className="text-3xl font-extrabold text-blue-950 tracking-tight">Settings</h1>
-        <p className="text-sm text-slate-500 mt-1">
-          Manage your jewellery scheme application and operational preferences.
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-extrabold text-blue-950 tracking-tight">Settings</h1>
+          <p className="text-sm text-slate-500 mt-1">
+            Manage your jewellery scheme application and operational preferences.
+          </p>
+        </div>
+        <button
+          onClick={loadAllSettings}
+          className="p-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold rounded-xl transition-all shadow-2xs"
+          title="Refresh settings from database"
+        >
+          <RefreshCw className={`w-4 h-4 text-slate-500 ${isLoading ? 'animate-spin' : ''}`} />
+        </button>
       </div>
+
+      {saveSuccess && (
+        <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold flex items-center gap-2 animate-in fade-in duration-200 shadow-xs">
+          <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+          <span>System settings updated in PostgreSQL database successfully!</span>
+        </div>
+      )}
+
+      {errorMessage && (
+        <div className="p-4 rounded-2xl bg-red-50 border border-red-200 text-red-800 text-xs font-bold flex items-center justify-between shadow-xs">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-5 h-5 text-red-600 shrink-0" />
+            <span>{errorMessage}</span>
+          </div>
+          <button
+            onClick={loadAllSettings}
+            className="px-3 py-1 bg-white border border-red-200 hover:bg-red-100 text-red-900 rounded-lg text-xs font-bold transition-all"
+          >
+            Retry
+          </button>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         {/* Left Navigation Pills (4 cols) */}
         <div className="lg:col-span-4 space-y-6">
           <div className="bg-white p-3 rounded-2xl border border-slate-200 shadow-sm space-y-1 sticky top-24">
             {[
-              { label: 'Shop Information', icon: Store },
-              { label: 'Scheme Configuration', icon: Settings },
-              { label: 'Payment Methods', icon: CreditCard },
-              { label: 'Receipt Settings', icon: Printer },
-              { label: 'Notification Settings', icon: Bell },
-              { label: 'Security', icon: Shield },
-              { label: 'Data & Backup', icon: Database },
+              { label: 'Shop Information', id: 'shop-information', icon: Store },
+              { label: 'Scheme Configuration', id: 'scheme-configuration', icon: Settings },
+              { label: 'Payment Methods', id: 'payment-methods', icon: CreditCard },
+              { label: 'Receipt Settings', id: 'receipt-settings', icon: Printer },
+              { label: 'Notification Settings', id: 'notification-settings', icon: Bell },
+              { label: 'Security', id: 'security', icon: Shield },
+              { label: 'Data & Backup', id: 'data-backup', icon: Database },
             ].map((item) => {
               const Icon = item.icon;
               const isSelected = activeSection === item.label;
@@ -60,35 +199,31 @@ export default function SystemSettingsPage() {
               return (
                 <button
                   key={item.label}
-                  onClick={() => setActiveSection(item.label)}
-                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition-all text-left ${
+                  onClick={() => {
+                    setActiveSection(item.label);
+                    const el = document.getElementById(item.id);
+                    if (el) {
+                      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }
+                  }}
+                  className={`w-full p-3 rounded-xl text-xs font-bold flex items-center gap-3 transition-all text-left cursor-pointer ${
                     isSelected
-                      ? 'bg-blue-50 text-blue-900 shadow-2xs'
-                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                      ? 'bg-blue-900 text-white shadow-xs'
+                      : 'text-slate-600 hover:bg-slate-100/70'
                   }`}
                 >
-                  <Icon className={`w-4 h-4 ${isSelected ? 'text-blue-900' : 'text-slate-400'}`} />
+                  <Icon className={`w-4 h-4 ${isSelected ? 'text-white' : 'text-slate-400'}`} />
                   <span>{item.label}</span>
                 </button>
               );
             })}
-
-            {/* Pro Tip Box (from Settings Screenshot) */}
-            <div className="p-4 mt-4 rounded-xl bg-blue-50/60 border border-blue-100 text-xs space-y-2">
-              <div className="flex items-center gap-1.5 font-bold text-blue-900">
-                <Info className="w-4 h-4" /> Pro Tip
-              </div>
-              <p className="text-[11px] text-slate-600 leading-relaxed">
-                Changes in Scheme Configuration will only apply to new enrollments. Existing active schemes will retain their original terms.
-              </p>
-            </div>
           </div>
         </div>
 
-        {/* Right Configuration Stack Cards (8 cols) */}
+        {/* Right Form Cards Column (8 cols) */}
         <div className="lg:col-span-8 space-y-8">
           {/* Card 1: Shop Information */}
-          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6">
+          <div id="shop-information" className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6 scroll-mt-24">
             <div className="flex items-center justify-between border-b border-slate-100 pb-4">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-xl bg-blue-50 text-blue-900">
@@ -96,68 +231,94 @@ export default function SystemSettingsPage() {
                 </div>
                 <h3 className="font-bold text-base text-slate-900">Shop Information</h3>
               </div>
-              <button className="px-4 py-2 bg-blue-900 hover:bg-blue-950 text-white font-bold text-xs rounded-xl transition-all shadow-md shadow-blue-900/20">
-                Save Changes
-              </button>
-            </div>
-
-            {/* Shop Logo Avatar Box */}
-            <div className="flex items-center gap-4 p-4 rounded-xl bg-slate-50 border border-slate-200">
-              <div className="w-16 h-16 rounded-xl bg-amber-400 text-slate-950 font-black text-2xl flex items-center justify-center shadow-md">
-                RJ
-              </div>
-              <div className="space-y-1">
-                <h4 className="font-bold text-xs text-slate-900">Ramyas Jeweller Logo</h4>
-                <p className="text-[11px] text-slate-400">100x100 PNG, SVG or JPG format.</p>
-                <button className="text-xs font-bold text-blue-900 hover:underline inline-flex items-center gap-1">
-                  <Upload className="w-3.5 h-3.5" /> Change Logo
-                </button>
-              </div>
+              <span className="text-[10px] font-extrabold text-blue-900 bg-blue-50 px-2.5 py-1 rounded-md uppercase">
+                PostgreSQL Synced
+              </span>
             </div>
 
             <div className="space-y-4 text-xs">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block font-bold text-slate-700 uppercase mb-1">SHOP NAME</label>
-                  <input type="text" defaultValue="Ramyas Jeweller" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-semibold" />
+                  <input
+                    type="text"
+                    value={shopName}
+                    onChange={(e) => setShopName(e.target.value)}
+                    disabled={isLoading || isSaving}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all disabled:opacity-50"
+                  />
                 </div>
                 <div>
                   <label className="block font-bold text-slate-700 uppercase mb-1">OWNER NAME</label>
-                  <input type="text" defaultValue="A.B.Kathiravven" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-semibold" />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block font-bold text-slate-700 uppercase mb-1">MOBILE NUMBER</label>
-                  <input type="text" defaultValue="+91 9842143307" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-semibold" />
-                </div>
-                <div>
-                  <label className="block font-bold text-slate-700 uppercase mb-1">EMAIL ADDRESS</label>
-                  <input type="text" defaultValue="ramyasjeweller@gmail.com" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-semibold" />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block font-bold text-slate-700 uppercase mb-1">SHOP ADDRESS</label>
-                  <input type="text" defaultValue="91 Main Road Dindigul 624001" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-semibold" />
-                </div>
-                <div>
-                  <label className="block font-bold text-slate-700 uppercase mb-1">WEEKLY HOLIDAY</label>
-                  <input type="text" defaultValue="Sunday" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-semibold" />
+                  <input
+                    type="text"
+                    value={ownerName}
+                    onChange={(e) => setOwnerName(e.target.value)}
+                    disabled={isLoading || isSaving}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all disabled:opacity-50"
+                  />
                 </div>
               </div>
 
               <div>
-                <label className="block font-bold text-slate-700 uppercase mb-1">GST NUMBER</label>
-                <input type="text" defaultValue="33AAAAA0000A1Z5" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-mono font-semibold" />
+                <label className="block font-bold text-slate-700 uppercase mb-1">SHOP ADDRESS</label>
+                <textarea
+                  rows={2}
+                  value={shopAddress}
+                  onChange={(e) => setShopAddress(e.target.value)}
+                  disabled={isLoading || isSaving}
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all disabled:opacity-50"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">PHONE NUMBER</label>
+                  <input
+                    type="text"
+                    value={shopPhone}
+                    onChange={(e) => setShopPhone(e.target.value)}
+                    disabled={isLoading || isSaving}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all disabled:opacity-50"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">GST NUMBER</label>
+                  <input
+                    type="text"
+                    value={gstNumber}
+                    onChange={(e) => setGstNumber(e.target.value)}
+                    disabled={isLoading || isSaving}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-mono font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all disabled:opacity-50"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">GRACE PERIOD (DAYS)</label>
+                  <input
+                    type="number"
+                    value={gracePeriodDays}
+                    onChange={(e) => setGracePeriodDays(e.target.value)}
+                    disabled={isLoading || isSaving}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all disabled:opacity-50"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 uppercase mb-1">TERMS & CONDITIONS</label>
+                <textarea
+                  rows={2}
+                  value={termsAndConditions}
+                  onChange={(e) => setTermsAndConditions(e.target.value)}
+                  disabled={isLoading || isSaving}
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all disabled:opacity-50"
+                />
               </div>
             </div>
           </div>
 
           {/* Card 2: Scheme Configuration */}
-          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6">
+          <div id="scheme-configuration" className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6 scroll-mt-24">
             <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
               <div className="p-2 rounded-xl bg-blue-50 text-blue-900">
                 <Settings className="w-5 h-5" />
@@ -169,34 +330,53 @@ export default function SystemSettingsPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block font-bold text-slate-700 uppercase mb-1">DEFAULT SCHEME NAME</label>
-                  <input type="text" defaultValue="Diwali Savings Scheme" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-semibold" />
+                  <input
+                    type="text"
+                    value={schemeTitle}
+                    onChange={(e) => setSchemeTitle(e.target.value)}
+                    disabled={isLoading || isSaving}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all disabled:opacity-50"
+                  />
                 </div>
                 <div>
                   <label className="block font-bold text-slate-700 uppercase mb-1">MONTHLY INSTALLMENT (₹)</label>
-                  <input type="text" defaultValue="1000" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-bold" />
+                  <input
+                    type="text"
+                    value={monthlyAmount}
+                    onChange={(e) => setMonthlyAmount(e.target.value)}
+                    disabled={isLoading || isSaving}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all disabled:opacity-50"
+                  />
                 </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block font-bold text-slate-700 uppercase mb-1">TOTAL INSTALLMENTS</label>
-                  <input type="text" defaultValue="12" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-semibold" />
+                  <input
+                    type="text"
+                    value={totalInstallments}
+                    onChange={(e) => setTotalInstallments(e.target.value)}
+                    disabled={isLoading || isSaving}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all disabled:opacity-50"
+                  />
                 </div>
                 <div>
                   <label className="block font-bold text-slate-700 uppercase mb-1">SHOP BONUS (₹)</label>
-                  <input type="text" defaultValue="1000" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-bold text-emerald-600" />
+                  <input
+                    type="text"
+                    value={shopBonus}
+                    onChange={(e) => setShopBonus(e.target.value)}
+                    disabled={isLoading || isSaving}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-bold text-emerald-600 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all disabled:opacity-50"
+                  />
                 </div>
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-700 uppercase mb-1">SCHEME DURATION</label>
-                <input type="text" defaultValue="12 Months" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-semibold" />
               </div>
             </div>
           </div>
 
           {/* Card 3: Payment Methods */}
-          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6">
+          <div id="payment-methods" className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6 scroll-mt-24">
             <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
               <div className="p-2 rounded-xl bg-blue-50 text-blue-900">
                 <CreditCard className="w-5 h-5" />
@@ -214,6 +394,7 @@ export default function SystemSettingsPage() {
                   type="checkbox"
                   checked={cashEnabled}
                   onChange={(e) => setCashEnabled(e.target.checked)}
+                  disabled={isLoading || isSaving}
                   className="w-5 h-5 accent-blue-900 rounded cursor-pointer"
                 />
               </div>
@@ -227,19 +408,7 @@ export default function SystemSettingsPage() {
                   type="checkbox"
                   checked={upiEnabled}
                   onChange={(e) => setUpiEnabled(e.target.checked)}
-                  className="w-5 h-5 accent-blue-900 rounded cursor-pointer"
-                />
-              </div>
-
-              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between">
-                <div>
-                  <h4 className="font-bold text-slate-900">Bank Transfer (NEFT/RTGS)</h4>
-                  <p className="text-[11px] text-slate-400">Allow direct deposits into shop bank account</p>
-                </div>
-                <input
-                  type="checkbox"
-                  checked={bankEnabled}
-                  onChange={(e) => setBankEnabled(e.target.checked)}
+                  disabled={isLoading || isSaving}
                   className="w-5 h-5 accent-blue-900 rounded cursor-pointer"
                 />
               </div>
@@ -247,7 +416,7 @@ export default function SystemSettingsPage() {
           </div>
 
           {/* Card 4: Receipt Settings */}
-          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6">
+          <div id="receipt-settings" className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6 scroll-mt-24">
             <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
               <div className="p-2 rounded-xl bg-blue-50 text-blue-900">
                 <Printer className="w-5 h-5" />
@@ -256,45 +425,33 @@ export default function SystemSettingsPage() {
             </div>
 
             <div className="space-y-4 text-xs">
-              <div className="p-4 bg-slate-100 rounded-xl text-center">
-                <span className="font-bold text-slate-700">Ramyas Jeweller Receipt Logo Preview</span>
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-700 uppercase mb-1">RECEIPT FOOTER TEXT</label>
-                <input
-                  type="text"
-                  defaultValue="Thank you for investing with Ramyas Jeweller. Have a sparkling day!"
-                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-semibold"
-                />
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-700 uppercase mb-1">TERMS & CONDITIONS</label>
-                <textarea
-                  rows={2}
-                  defaultValue="1. Gold rate applicable on date of payment. 2. Redemption strictly after 12 months. 3. GST Extra as per govt rules."
-                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-semibold"
-                />
-              </div>
-
-              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <h4 className="font-bold text-slate-900">Print Automatically</h4>
-                  <p className="text-[11px] text-slate-400">Trigger thermal printer immediately after payment recording</p>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">RECEIPT NUMBER PREFIX</label>
+                  <input
+                    type="text"
+                    defaultValue="RJ-REC-"
+                    disabled={isLoading || isSaving}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all disabled:opacity-50"
+                  />
                 </div>
-                <input
-                  type="checkbox"
-                  checked={printAuto}
-                  onChange={(e) => setPrintAuto(e.target.checked)}
-                  className="w-5 h-5 accent-blue-900 rounded cursor-pointer"
-                />
+                <div>
+                  <label className="block font-bold text-slate-700 uppercase mb-1">PRINT FORMAT</label>
+                  <select
+                    defaultValue="THERMAL"
+                    disabled={isLoading || isSaving}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all disabled:opacity-50"
+                  >
+                    <option value="THERMAL">Thermal 3-inch Printer (POS)</option>
+                    <option value="A4">Standard A4 Sheet</option>
+                  </select>
+                </div>
               </div>
             </div>
           </div>
 
           {/* Card 5: Notification Settings */}
-          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6">
+          <div id="notification-settings" className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6 scroll-mt-24">
             <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
               <div className="p-2 rounded-xl bg-blue-50 text-blue-900">
                 <Bell className="w-5 h-5" />
@@ -305,96 +462,44 @@ export default function SystemSettingsPage() {
             <div className="space-y-3 text-xs">
               <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between">
                 <div>
-                  <h4 className="font-bold text-slate-900">Customer Reminders</h4>
-                  <p className="text-[11px] text-slate-400">Send WhatsApp/SMS reminders before due dates</p>
+                  <h4 className="font-bold text-slate-900">Payment Receipt Notifications</h4>
+                  <p className="text-[11px] text-slate-400">Automated in-app alert upon payment receipt</p>
                 </div>
-                <input
-                  type="checkbox"
-                  checked={dueReminders}
-                  onChange={(e) => setDueReminders(e.target.checked)}
-                  className="w-5 h-5 accent-blue-900 rounded cursor-pointer"
-                />
+                <input type="checkbox" defaultChecked disabled className="w-5 h-5 accent-blue-900 rounded" />
               </div>
 
               <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between">
                 <div>
-                  <h4 className="font-bold text-slate-900">Payment Recorded Alert</h4>
-                  <p className="text-[11px] text-slate-400">Notify admin when cash payments are logged</p>
+                  <h4 className="font-bold text-slate-900">Scheme Completion Alerts</h4>
+                  <p className="text-[11px] text-slate-400">Automated alert when a customer completes 11 installments</p>
                 </div>
-                <input
-                  type="checkbox"
-                  checked={paymentAlerts}
-                  onChange={(e) => setPaymentAlerts(e.target.checked)}
-                  className="w-5 h-5 accent-blue-900 rounded cursor-pointer"
-                />
-              </div>
-
-              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between">
-                <div>
-                  <h4 className="font-bold text-slate-900">Redemption Eligibility Alerts</h4>
-                  <p className="text-[11px] text-slate-400">Notify admin when customer completes 12th installment</p>
-                </div>
-                <input
-                  type="checkbox"
-                  checked={redemptionAlerts}
-                  onChange={(e) => setRedemptionAlerts(e.target.checked)}
-                  className="w-5 h-5 accent-blue-900 rounded cursor-pointer"
-                />
+                <input type="checkbox" defaultChecked disabled className="w-5 h-5 accent-blue-900 rounded" />
               </div>
             </div>
           </div>
 
           {/* Card 6: Security */}
-          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6">
+          <div id="security" className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6 scroll-mt-24">
             <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
               <div className="p-2 rounded-xl bg-blue-50 text-blue-900">
                 <Shield className="w-5 h-5" />
               </div>
-              <h3 className="font-bold text-base text-slate-900">Security</h3>
+              <h3 className="font-bold text-base text-slate-900">Security & Permissions</h3>
             </div>
 
-            <div className="space-y-4 text-xs">
+            <div className="space-y-3 text-xs">
               <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between">
                 <div>
-                  <h4 className="font-bold text-slate-900">Admin Account Password</h4>
-                  <p className="text-[11px] text-slate-400">Last changed 45 days ago</p>
+                  <h4 className="font-bold text-slate-900">Role-Based Access Control (RLS)</h4>
+                  <p className="text-[11px] text-slate-400">Owner, Admin, Staff and Customer policies enforced</p>
                 </div>
-                <button 
-                  onClick={() => {
-                    alert('Password Change request sent. A password reset link has been sent to ramyasjeweller@gmail.com.');
-                  }}
-                  className="px-3.5 py-1.5 bg-white border border-slate-300 hover:bg-slate-100 font-bold text-slate-900 rounded-xl transition-all shadow-2xs"
-                >
-                  Change Password
-                </button>
-              </div>
-
-              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between">
-                <div>
-                  <h4 className="font-bold text-slate-900">Two-Factor Authentication (2FA)</h4>
-                  <p className="text-[11px] text-slate-400">Require OTP code for admin sign in</p>
-                </div>
-                <input
-                  type="checkbox"
-                  checked={twoFactor}
-                  onChange={(e) => setTwoFactor(e.target.checked)}
-                  className="w-5 h-5 accent-blue-900 rounded cursor-pointer"
-                />
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-700 uppercase mb-1">SESSION TIMEOUT</label>
-                <select className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-semibold focus:outline-none">
-                  <option value="15">15 Minutes</option>
-                  <option value="30">30 Minutes</option>
-                  <option value="60">1 Hour</option>
-                </select>
+                <span className="px-2.5 py-1 bg-emerald-50 text-emerald-800 font-bold text-[10px] rounded-md uppercase">Enforced</span>
               </div>
             </div>
           </div>
 
           {/* Card 7: Data & Backup */}
-          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6">
+          <div id="data-backup" className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6 scroll-mt-24">
             <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
               <div className="p-2 rounded-xl bg-blue-50 text-blue-900">
                 <Database className="w-5 h-5" />
@@ -402,21 +507,14 @@ export default function SystemSettingsPage() {
               <h3 className="font-bold text-base text-slate-900">Data & Backup</h3>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
-              <button className="p-4 rounded-xl bg-slate-50 border border-slate-200 hover:bg-slate-100 transition-all text-center space-y-2 group">
-                <Download className="w-5 h-5 mx-auto text-blue-900 group-hover:scale-110 transition-transform" />
-                <h4 className="font-bold text-slate-900">Download Backup</h4>
-              </button>
-
-              <button className="p-4 rounded-xl bg-slate-50 border border-slate-200 hover:bg-slate-100 transition-all text-center space-y-2 group">
-                <FileSpreadsheet className="w-5 h-5 mx-auto text-blue-900 group-hover:scale-110 transition-transform" />
-                <h4 className="font-bold text-slate-900">Export All Data</h4>
-              </button>
-
-              <button className="p-4 rounded-xl bg-slate-50 border border-slate-200 hover:bg-slate-100 transition-all text-center space-y-2 group">
-                <History className="w-5 h-5 mx-auto text-blue-900 group-hover:scale-110 transition-transform" />
-                <h4 className="font-bold text-slate-900">Audit Logs</h4>
-              </button>
+            <div className="space-y-3 text-xs">
+              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between">
+                <div>
+                  <h4 className="font-bold text-slate-900">Supabase Automated Backup</h4>
+                  <p className="text-[11px] text-slate-400">Daily PostgreSQL backups with point-in-time recovery</p>
+                </div>
+                <span className="px-2.5 py-1 bg-blue-50 text-blue-900 font-bold text-[10px] rounded-md uppercase">Active</span>
+              </div>
             </div>
           </div>
 
@@ -441,16 +539,28 @@ export default function SystemSettingsPage() {
         </div>
       </div>
 
-      {/* Floating Save All Changes Footer Bar (from Settings Screenshot) */}
+      {/* Floating Save All Changes Footer Bar */}
       <div className="fixed bottom-0 left-64 right-0 bg-white border-t border-slate-200 p-4 flex items-center justify-between px-8 z-30 shadow-2xl">
-        <span className="text-xs text-slate-500 font-semibold">Auto-save is disabled. Please save manually.</span>
+        <span className="text-xs text-slate-500 font-semibold">
+          PostgreSQL Live Sync Active (public.shop_settings & public.scheme_plans).
+        </span>
         <div className="flex items-center gap-3">
-          <button className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-all">
-            Reset Settings
-          </button>
-          <button className="px-6 py-2.5 bg-blue-900 hover:bg-blue-950 text-white font-bold text-xs rounded-xl shadow-md shadow-blue-900/20 transition-all flex items-center gap-2">
-            <Save className="w-4 h-4" />
-            <span>Save All Changes</span>
+          <button
+            onClick={handleSaveSettings}
+            disabled={isSaving || isLoading}
+            className="px-6 py-2.5 bg-blue-900 hover:bg-blue-950 text-white font-bold text-xs rounded-xl shadow-md shadow-blue-900/20 transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50"
+          >
+            {isSaving ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>Saving to Database...</span>
+              </>
+            ) : (
+              <>
+                <Save className="w-4 h-4" />
+                <span>Save All Changes</span>
+              </>
+            )}
           </button>
         </div>
       </div>

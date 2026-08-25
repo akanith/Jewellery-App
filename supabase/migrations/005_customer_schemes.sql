@@ -4,7 +4,7 @@
 CREATE SEQUENCE IF NOT EXISTS public.scheme_account_number_seq START 50001;
 
 CREATE TABLE IF NOT EXISTS public.customer_schemes (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT extensions.uuid_generate_v4(),
     scheme_account_number TEXT NOT NULL UNIQUE DEFAULT ('RJ-SCH-' || lpad(nextval('public.scheme_account_number_seq')::text, 7, '0')),
     customer_id UUID NOT NULL REFERENCES public.customers(id) ON DELETE RESTRICT,
     scheme_plan_id UUID NOT NULL REFERENCES public.scheme_plans(id) ON DELETE RESTRICT,

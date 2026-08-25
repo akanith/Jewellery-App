@@ -1,12 +1,30 @@
 'use client';
 
-import { Search, Bell, Calendar, HelpCircle, ShieldCheck } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { Search, Bell, Calendar, HelpCircle } from 'lucide-react';
+import { NotificationService } from '@/features/notifications';
+import { NotificationPopover } from './notification-popover';
 
 export function AdminHeader() {
   const currentDate = 'AUGUST 25, 2026';
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [isPopoverOpen, setIsPopoverOpen] = useState(false);
+
+  const fetchUnreadCount = useCallback(async () => {
+    try {
+      const count = await NotificationService.getUnreadNotificationCount();
+      setUnreadCount(count);
+    } catch (err) {
+      // Fallback
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchUnreadCount();
+  }, [fetchUnreadCount]);
 
   return (
-    <header className="h-16 bg-white border-b border-slate-200 px-6 flex items-center justify-between sticky top-0 z-20">
+    <header className="h-16 bg-white border-b border-slate-200 px-6 flex items-center justify-between sticky top-0 z-20 font-sans">
       {/* Global Search Input */}
       <div className="relative w-96">
         <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -30,11 +48,28 @@ export function AdminHeader() {
           <HelpCircle className="w-5 h-5" />
         </button>
 
-        {/* Bell Notifications */}
-        <button className="relative p-2 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-50 transition-all">
-          <Bell className="w-5 h-5" />
-          <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full ring-2 ring-white" />
-        </button>
+        {/* Bell Notifications Button Container */}
+        <div className="relative">
+          <button
+            onClick={() => setIsPopoverOpen(!isPopoverOpen)}
+            className="relative p-2 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-50 transition-all cursor-pointer"
+            title="System Notifications"
+          >
+            <Bell className="w-5 h-5" />
+            {unreadCount > 0 && (
+              <span className="absolute top-1 right-1 px-1.5 py-0.5 bg-blue-900 text-white font-extrabold text-[9px] rounded-full ring-2 ring-white min-w-[16px] text-center">
+                {unreadCount > 99 ? '99+' : unreadCount}
+              </span>
+            )}
+          </button>
+
+          {/* Notification Popover Dropdown */}
+          <NotificationPopover
+            isOpen={isPopoverOpen}
+            onClose={() => setIsPopoverOpen(false)}
+            onNotificationUpdated={fetchUnreadCount}
+          />
+        </div>
 
         <div className="h-6 w-px bg-slate-200" />
 

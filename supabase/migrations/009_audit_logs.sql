@@ -2,7 +2,7 @@
 -- Read-only system audit trail for administrative and financial operations
 
 CREATE TABLE IF NOT EXISTS public.audit_logs (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT extensions.uuid_generate_v4(),
     actor_id UUID REFERENCES public.profiles(id),
     action TEXT NOT NULL,
     entity_type TEXT NOT NULL,

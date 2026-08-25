@@ -2,7 +2,7 @@
 -- Monthly scheduled installment records
 
 CREATE TABLE IF NOT EXISTS public.installments (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT extensions.uuid_generate_v4(),
     customer_scheme_id UUID NOT NULL REFERENCES public.customer_schemes(id) ON DELETE RESTRICT,
     installment_number INTEGER NOT NULL CHECK (installment_number > 0),
     due_date DATE NOT NULL,

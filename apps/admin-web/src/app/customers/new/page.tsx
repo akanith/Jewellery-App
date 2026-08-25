@@ -1,20 +1,30 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { 
   ArrowLeft, 
   User, 
   Camera, 
-  Calendar, 
   CreditCard, 
   Info, 
   Save, 
   Diamond,
-  FileText
+  FileText,
+  AlertCircle,
+  Loader2
 } from 'lucide-react';
+import { CustomerService } from '@/features/customers';
+import { SchemeService } from '@/features/schemes';
+import { SchemePlan } from '@ramyas-jeweller/shared-types';
+import { AppError } from '@/lib/errors/app-error';
 
 export default function AddNewCustomerPage() {
+  const router = useRouter();
+  const [schemePlans, setSchemePlans] = useState<SchemePlan[]>([]);
+  const [selectedPlanId, setSelectedPlanId] = useState<string>('');
+
   const [formData, setFormData] = useState({
     fullName: '',
     mobile: '',
@@ -37,8 +47,103 @@ export default function AddNewCustomerPage() {
     remarks: '',
   });
 
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function loadPlans() {
+      try {
+        const plans = await SchemeService.getSchemePlans({ isActive: true });
+        setSchemePlans(plans);
+        if (plans.length > 0) {
+          setSelectedPlanId(plans[0].id);
+          setFormData((prev) => ({
+            ...prev,
+            schemeName: plans[0].title,
+            monthlyInstallment: String(plans[0].monthlyAmount),
+            totalInstallments: String(plans[0].totalInstallments),
+          }));
+        }
+      } catch (err) {
+        // Fallback default
+      }
+    }
+    loadPlans();
+  }, []);
+
+  const handlePlanSelect = (planId: string) => {
+    setSelectedPlanId(planId);
+    const selected = schemePlans.find((p) => p.id === planId);
+    if (selected) {
+      setFormData((prev) => ({
+        ...prev,
+        schemeName: selected.title,
+        monthlyInstallment: String(selected.monthlyAmount),
+        totalInstallments: String(selected.totalInstallments),
+      }));
+    }
+  };
+
+  const handleSubmit = async (recordFirstPayment: boolean = false) => {
+    if (isSubmitting) return;
+
+    setErrorMessage(null);
+
+    if (!formData.fullName.trim()) {
+      setErrorMessage('Full Name is required.');
+      return;
+    }
+
+    const cleanedMobile = formData.mobile.trim().replace(/\D/g, '');
+    if (!cleanedMobile || !/^[6-9]\d{9}$/.test(cleanedMobile)) {
+      setErrorMessage('A valid 10-digit mobile number starting with 6, 7, 8, or 9 is required.');
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      // 1. Create Customer in public.customers
+      const createdCustomer = await CustomerService.createCustomer({
+        fullName: formData.fullName,
+        mobileNumber: cleanedMobile,
+        address: formData.address,
+        city: formData.locality,
+        pincode: formData.pincode,
+        nomineeName: formData.nomineeName,
+        nomineeRelationship: formData.relationship,
+        nomineeMobile: formData.nomineeMobile,
+        status: 'ACTIVE',
+      });
+
+      // 2. Enroll Customer in Customer Scheme in public.customer_schemes if plan exists
+      if (selectedPlanId) {
+        await SchemeService.createCustomerScheme({
+          customerId: createdCustomer.id,
+          schemePlanId: selectedPlanId,
+          monthlyAmount: Number(formData.monthlyInstallment) || 1000,
+          totalInstallments: Number(formData.totalInstallments) || 12,
+        });
+      }
+
+      if (recordFirstPayment) {
+        router.push(`/customers/${createdCustomer.id}`);
+      } else {
+        router.push('/customers');
+      }
+    } catch (err) {
+      if (err instanceof AppError) {
+        setErrorMessage(err.toUserMessage());
+      } else {
+        setErrorMessage('Failed to create customer record and scheme enrollment in database.');
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
-    <div className="space-y-6 pb-16 max-w-6xl mx-auto">
+    <div className="space-y-6 pb-16 max-w-6xl mx-auto font-sans">
       {/* Back Link */}
       <Link
         href="/customers"
@@ -55,6 +160,14 @@ export default function AddNewCustomerPage() {
           Register a customer for the Jewellery Savings Scheme.
         </p>
       </div>
+
+      {/* Error Banner */}
+      {errorMessage && (
+        <div className="p-4 rounded-2xl bg-red-50 border border-red-200 text-red-800 text-xs font-bold flex items-center gap-3 shadow-xs">
+          <AlertCircle className="w-5 h-5 text-red-600 shrink-0" />
+          <span>{errorMessage}</span>
+        </div>
+      )}
 
       {/* 2-Column Grid Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
@@ -87,7 +200,9 @@ export default function AddNewCustomerPage() {
                       placeholder="Enter customer full name"
                       value={formData.fullName}
                       onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
-                      className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                      disabled={isSubmitting}
+                      className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all disabled:opacity-50"
+                      required
                     />
                   </div>
 
@@ -98,10 +213,12 @@ export default function AddNewCustomerPage() {
                       </label>
                       <input
                         type="text"
-                        placeholder="+91 00000 00000"
+                        placeholder="10-digit mobile number"
                         value={formData.mobile}
                         onChange={(e) => setFormData({ ...formData, mobile: e.target.value })}
-                        className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                        disabled={isSubmitting}
+                        className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all disabled:opacity-50"
+                        required
                       />
                     </div>
                     <div>
@@ -113,7 +230,8 @@ export default function AddNewCustomerPage() {
                         placeholder="Alternative number"
                         value={formData.altMobile}
                         onChange={(e) => setFormData({ ...formData, altMobile: e.target.value })}
-                        className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                        disabled={isSubmitting}
+                        className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all disabled:opacity-50"
                       />
                     </div>
                   </div>
@@ -129,7 +247,8 @@ export default function AddNewCustomerPage() {
                   <select
                     value={formData.gender}
                     onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
-                    className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                    disabled={isSubmitting}
+                    className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all disabled:opacity-50"
                   >
                     <option value="Female">Female</option>
                     <option value="Male">Male</option>
@@ -144,7 +263,8 @@ export default function AddNewCustomerPage() {
                     type="date"
                     value={formData.dob}
                     onChange={(e) => setFormData({ ...formData, dob: e.target.value })}
-                    className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                    disabled={isSubmitting}
+                    className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all disabled:opacity-50"
                   />
                 </div>
               </div>
@@ -159,7 +279,8 @@ export default function AddNewCustomerPage() {
                   placeholder="Full residential address"
                   value={formData.address}
                   onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                  className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                  disabled={isSubmitting}
+                  className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all disabled:opacity-50"
                 />
               </div>
 
@@ -171,10 +292,11 @@ export default function AddNewCustomerPage() {
                   </label>
                   <input
                     type="text"
-                    placeholder="Enter locality"
+                    placeholder="Enter locality / city"
                     value={formData.locality}
                     onChange={(e) => setFormData({ ...formData, locality: e.target.value })}
-                    className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                    disabled={isSubmitting}
+                    className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all disabled:opacity-50"
                   />
                 </div>
                 <div>
@@ -183,26 +305,13 @@ export default function AddNewCustomerPage() {
                   </label>
                   <input
                     type="text"
-                    placeholder="6-digit code"
+                    placeholder="6-digit pincode"
                     value={formData.pincode}
                     onChange={(e) => setFormData({ ...formData, pincode: e.target.value })}
-                    className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                    disabled={isSubmitting}
+                    className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all disabled:opacity-50"
                   />
                 </div>
-              </div>
-
-              {/* Aadhaar Number */}
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
-                  AADHAAR NUMBER (OPTIONAL)
-                </label>
-                <input
-                  type="text"
-                  placeholder="0000 0000 0000"
-                  value={formData.aadhaar}
-                  onChange={(e) => setFormData({ ...formData, aadhaar: e.target.value })}
-                  className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
-                />
               </div>
             </div>
           </div>
@@ -223,11 +332,20 @@ export default function AddNewCustomerPage() {
                     SCHEME NAME
                   </label>
                   <select
-                    value={formData.schemeName}
-                    onChange={(e) => setFormData({ ...formData, schemeName: e.target.value })}
-                    className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                    value={selectedPlanId}
+                    onChange={(e) => handlePlanSelect(e.target.value)}
+                    disabled={isSubmitting}
+                    className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all disabled:opacity-50"
                   >
-                    <option value="Diwali Savings Scheme">Diwali Savings Scheme</option>
+                    {schemePlans.length > 0 ? (
+                      schemePlans.map((plan) => (
+                        <option key={plan.id} value={plan.id}>
+                          {plan.title} ({plan.code})
+                        </option>
+                      ))
+                    ) : (
+                      <option value="">Diwali Savings Scheme</option>
+                    )}
                   </select>
                 </div>
                 <div>
@@ -238,57 +356,8 @@ export default function AddNewCustomerPage() {
                     type="text"
                     value={formData.monthlyInstallment}
                     onChange={(e) => setFormData({ ...formData, monthlyInstallment: e.target.value })}
-                    className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
-                    TOTAL INSTALLMENTS
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.totalInstallments}
-                    onChange={(e) => setFormData({ ...formData, totalInstallments: e.target.value })}
-                    className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
-                    SHOP BONUS (₹)
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.shopBonus}
-                    onChange={(e) => setFormData({ ...formData, shopBonus: e.target.value })}
-                    className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
-                    JOINING DATE
-                  </label>
-                  <input
-                    type="date"
-                    value={formData.joiningDate}
-                    onChange={(e) => setFormData({ ...formData, joiningDate: e.target.value })}
-                    className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
-                    FIRST DUE DATE
-                  </label>
-                  <input
-                    type="date"
-                    value={formData.firstDueDate}
-                    onChange={(e) => setFormData({ ...formData, firstDueDate: e.target.value })}
-                    className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                    disabled={isSubmitting}
+                    className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all disabled:opacity-50"
                   />
                 </div>
               </div>
@@ -321,7 +390,8 @@ export default function AddNewCustomerPage() {
                     placeholder="Full name of nominee"
                     value={formData.nomineeName}
                     onChange={(e) => setFormData({ ...formData, nomineeName: e.target.value })}
-                    className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                    disabled={isSubmitting}
+                    className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all disabled:opacity-50"
                   />
                 </div>
                 <div>
@@ -331,7 +401,8 @@ export default function AddNewCustomerPage() {
                   <select
                     value={formData.relationship}
                     onChange={(e) => setFormData({ ...formData, relationship: e.target.value })}
-                    className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                    disabled={isSubmitting}
+                    className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all disabled:opacity-50"
                   >
                     <option value="Spouse">Spouse</option>
                     <option value="Parent">Parent</option>
@@ -350,20 +421,8 @@ export default function AddNewCustomerPage() {
                   placeholder="+91 00000 00000"
                   value={formData.nomineeMobile}
                   onChange={(e) => setFormData({ ...formData, nomineeMobile: e.target.value })}
-                  className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
-                  REMARKS/NOTES
-                </label>
-                <textarea
-                  rows={2}
-                  placeholder="Any special instructions or observations..."
-                  value={formData.remarks}
-                  onChange={(e) => setFormData({ ...formData, remarks: e.target.value })}
-                  className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                  disabled={isSubmitting}
+                  className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all disabled:opacity-50"
                 />
               </div>
             </div>
@@ -373,7 +432,7 @@ export default function AddNewCustomerPage() {
         {/* Right Registration Summary Column (4 cols) */}
         <div className="lg:col-span-4 space-y-6">
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden sticky top-24 space-y-6">
-            {/* Top Dark Royal Blue Header Box (from Screenshot 1) */}
+            {/* Top Dark Royal Blue Header Box */}
             <div className="p-4 bg-blue-950 text-white flex items-center justify-between">
               <h3 className="font-bold text-sm tracking-wide">Registration Summary</h3>
               <Diamond className="w-5 h-5 text-amber-400" />
@@ -397,28 +456,36 @@ export default function AddNewCustomerPage() {
                   <span>Installment</span>
                   <span className="font-bold text-slate-900">₹{formData.monthlyInstallment}</span>
                 </div>
-                <div className="flex justify-between py-1 text-slate-500">
-                  <span>Shop Bonus</span>
-                  <span className="font-bold text-emerald-600">₹{formData.shopBonus}</span>
-                </div>
-
-                <div className="h-px bg-slate-100" />
-
-                <div className="flex justify-between py-2 text-xs font-bold text-slate-900">
-                  <span>Expected Maturity</span>
-                  <span>May 2025</span>
-                </div>
               </div>
 
               {/* Actions */}
               <div className="space-y-3 pt-2">
-                <button className="w-full py-3 bg-blue-900 hover:bg-blue-950 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 transition-all shadow-md shadow-blue-900/20">
-                  <Save className="w-4 h-4" />
-                  <span>Save & Record First Pay</span>
+                <button
+                  type="button"
+                  onClick={() => handleSubmit(true)}
+                  disabled={isSubmitting}
+                  className="w-full py-3 bg-blue-900 hover:bg-blue-950 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 transition-all shadow-md shadow-blue-900/20 disabled:opacity-65 cursor-pointer"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Enrolling Customer...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-4 h-4" />
+                      <span>Save & Record First Pay</span>
+                    </>
+                  )}
                 </button>
 
-                <button className="w-full py-3 bg-white border border-blue-900 text-blue-900 font-bold text-xs rounded-xl hover:bg-blue-50 transition-all shadow-2xs">
-                  Save Customer Profile
+                <button
+                  type="button"
+                  onClick={() => handleSubmit(false)}
+                  disabled={isSubmitting}
+                  className="w-full py-3 bg-white border border-blue-900 text-blue-900 font-bold text-xs rounded-xl hover:bg-blue-50 transition-all shadow-2xs disabled:opacity-65 cursor-pointer"
+                >
+                  Save Customer & Enroll Scheme
                 </button>
 
                 <div className="text-center">
@@ -432,23 +499,9 @@ export default function AddNewCustomerPage() {
               <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 flex items-start gap-3 text-slate-600 text-xs">
                 <Info className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
                 <p className="leading-relaxed text-[11px]">
-                  Recording the first installment immediately activates the digital passbook for the customer.
+                  Scheme Account Number (RJ-SCH-xxxxxxx) is generated automatically by PostgreSQL sequence.
                 </p>
               </div>
-            </div>
-          </div>
-
-          {/* Jewellery Showroom Preview Card (from Screenshot 1 Bottom Right) */}
-          <div className="h-36 rounded-2xl overflow-hidden bg-slate-900 shadow-sm relative group">
-            <img
-              src="https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?w=500&auto=format&fit=crop&q=80"
-              alt="Showroom Gold Jewellery"
-              className="w-full h-full object-cover opacity-70 group-hover:scale-105 transition-transform duration-500"
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent p-4 flex items-end">
-              <span className="text-xs font-bold text-white tracking-wide">
-                Ramyas Jeweller Premium Gold Collection
-              </span>
             </div>
           </div>
         </div>

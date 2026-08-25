@@ -3,7 +3,7 @@
 CREATE SEQUENCE IF NOT EXISTS public.payment_number_seq START 90001;
 
 CREATE TABLE IF NOT EXISTS public.payments (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT extensions.uuid_generate_v4(),
     payment_number TEXT NOT NULL UNIQUE DEFAULT ('RJ-PAY-' || lpad(nextval('public.payment_number_seq')::text, 8, '0')),
     customer_scheme_id UUID NOT NULL REFERENCES public.customer_schemes(id) ON DELETE RESTRICT,
     installment_id UUID REFERENCES public.installments(id) ON DELETE RESTRICT,
