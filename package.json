@@ -1,0 +1,19 @@
+{
+  "name": "ramyas-jeweller-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Ramyas Jeweller Savings Scheme Management System Monorepo",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:admin": "npm run dev --workspace=apps/admin-web",
+    "build:admin": "npm run build --workspace=apps/admin-web",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3"
+  }
+}
