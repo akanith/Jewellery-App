@@ -46,6 +46,38 @@ export const PAYMENT_METHODS = {
 
 export type PaymentMethod = typeof PAYMENT_METHODS[keyof typeof PAYMENT_METHODS];
 
+export const PAYMENT_METHOD_MAP: Record<string, PaymentMethod> = {
+  Cash: 'CASH',
+  GPay: 'UPI',
+  PhonePe: 'UPI',
+  Paytm: 'UPI',
+  NetBank: 'BANK_TRANSFER',
+  Card: 'CARD',
+  CASH: 'CASH',
+  GPAY: 'UPI',
+  PHONEPE: 'UPI',
+  PAYTM: 'UPI',
+  NETBANK: 'BANK_TRANSFER',
+  NETBANKING: 'BANK_TRANSFER',
+  CARD: 'CARD',
+  UPI: 'UPI',
+  BANK_TRANSFER: 'BANK_TRANSFER',
+  ONLINE_GATEWAY: 'ONLINE_GATEWAY',
+} as const;
+
+export function toCanonicalPaymentMethod(method: string | null | undefined): PaymentMethod {
+  if (!method) return 'CASH';
+  const trimmed = method.trim();
+  if (PAYMENT_METHOD_MAP[trimmed]) {
+    return PAYMENT_METHOD_MAP[trimmed];
+  }
+  const upper = trimmed.toUpperCase();
+  if (PAYMENT_METHOD_MAP[upper]) {
+    return PAYMENT_METHOD_MAP[upper];
+  }
+  return 'CASH';
+}
+
 export const REDEMPTION_STATUS = {
   PENDING_APPROVAL: 'PENDING_APPROVAL',
   APPROVED: 'APPROVED',

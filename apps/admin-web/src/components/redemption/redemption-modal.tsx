@@ -18,8 +18,8 @@ export function CompleteRedemptionModal({
   customerSchemeId,
   onSuccess,
 }: CompleteRedemptionModalProps) {
-  const [billNumber, setBillNumber] = useState('INV-8829');
-  const [billAmount, setBillAmount] = useState('28500');
+  const [billNumber, setBillNumber] = useState('');
+  const [billAmount, setBillAmount] = useState('');
   const [category, setCategory] = useState('Gold');
   const [notes, setNotes] = useState('');
 
@@ -142,12 +142,12 @@ export function CompleteRedemptionModal({
               <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-4">
                 <div className="flex items-center gap-3">
                   <div className="w-12 h-12 rounded-xl bg-blue-900 text-white flex items-center justify-center font-bold text-base shadow-sm shrink-0">
-                    {getInitials(details?.customerName || 'Ananya Sharma')}
+                    {getInitials(details?.customerName || 'Customer')}
                   </div>
                   <div className="min-w-0">
-                    <h3 className="font-extrabold text-sm text-slate-900 truncate">{details?.customerName || 'Ananya Sharma'}</h3>
+                    <h3 className="font-extrabold text-sm text-slate-900 truncate">{details?.customerName || 'Customer'}</h3>
                     <p className="text-[11px] text-slate-400 font-mono truncate">
-                      ID: {details?.customerNumber || 'RJ-2023-441'} • {details?.mobileNumber || '+91 98421 43307'}
+                      ID: {details?.customerNumber || 'N/A'} • {details?.mobileNumber || '—'}
                     </p>
                   </div>
                 </div>
@@ -157,37 +157,37 @@ export function CompleteRedemptionModal({
                 <div className="grid grid-cols-2 gap-4 text-xs">
                   <div>
                     <span className="text-[10px] font-bold text-slate-400 uppercase">SCHEME</span>
-                    <p className="font-bold text-slate-900 mt-0.5">{details?.schemeName || 'Diwali Savings Scheme'}</p>
+                    <p className="font-bold text-slate-900 mt-0.5">{details?.schemeName || 'Savings Scheme'}</p>
                   </div>
                   <div>
                     <span className="text-[10px] font-bold text-slate-400 uppercase">JOINED</span>
-                    <p className="font-bold text-slate-900 mt-0.5">{details?.startDate || 'Jan 05, 2026'}</p>
+                    <p className="font-bold text-slate-900 mt-0.5">{details?.startDate || '—'}</p>
                   </div>
                   <div>
                     <span className="text-[10px] font-bold text-slate-400 uppercase">STATUS</span>
                     <p className="mt-0.5">
                       <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-extrabold rounded-md">
-                        {details?.status || 'Ready for Redemption'}
+                        {details?.status || 'Active'}
                       </span>
                     </p>
                   </div>
                   <div>
                     <span className="text-[10px] font-bold text-slate-400 uppercase">ACCOUNT NO</span>
-                    <p className="font-bold text-slate-900 mt-0.5 font-mono">{details?.schemeAccountNumber || 'RJ-SCH-00050001'}</p>
+                    <p className="font-bold text-slate-900 mt-0.5 font-mono">{details?.schemeAccountNumber || '—'}</p>
                   </div>
                 </div>
               </div>
 
-              {/* Total Eligible Value Card (Dark Royal Blue Box matching Screenshot 2) */}
+              {/* Total Eligible Value Card */}
               <div className="p-6 rounded-2xl bg-blue-950 text-white shadow-lg space-y-4 relative overflow-hidden">
                 <div className="grid grid-cols-2 gap-4 text-xs">
                   <div>
                     <span className="text-[10px] font-extrabold text-blue-200/80 uppercase tracking-wider">TOTAL PAID AMOUNT</span>
-                    <p className="text-xl font-extrabold mt-0.5">₹{(details?.totalPaidAmount ?? 12000).toLocaleString('en-IN')}</p>
+                    <p className="text-xl font-extrabold mt-0.5">₹{(details?.totalPaidAmount ?? 0).toLocaleString('en-IN')}</p>
                   </div>
                   <div>
                     <span className="text-[10px] font-extrabold text-amber-400 uppercase tracking-wider">SHOP BONUS</span>
-                    <p className="text-xl font-extrabold mt-0.5 text-amber-400">₹{(details?.bonusAmount ?? 1000).toLocaleString('en-IN')}</p>
+                    <p className="text-xl font-extrabold mt-0.5 text-amber-400">₹{(details?.bonusAmount ?? 0).toLocaleString('en-IN')}</p>
                   </div>
                 </div>
 
@@ -195,7 +195,7 @@ export function CompleteRedemptionModal({
                   <div>
                     <span className="text-[10px] font-extrabold text-blue-200/80 uppercase tracking-wider">NET ELIGIBLE VALUE</span>
                     <h1 className="text-3xl font-black tracking-tight mt-0.5 text-amber-400">
-                      ₹{(details?.finalRedeemedValue ?? 13000).toLocaleString('en-IN')}
+                      ₹{(details?.finalRedeemedValue ?? 0).toLocaleString('en-IN')}
                     </h1>
                   </div>
                   <ShieldCheck className="w-8 h-8 text-amber-400 stroke-1" />

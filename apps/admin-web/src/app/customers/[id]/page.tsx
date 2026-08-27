@@ -21,6 +21,7 @@ import {
 import { CompleteRedemptionModal } from '@/components/redemption/redemption-modal';
 import { RecordInstallmentModal } from '@/components/payments/record-installment-modal';
 import { EditCustomerModal } from '@/components/customers/edit-customer-modal';
+import { EnrollSchemeModal } from '@/components/schemes/enroll-scheme-modal';
 import { CustomerService } from '@/features/customers';
 import { SchemeService } from '@/features/schemes';
 import { PaymentService } from '@/features/payments';
@@ -34,6 +35,7 @@ export default function CustomerDetailsPage() {
   const [isRedemptionOpen, setIsRedemptionOpen] = useState(false);
   const [isInstallmentOpen, setIsInstallmentOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isEnrollModalOpen, setIsEnrollModalOpen] = useState(false);
 
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [customerSchemes, setCustomerSchemes] = useState<CustomerScheme[]>([]);
@@ -126,6 +128,13 @@ export default function CustomerDetailsPage() {
   return (
     <div className="space-y-8 pb-16 font-sans">
       {/* Modals & Drawers */}
+      <EnrollSchemeModal
+        isOpen={isEnrollModalOpen}
+        onClose={() => setIsEnrollModalOpen(false)}
+        customer={customer}
+        onSuccess={fetchCustomerDetails}
+      />
+
       <RecordInstallmentModal
         isOpen={isInstallmentOpen}
         onClose={() => setIsInstallmentOpen(false)}
@@ -197,7 +206,7 @@ export default function CustomerDetailsPage() {
                   {customer.status}
                 </span>
               </div>
-              <p className="text-xs font-mono text-slate-400 font-semibold">{customer.customerNumber}</p>
+              <p className="text-xs font-mono text-slate-500 font-bold">Customer ID: {customer.customerNumber}</p>
             </div>
           </div>
 
@@ -280,13 +289,13 @@ export default function CustomerDetailsPage() {
                 <p className="text-xs text-slate-700 font-bold">No Enrolled Scheme</p>
                 <p className="text-[11px] text-slate-400 mt-0.5">Customer has not enrolled in a scheme yet.</p>
               </div>
-              <Link
-                href="/schemes"
-                className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-900 hover:bg-blue-950 text-white font-bold text-xs rounded-xl shadow-xs transition-all"
+              <button
+                onClick={() => setIsEnrollModalOpen(true)}
+                className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-900 hover:bg-blue-950 text-white font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer"
               >
                 <PlusCircle className="w-3.5 h-3.5" />
                 <span>Enroll in Scheme Plan</span>
-              </Link>
+              </button>
             </div>
           )}
         </div>
@@ -329,13 +338,13 @@ export default function CustomerDetailsPage() {
           </>
         ) : (
           <>
-            <Link
-              href="/schemes"
-              className="px-5 py-3 bg-blue-900 hover:bg-blue-950 text-white font-bold text-xs rounded-xl flex items-center gap-2 shadow-md shadow-blue-900/20 transition-all"
+            <button
+              onClick={() => setIsEnrollModalOpen(true)}
+              className="px-5 py-3 bg-blue-900 hover:bg-blue-950 text-white font-bold text-xs rounded-xl flex items-center gap-2 shadow-md shadow-blue-900/20 transition-all cursor-pointer"
             >
               <PlusCircle className="w-4 h-4" />
               <span>Enroll Customer in Scheme</span>
-            </Link>
+            </button>
 
             <button
               onClick={() => setIsEditModalOpen(true)}

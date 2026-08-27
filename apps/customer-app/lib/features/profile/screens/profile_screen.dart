@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../app/theme.dart';
+import '../../auth/services/customer_auth_service.dart';
 import '../../auth/widgets/logout_dialog.dart';
 import '../widgets/change_password_dialog.dart';
 
-class ProfileScreen extends StatelessWidget {
+class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final identityAsync = ref.watch(currentCustomerIdentityProvider);
     return Scaffold(
       backgroundColor: AppTheme.creamBackground,
       appBar: AppBar(
@@ -85,30 +88,44 @@ class ProfileScreen extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 14),
-                    const Text(
-                      'Anith Kumar',
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        color: AppTheme.textDark,
+                    identityAsync.when(
+                      loading: () => const SizedBox(
+                        height: 60,
+                        child: Center(child: CircularProgressIndicator(color: AppTheme.maroonPrimary, strokeWidth: 2)),
                       ),
-                    ),
-                    const SizedBox(height: 2),
-                    const Text(
-                      'ID: GS-2024-089',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: AppTheme.textMuted,
-                        fontWeight: FontWeight.w500,
+                      error: (err, stack) => const Text(
+                        'Valued Customer',
+                        style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppTheme.textDark),
                       ),
-                    ),
-                    const SizedBox(height: 2),
-                    const Text(
-                      '+91 98421 43307',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: AppTheme.textDark,
-                        fontWeight: FontWeight.w500,
+                      data: (identity) => Column(
+                        children: [
+                          Text(
+                            identity?.fullName ?? 'Valued Customer',
+                            style: const TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.bold,
+                              color: AppTheme.textDark,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            identity?.customerNumber != null ? 'ID: ${identity!.customerNumber}' : 'ID: Customer',
+                            style: const TextStyle(
+                              fontSize: 13,
+                              color: AppTheme.textMuted,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            identity?.mobileNumber ?? '—',
+                            style: const TextStyle(
+                              fontSize: 14,
+                              color: AppTheme.textDark,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                     const SizedBox(height: 14),
@@ -126,7 +143,7 @@ class ProfileScreen extends StatelessWidget {
                           Icon(Icons.emoji_events_outlined, color: AppTheme.maroonPrimary, size: 18),
                           SizedBox(width: 6),
                           Text(
-                            'SWARNA LAKSHMI SCHEME',
+                            'DIWALI SAVINGS SCHEME',
                             style: TextStyle(
                               color: AppTheme.maroonPrimary,
                               fontSize: 11,

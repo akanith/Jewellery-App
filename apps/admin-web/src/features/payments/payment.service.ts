@@ -18,6 +18,38 @@ export interface RecordPaymentResult {
   paidInstallmentsCount: number;
 }
 
+export const PAYMENT_METHOD_MAP: Record<string, PaymentMethod> = {
+  Cash: 'CASH',
+  GPay: 'UPI',
+  PhonePe: 'UPI',
+  Paytm: 'UPI',
+  NetBank: 'BANK_TRANSFER',
+  Card: 'CARD',
+  CASH: 'CASH',
+  GPAY: 'UPI',
+  PHONEPE: 'UPI',
+  PAYTM: 'UPI',
+  NETBANK: 'BANK_TRANSFER',
+  NETBANKING: 'BANK_TRANSFER',
+  CARD: 'CARD',
+  UPI: 'UPI',
+  BANK_TRANSFER: 'BANK_TRANSFER',
+  ONLINE_GATEWAY: 'ONLINE_GATEWAY',
+} as const;
+
+export function toCanonicalPaymentMethod(method: string | null | undefined): PaymentMethod {
+  if (!method) return 'CASH';
+  const trimmed = method.trim();
+  if (PAYMENT_METHOD_MAP[trimmed]) {
+    return PAYMENT_METHOD_MAP[trimmed];
+  }
+  const upper = trimmed.toUpperCase();
+  if (PAYMENT_METHOD_MAP[upper]) {
+    return PAYMENT_METHOD_MAP[upper];
+  }
+  return 'CASH';
+}
+
 export class PaymentService {
   private static getSupabase() {
     return createClient();
@@ -155,12 +187,15 @@ export class PaymentService {
         throw new AppError('Payment amount must be a positive number greater than zero.', ErrorCode.VALIDATION_ERROR, 400);
       }
 
+      // Convert UI selection or raw input string to canonical database payment method
+      const canonicalMethod = toCanonicalPaymentMethod(payload.paymentMethod);
+
       // 2. Invoke authoritative PostgreSQL RPC function
       const { data, error } = await supabase.rpc('record_installment_payment', {
         p_customer_scheme_id: payload.customerSchemeId,
         p_installment_id: payload.installmentId,
         p_amount: payload.amount,
-        p_payment_method: payload.paymentMethod,
+        p_payment_method: canonicalMethod,
         p_payment_reference: payload.paymentReference || null,
         p_notes: payload.notes || null,
       });

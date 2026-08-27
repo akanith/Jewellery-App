@@ -1,12 +1,42 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../../app/theme.dart';
 
-class PassbookScreen extends StatelessWidget {
+import '../../../app/theme.dart';
+import '../../../core/errors/app_exception.dart';
+import '../models/customer_passbook_data.dart';
+import '../services/customer_passbook_service.dart';
+
+class PassbookScreen extends ConsumerWidget {
   const PassbookScreen({super.key});
 
+  static String _formatCurrency(num? amount) {
+    if (amount == null) return '₹0';
+    final int val = amount.toInt();
+    final String str = val.abs().toString();
+    if (str.length <= 3) return '${amount < 0 ? "-" : ""}₹$str';
+
+    final String last3 = str.substring(str.length - 3);
+    final String remaining = str.substring(0, str.length - 3);
+
+    final formattedRemaining = remaining.replaceAllMapped(
+      RegExp(r'(\d+?)(?=(\d\d)+$)'),
+      (Match m) => '${m[1]},',
+    );
+
+    return '${amount < 0 ? "-" : ""}₹$formattedRemaining,$last3';
+  }
+
+  static String _formatDate(DateTime? date) {
+    if (date == null) return 'N/A';
+    final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return '${date.day.toString().padLeft(2, '0')} ${months[date.month - 1]} ${date.year}';
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final passbookAsync = ref.watch(customerPassbookDataProvider);
+
     return Scaffold(
       backgroundColor: AppTheme.creamBackground,
       appBar: AppBar(
@@ -36,12 +66,132 @@ class PassbookScreen extends StatelessWidget {
         ],
       ),
       body: SafeArea(
-        child: Column(
-          children: [
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(20.0),
-                child: Column(
+        child: RefreshIndicator(
+          color: AppTheme.maroonPrimary,
+          onRefresh: () async {
+            ref.invalidate(customerPassbookDataProvider);
+            await ref.read(customerPassbookDataProvider.future);
+          },
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.all(20.0),
+            child: passbookAsync.when(
+              loading: () => const SizedBox(
+                height: 500,
+                child: Center(
+                  child: CircularProgressIndicator(color: AppTheme.maroonPrimary),
+                ),
+              ),
+              error: (err, stack) {
+                final message = err is AppException ? err.toUserMessage() : 'Unable to load digital passbook.';
+                return SizedBox(
+                  height: 500,
+                  child: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.error_outline, color: Color(0xFFDC2626), size: 48),
+                        const SizedBox(height: 12),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 24),
+                          child: Text(
+                            message,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(fontSize: 14, color: AppTheme.textDark),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        ElevatedButton.icon(
+                          onPressed: () => ref.invalidate(customerPassbookDataProvider),
+                          icon: const Icon(Icons.refresh, color: Colors.white, size: 18),
+                          label: const Text('Retry'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppTheme.maroonPrimary,
+                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+              data: (CustomerPassbookData data) {
+                if (!data.hasActiveScheme) {
+                  return SizedBox(
+                    height: 500,
+                    child: Center(
+                      child: Container(
+                        padding: const EdgeInsets.all(24),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(24),
+                          border: Border.all(color: const Color(0xFFF1E6EA)),
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: AppTheme.creamBackground,
+                                shape: BoxShape.circle,
+                                border: Border.all(color: const Color(0xFFF1E6EA)),
+                              ),
+                              child: const Icon(
+                                Icons.receipt_long_outlined,
+                                color: AppTheme.maroonPrimary,
+                                size: 40,
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            const Text(
+                              'No Active Scheme',
+                              style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                                color: AppTheme.textDark,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            const Text(
+                              'You are not currently enrolled in an active savings scheme. Visit our shop to enroll and view passbook history.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: AppTheme.textMuted,
+                                height: 1.4,
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            SizedBox(
+                              width: double.infinity,
+                              child: OutlinedButton.icon(
+                                onPressed: () => context.push('/help'),
+                                icon: const Icon(Icons.storefront, size: 18, color: AppTheme.maroonPrimary),
+                                label: const Text(
+                                  'Visit Shop / Contact Support',
+                                  style: TextStyle(color: AppTheme.maroonPrimary, fontWeight: FontWeight.bold),
+                                ),
+                                style: OutlinedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(vertical: 14),
+                                  side: const BorderSide(color: AppTheme.maroonPrimary, width: 1.5),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                }
+
+                final int paidCount = data.paidInstallmentsCount ?? 0;
+                final int totalCount = data.totalInstallments ?? 0;
+                final double progressVal = ((data.progressPercentage ?? 0) / 100.0).clamp(0.0, 1.0);
+
+                return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // Scheme Overview Card (Deep Maroon)
@@ -64,30 +214,32 @@ class PassbookScreen extends StatelessWidget {
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              const Column(
+                              Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    'Gold Savings Scheme',
-                                    style: TextStyle(
+                                    data.schemeTitle ?? 'Savings Scheme',
+                                    style: const TextStyle(
                                       color: Colors.white70,
                                       fontSize: 12,
                                       fontWeight: FontWeight.bold,
                                     ),
                                   ),
-                                  SizedBox(height: 4),
+                                  const SizedBox(height: 4),
                                   Text(
-                                    'Anith Kumar',
-                                    style: TextStyle(
+                                    data.customerName,
+                                    style: const TextStyle(
                                       color: Colors.white,
                                       fontSize: 20,
                                       fontWeight: FontWeight.bold,
                                     ),
                                   ),
-                                  SizedBox(height: 2),
+                                  const SizedBox(height: 2),
                                   Text(
-                                    'ID: RJ-88234',
-                                    style: TextStyle(
+                                    data.schemeAccountNumber != null && data.schemeAccountNumber!.isNotEmpty
+                                        ? 'A/C: ${data.schemeAccountNumber}'
+                                        : 'ID: ${data.customerNumber}',
+                                    style: const TextStyle(
                                       color: Colors.white70,
                                       fontSize: 12,
                                     ),
@@ -127,9 +279,9 @@ class PassbookScreen extends StatelessWidget {
                                     ),
                                   ),
                                   const SizedBox(height: 4),
-                                  const Text(
-                                    '₹1000',
-                                    style: TextStyle(
+                                  Text(
+                                    _formatCurrency(data.monthlyAmount),
+                                    style: const TextStyle(
                                       color: Colors.white,
                                       fontSize: 22,
                                       fontWeight: FontWeight.bold,
@@ -142,14 +294,14 @@ class PassbookScreen extends StatelessWidget {
                                       color: Colors.white.withValues(alpha: 0.2),
                                       borderRadius: BorderRadius.circular(12),
                                     ),
-                                    child: const Row(
+                                    child: Row(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
-                                        Icon(Icons.check_circle, color: Colors.white, size: 14),
-                                        SizedBox(width: 4),
+                                        const Icon(Icons.check_circle, color: Colors.white, size: 14),
+                                        const SizedBox(width: 4),
                                         Text(
-                                          'Active',
-                                          style: TextStyle(
+                                          data.schemeStatus ?? 'Active',
+                                          style: const TextStyle(
                                             color: Colors.white,
                                             fontSize: 12,
                                             fontWeight: FontWeight.bold,
@@ -168,24 +320,24 @@ class PassbookScreen extends StatelessWidget {
                                     width: 64,
                                     height: 64,
                                     child: CircularProgressIndicator(
-                                      value: 8 / 12,
+                                      value: progressVal,
                                       strokeWidth: 6,
                                       backgroundColor: Colors.white.withValues(alpha: 0.2),
                                       valueColor: const AlwaysStoppedAnimation<Color>(AppTheme.goldPrimary),
                                     ),
                                   ),
-                                  const Column(
+                                  Column(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
                                       Text(
-                                        '8/12',
-                                        style: TextStyle(
+                                        '$paidCount/$totalCount',
+                                        style: const TextStyle(
                                           color: Colors.white,
-                                          fontSize: 16,
+                                          fontSize: 14,
                                           fontWeight: FontWeight.bold,
                                         ),
                                       ),
-                                      Text(
+                                      const Text(
                                         'Months',
                                         style: TextStyle(
                                           color: Colors.white70,
@@ -224,20 +376,20 @@ class PassbookScreen extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(height: 6),
-                          const Row(
+                          Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               Text(
-                                '8 / 12 Months',
-                                style: TextStyle(
+                                '$paidCount / $totalCount Months',
+                                style: const TextStyle(
                                   fontSize: 18,
                                   fontWeight: FontWeight.bold,
                                   color: AppTheme.textDark,
                                 ),
                               ),
                               Text(
-                                '66% Paid',
-                                style: TextStyle(
+                                '${(data.progressPercentage ?? 0).toStringAsFixed(0)}% Paid',
+                                style: const TextStyle(
                                   fontSize: 14,
                                   fontWeight: FontWeight.bold,
                                   color: AppTheme.maroonPrimary,
@@ -248,11 +400,11 @@ class PassbookScreen extends StatelessWidget {
                           const SizedBox(height: 10),
                           ClipRRect(
                             borderRadius: BorderRadius.circular(6),
-                            child: const LinearProgressIndicator(
-                              value: 0.66,
+                            child: LinearProgressIndicator(
+                              value: progressVal,
                               minHeight: 10,
-                              backgroundColor: Color(0xFFE2E8F0),
-                              valueColor: AlwaysStoppedAnimation<Color>(AppTheme.maroonPrimary),
+                              backgroundColor: const Color(0xFFE2E8F0),
+                              valueColor: const AlwaysStoppedAnimation<Color>(AppTheme.maroonPrimary),
                             ),
                           ),
                         ],
@@ -261,10 +413,10 @@ class PassbookScreen extends StatelessWidget {
                     const SizedBox(height: 20),
 
                     // Payment Ledger Header
-                    const Row(
+                    Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(
+                        const Text(
                           'PAYMENT LEDGER',
                           style: TextStyle(
                             fontSize: 13,
@@ -274,8 +426,8 @@ class PassbookScreen extends StatelessWidget {
                           ),
                         ),
                         Text(
-                          'FY 2024-25',
-                          style: TextStyle(
+                          '${data.installments.length} Installments',
+                          style: const TextStyle(
                             fontSize: 12,
                             color: AppTheme.textMuted,
                           ),
@@ -284,7 +436,7 @@ class PassbookScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 12),
 
-                    // Ledger Itemized Cards (Installments 1 to 12)
+                    // Ledger Itemized Cards
                     Container(
                       decoration: BoxDecoration(
                         color: Colors.white,
@@ -293,64 +445,128 @@ class PassbookScreen extends StatelessWidget {
                       ),
                       child: Column(
                         children: [
-                          _buildPaidInstallmentRow(1, 'Paid on 05 Mar, 2024'),
-                          const Divider(height: 1, color: Color(0xFFF1E6EA)),
-                          _buildPaidInstallmentRow(2, 'Paid on 05 Mar, 2024'),
-                          const Divider(height: 1, color: Color(0xFFF1E6EA)),
-                          _buildPaidInstallmentRow(3, 'Paid on 05 Mar, 2024'),
-                          const Divider(height: 1, color: Color(0xFFF1E6EA)),
-                          _buildPaidInstallmentRow(4, 'Paid on 05 Mar, 2024'),
-                          const Divider(height: 1, color: Color(0xFFF1E6EA)),
-                          _buildPaidInstallmentRow(5, 'Paid on 05 Mar, 2024'),
-                          const Divider(height: 1, color: Color(0xFFF1E6EA)),
-                          _buildPaidInstallmentRow(6, 'Paid on 05 Mar, 2024'),
-                          const Divider(height: 1, color: Color(0xFFF1E6EA)),
-                          _buildPaidInstallmentRow(7, 'Paid on 05 Mar, 2024'),
-                          const Divider(height: 1, color: Color(0xFFF1E6EA)),
-                          _buildPaidInstallmentRow(8, 'Paid on 05 Mar, 2024'),
-                          const Divider(height: 1, color: Color(0xFFF1E6EA)),
-                          _buildWaitingInstallmentRow(9, 'Due by 05 Nov, 2024'),
-                          const Divider(height: 1, color: Color(0xFFF1E6EA)),
-                          _buildFutureInstallmentRow(10, 'Upcoming Payment'),
-                          const Divider(height: 1, color: Color(0xFFF1E6EA)),
-                          _buildFutureInstallmentRow(11, 'Upcoming Payment'),
-                          const Divider(height: 1, color: Color(0xFFF1E6EA)),
-                          _buildFutureInstallmentRow(12, 'Upcoming Payment'),
+                          for (int i = 0; i < data.installments.length; i++) ...[
+                            if (i > 0) const Divider(height: 1, color: Color(0xFFF1E6EA)),
+                            _buildInstallmentRow(context, data.installments[i]),
+                          ],
                         ],
                       ),
                     ),
                     const SizedBox(height: 20),
                   ],
-                ),
-              ),
+                );
+              },
             ),
+          ),
+        ),
+      ),
+    );
+  }
 
-            // Fixed Bottom Download Button
+  Widget _buildInstallmentRow(BuildContext context, PassbookItemModel item) {
+    if (item.isPaid) {
+      return _buildPaidInstallmentRow(context, item);
+    } else if (item.isOverdue) {
+      return _buildOverdueInstallmentRow(item);
+    } else if (item.isPending) {
+      return _buildWaitingInstallmentRow(item);
+    } else {
+      return _buildFutureInstallmentRow(item);
+    }
+  }
+
+  Widget _buildPaidInstallmentRow(BuildContext context, PassbookItemModel item) {
+    final dateStr = item.paymentDate != null
+        ? 'Paid on ${_formatDate(item.paymentDate)}'
+        : (item.dueDate != null ? 'Completed' : 'Payment Completed');
+    final amountStr = _formatCurrency(item.paidAmount > 0 ? item.paidAmount : item.expectedAmount);
+
+    return InkWell(
+      onTap: () {
+        context.push('/receipt', extra: item.id);
+      },
+      borderRadius: BorderRadius.circular(16),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
             Container(
-              padding: const EdgeInsets.all(16),
+              width: 36,
+              height: 36,
               decoration: const BoxDecoration(
-                color: Colors.white,
-                border: Border(top: BorderSide(color: Color(0xFFF1E6EA))),
+                color: Color(0xFFF9EEF1),
+                shape: BoxShape.circle,
               ),
-              child: SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Downloading Digital Passbook PDF...')),
-                    );
-                  },
-                  icon: const Icon(Icons.download, color: Colors.white, size: 20),
-                  label: const Text('Download Passbook'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.maroonPrimary,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
+              child: Center(
+                child: Text(
+                  '${item.installmentNumber}',
+                  style: const TextStyle(
+                    color: AppTheme.maroonPrimary,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
                   ),
                 ),
               ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Installment ${item.installmentNumber}',
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                      color: AppTheme.textDark,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    dateStr,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppTheme.textMuted,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  amountStr,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: AppTheme.textDark,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFDCFCE7),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.check_circle, color: Color(0xFF16A34A), size: 12),
+                      SizedBox(width: 4),
+                      Text(
+                        'Paid',
+                        style: TextStyle(
+                          color: Color(0xFF16A34A),
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -358,8 +574,12 @@ class PassbookScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildPaidInstallmentRow(int number, String date) {
-    return Padding(
+  Widget _buildOverdueInstallmentRow(PassbookItemModel item) {
+    final dateStr = item.dueDate != null ? 'Overdue since ${_formatDate(item.dueDate)}' : 'Payment Overdue';
+    final amountStr = _formatCurrency(item.expectedAmount);
+
+    return Container(
+      color: const Color(0xFFFEF2F2),
       padding: const EdgeInsets.all(16),
       child: Row(
         children: [
@@ -367,14 +587,14 @@ class PassbookScreen extends StatelessWidget {
             width: 36,
             height: 36,
             decoration: const BoxDecoration(
-              color: Color(0xFFF9EEF1),
+              color: Color(0xFFFCA5A5),
               shape: BoxShape.circle,
             ),
             child: Center(
               child: Text(
-                '$number',
+                '${item.installmentNumber}',
                 style: const TextStyle(
-                  color: AppTheme.maroonPrimary,
+                  color: Color(0xFF7F1D1D),
                   fontWeight: FontWeight.bold,
                   fontSize: 14,
                 ),
@@ -387,7 +607,7 @@ class PassbookScreen extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Installment $number',
+                  'Installment ${item.installmentNumber}',
                   style: const TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.bold,
@@ -396,42 +616,61 @@ class PassbookScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  date,
+                  dateStr,
                   style: const TextStyle(
                     fontSize: 12,
-                    color: AppTheme.textMuted,
+                    color: Color(0xFFDC2626),
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
               ],
             ),
           ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: const Color(0xFFDCFCE7),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Row(
-              children: [
-                Icon(Icons.check_circle, color: Color(0xFF16A34A), size: 14),
-                SizedBox(width: 4),
-                Text(
-                  'Paid',
-                  style: TextStyle(
-                    color: Color(0xFF16A34A),
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                  ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                amountStr,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: AppTheme.textDark,
                 ),
-              ],
-            ),
+              ),
+              const SizedBox(height: 4),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFEE2E2),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.warning_amber_rounded, color: Color(0xFFDC2626), size: 12),
+                    SizedBox(width: 4),
+                    Text(
+                      'Overdue',
+                      style: TextStyle(
+                        color: Color(0xFFDC2626),
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ],
       ),
     );
   }
 
-  Widget _buildWaitingInstallmentRow(int number, String date) {
+  Widget _buildWaitingInstallmentRow(PassbookItemModel item) {
+    final dateStr = item.dueDate != null ? 'Due by ${_formatDate(item.dueDate)}' : 'Pending Payment';
+    final amountStr = _formatCurrency(item.expectedAmount);
+
     return Container(
       color: const Color(0xFFFEFCE8),
       padding: const EdgeInsets.all(16),
@@ -446,7 +685,7 @@ class PassbookScreen extends StatelessWidget {
             ),
             child: Center(
               child: Text(
-                '$number',
+                '${item.installmentNumber}',
                 style: const TextStyle(
                   color: AppTheme.textDark,
                   fontWeight: FontWeight.bold,
@@ -461,7 +700,7 @@ class PassbookScreen extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Installment $number',
+                  'Installment ${item.installmentNumber}',
                   style: const TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.bold,
@@ -470,7 +709,7 @@ class PassbookScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  date,
+                  dateStr,
                   style: const TextStyle(
                     fontSize: 12,
                     color: AppTheme.textMuted,
@@ -479,33 +718,50 @@ class PassbookScreen extends StatelessWidget {
               ],
             ),
           ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: AppTheme.goldPrimary.withValues(alpha: 0.3),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Row(
-              children: [
-                Icon(Icons.emoji_events, color: AppTheme.goldDark, size: 14),
-                SizedBox(width: 4),
-                Text(
-                  'Waiting',
-                  style: TextStyle(
-                    color: AppTheme.goldDark,
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                  ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                amountStr,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: AppTheme.textDark,
                 ),
-              ],
-            ),
+              ),
+              const SizedBox(height: 4),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: AppTheme.goldPrimary.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.schedule, color: AppTheme.goldDark, size: 12),
+                    SizedBox(width: 4),
+                    Text(
+                      'Due',
+                      style: TextStyle(
+                        color: AppTheme.goldDark,
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ],
       ),
     );
   }
 
-  Widget _buildFutureInstallmentRow(int number, String subtitle) {
+  Widget _buildFutureInstallmentRow(PassbookItemModel item) {
+    final amountStr = _formatCurrency(item.expectedAmount);
+
     return Padding(
       padding: const EdgeInsets.all(16),
       child: Row(
@@ -519,7 +775,7 @@ class PassbookScreen extends StatelessWidget {
             ),
             child: Center(
               child: Text(
-                '$number',
+                '${item.installmentNumber}',
                 style: const TextStyle(
                   color: AppTheme.textMuted,
                   fontWeight: FontWeight.bold,
@@ -534,7 +790,7 @@ class PassbookScreen extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Installment $number',
+                  'Installment ${item.installmentNumber}',
                   style: const TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.bold,
@@ -542,9 +798,9 @@ class PassbookScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 2),
-                Text(
-                  subtitle,
-                  style: const TextStyle(
+                const Text(
+                  'Upcoming Payment',
+                  style: TextStyle(
                     fontSize: 12,
                     color: AppTheme.textMuted,
                   ),
@@ -552,16 +808,31 @@ class PassbookScreen extends StatelessWidget {
               ],
             ),
           ),
-          const Row(
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Icon(Icons.access_time, color: AppTheme.textMuted, size: 14),
-              SizedBox(width: 4),
               Text(
-                'Future',
-                style: TextStyle(
+                amountStr,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
                   color: AppTheme.textMuted,
-                  fontSize: 12,
                 ),
+              ),
+              const SizedBox(height: 4),
+              const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.access_time, color: AppTheme.textMuted, size: 12),
+                  SizedBox(width: 4),
+                  Text(
+                    'Future',
+                    style: TextStyle(
+                      color: AppTheme.textMuted,
+                      fontSize: 11,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),

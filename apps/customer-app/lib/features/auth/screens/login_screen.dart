@@ -1,24 +1,93 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../../app/theme.dart';
 
-class LoginScreen extends StatefulWidget {
+import '../../../app/theme.dart';
+import '../../../core/errors/app_exception.dart';
+import '../../../core/errors/error_handler.dart';
+import '../services/customer_auth_service.dart';
+
+class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
 
   @override
-  State<LoginScreen> createState() => _LoginScreenState();
+  ConsumerState<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _mobileController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
+  bool _isLoading = false;
+  String? _errorMessage;
 
   @override
   void dispose() {
     _mobileController.dispose();
     _passwordController.dispose();
     super.dispose();
+  }
+
+  Future<void> _handleLogin() async {
+    final identifier = _mobileController.text.trim();
+    final password = _passwordController.text.trim();
+
+    if (identifier.isEmpty) {
+      setState(() {
+        _errorMessage = 'Please enter your mobile number or email.';
+      });
+      return;
+    }
+
+    if (password.isEmpty) {
+      setState(() {
+        _errorMessage = 'Please enter your password.';
+      });
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final authService = ref.read(customerAuthServiceProvider);
+
+      // 1. Authenticate via Supabase Auth
+      await authService.signInWithPassword(
+        identifier: identifier,
+        password: password,
+      );
+
+      // 2. Resolve & verify customer identity mapping
+      final identity = await authService.resolveCustomerIdentity();
+
+      if (identity == null || !identity.isCustomerResolved) {
+        // Unlinked account: user exists in auth but has no customer record in public.customers
+        await authService.signOut();
+        if (mounted) {
+          setState(() {
+            _errorMessage = 'Customer account is not linked to a registered customer. Please contact shop support.';
+            _isLoading = false;
+          });
+        }
+        return;
+      }
+
+      // 3. Successful authentication and customer resolution -> Navigate to dashboard
+      if (mounted) {
+        context.go('/');
+      }
+    } catch (e) {
+      final AppException appException = ErrorHandler.normalize(e);
+      if (mounted) {
+        setState(() {
+          _errorMessage = appException.toUserMessage();
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   @override
@@ -150,9 +219,9 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     const SizedBox(height: 16),
 
-                    // Mobile Field
+                    // Mobile / Email Field
                     const Text(
-                      'Mobile Number',
+                      'Mobile Number or Email',
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.bold,
@@ -168,13 +237,14 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       child: TextField(
                         controller: _mobileController,
-                        keyboardType: TextInputType.phone,
+                        enabled: !_isLoading,
+                        keyboardType: TextInputType.emailAddress,
                         decoration: const InputDecoration(
                           prefixIcon: Padding(
                             padding: EdgeInsets.symmetric(horizontal: 12, vertical: 14),
                             child: Text('+91', style: TextStyle(fontWeight: FontWeight.bold, color: AppTheme.textDark, fontSize: 15)),
                           ),
-                          hintText: 'Enter mobile number',
+                          hintText: 'Enter mobile number or email',
                           hintStyle: TextStyle(color: AppTheme.textMuted, fontSize: 14),
                           border: InputBorder.none,
                           contentPadding: EdgeInsets.symmetric(vertical: 14),
@@ -201,6 +271,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       child: TextField(
                         controller: _passwordController,
+                        enabled: !_isLoading,
                         obscureText: _obscurePassword,
                         decoration: InputDecoration(
                           hintText: 'Enter password',
@@ -226,7 +297,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     Align(
                       alignment: Alignment.centerRight,
                       child: TextButton(
-                        onPressed: () {},
+                        onPressed: _isLoading ? null : () {},
                         child: const Text(
                           'Forgot Password?',
                           style: TextStyle(
@@ -237,37 +308,76 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ),
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 4),
+
+                    // Error Banner
+                    if (_errorMessage != null) ...[
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFEF2F2),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFFFCA5A5)),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Icon(Icons.error_outline, color: Color(0xFFDC2626), size: 20),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                _errorMessage!,
+                                style: const TextStyle(
+                                  color: Color(0xFF991B1B),
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
 
                     // Login Button
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
-                        onPressed: () {
-                          context.go('/');
-                        },
+                        onPressed: _isLoading ? null : _handleLogin,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppTheme.maroonPrimary,
+                          disabledBackgroundColor: AppTheme.maroonPrimary.withValues(alpha: 0.6),
                           padding: const EdgeInsets.symmetric(vertical: 16),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(24),
                           ),
                         ),
-                        child: const Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(
-                              'Login',
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
+                        child: _isLoading
+                            ? const SizedBox(
+                                height: 22,
+                                width: 22,
+                                child: CircularProgressIndicator(
+                                  color: Colors.white,
+                                  strokeWidth: 2.5,
+                                ),
+                              )
+                            : const Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text(
+                                    'Login',
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                  SizedBox(width: 8),
+                                  Icon(Icons.arrow_forward, color: Colors.white, size: 20),
+                                ],
                               ),
-                            ),
-                            SizedBox(width: 8),
-                            Icon(Icons.arrow_forward, color: Colors.white, size: 20),
-                          ],
-                        ),
                       ),
                     ),
                     const SizedBox(height: 16),

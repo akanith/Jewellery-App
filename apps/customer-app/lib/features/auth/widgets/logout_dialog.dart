@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../../app/theme.dart';
 
-class LogoutConfirmationDialog extends StatelessWidget {
+import '../../../app/theme.dart';
+import '../services/customer_auth_service.dart';
+
+class LogoutConfirmationDialog extends ConsumerWidget {
   const LogoutConfirmationDialog({super.key});
 
   static Future<void> show(BuildContext context) {
@@ -14,7 +17,7 @@ class LogoutConfirmationDialog extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Dialog(
       backgroundColor: Colors.transparent,
       insetPadding: const EdgeInsets.symmetric(horizontal: 32),
@@ -85,9 +88,12 @@ class LogoutConfirmationDialog extends StatelessWidget {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
-                onPressed: () {
-                  context.pop(); // Close dialog
-                  context.go('/login');
+                onPressed: () async {
+                  await ref.read(customerAuthServiceProvider).signOut();
+                  if (context.mounted) {
+                    context.pop(); // Close dialog
+                    context.go('/login');
+                  }
                 },
                 icon: const Icon(Icons.logout, color: Colors.white, size: 20),
                 label: const Text('Logout'),

@@ -1,3 +1,4 @@
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'app_exception.dart';
 
 /// DART ERROR NORMALIZATION ENGINE
@@ -7,6 +8,30 @@ class ErrorHandler {
   static AppException normalize(dynamic error) {
     if (error is AppException) {
       return error;
+    }
+
+    if (error is AuthException) {
+      final msg = error.message.toLowerCase();
+      if (msg.contains('invalid login credentials') || msg.contains('invalid_credentials')) {
+        return const AppException(
+          message: 'Invalid mobile number or password. Please check your credentials.',
+          type: AppExceptionType.unauthorized,
+          code: 'invalid_credentials',
+        );
+      }
+      if (msg.contains('user not found') || msg.contains('user_not_found')) {
+        return const AppException(
+          message: 'User account not found. Please contact support.',
+          type: AppExceptionType.notFound,
+          code: 'user_not_found',
+        );
+      }
+      return AppException(
+        message: error.message.isNotEmpty ? error.message : 'Authentication failed. Please try again.',
+        type: AppExceptionType.unauthorized,
+        code: error.statusCode,
+        details: error,
+      );
     }
 
     final String message = error.toString();
@@ -39,3 +64,4 @@ class ErrorHandler {
     );
   }
 }
+

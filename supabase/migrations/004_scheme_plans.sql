@@ -22,3 +22,9 @@ CREATE INDEX IF NOT EXISTS idx_scheme_plans_active ON public.scheme_plans(is_act
 CREATE TRIGGER trg_scheme_plans_updated_at
 BEFORE UPDATE ON public.scheme_plans
 FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+
+-- Seed default Diwali Savings Scheme plan
+INSERT INTO public.scheme_plans (code, title, description, monthly_amount, total_installments, bonus_months, discount_percentage, is_active)
+VALUES ('DIWALI-12', 'Diwali Savings Scheme', '11 Months Deposit + 1 Month Bonus Diwali Gold Savings Scheme', 1000.00, 12, 1.00, 0.00, true)
+ON CONFLICT (code) DO NOTHING;
+

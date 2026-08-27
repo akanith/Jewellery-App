@@ -105,6 +105,34 @@ export class SchemeService {
         throw normalizeError(error);
       }
 
+      // If database table is empty, auto-seed default Diwali Savings Scheme plan
+      if (!data || data.length === 0) {
+        try {
+          const seedPayload = {
+            code: 'DIWALI-12',
+            title: 'Diwali Savings Scheme',
+            description: '11 Months Deposit + 1 Month Bonus Diwali Gold Savings Scheme',
+            monthly_amount: 1000,
+            total_installments: 12,
+            bonus_months: 1,
+            discount_percentage: 0,
+            gold_weight_based: false,
+            is_active: true,
+          };
+
+          const { data: seeded, error: seedError } = await supabase
+            .from('scheme_plans')
+            .insert(seedPayload)
+            .select('*');
+
+          if (!seedError && seeded && seeded.length > 0) {
+            return seeded.map((row) => this.mapRowToSchemePlan(row));
+          }
+        } catch (seedErr) {
+          console.error('Auto-seed Diwali Savings Scheme error:', seedErr);
+        }
+      }
+
       return (data ?? []).map((row) => this.mapRowToSchemePlan(row));
     } catch (error) {
       throw normalizeError(error);
@@ -300,6 +328,22 @@ export class SchemeService {
         throw new AppError('Scheme plan selection is required.', ErrorCode.VALIDATION_ERROR, 400);
       }
 
+      // Prevent duplicate active scheme enrollment for the same customer
+      const { data: existingActive } = await supabase
+        .from('customer_schemes')
+        .select('id, scheme_account_number')
+        .eq('customer_id', input.customerId)
+        .eq('status', 'ACTIVE')
+        .maybeSingle();
+
+      if (existingActive) {
+        throw new AppError(
+          `Customer already has an active scheme enrollment (${existingActive.scheme_account_number || 'ACTIVE'}).`,
+          ErrorCode.CONFLICT,
+          409
+        );
+      }
+
       // Verify active user session
       const { data: { user } } = await supabase.auth.getUser();
 
@@ -334,6 +378,37 @@ export class SchemeService {
 
       if (!data) {
         throw new AppError('Failed to create customer scheme enrollment.', ErrorCode.INTERNAL_ERROR, 500);
+      }
+
+      // Generate installment schedule in public.installments
+      try {
+        const installmentsPayload = [];
+        const baseDate = new Date(startDate);
+
+        for (let i = 1; i <= input.totalInstallments; i++) {
+          const dueDateObj = new Date(baseDate);
+          dueDateObj.setMonth(dueDateObj.getMonth() + (i - 1));
+          const dueDateStr = dueDateObj.toISOString().split('T')[0];
+
+          installmentsPayload.push({
+            customer_scheme_id: data.id,
+            installment_number: i,
+            due_date: dueDateStr,
+            expected_amount: input.monthlyAmount,
+            paid_amount: 0,
+            status: 'PENDING',
+          });
+        }
+
+        const { error: instError } = await supabase
+          .from('installments')
+          .insert(installmentsPayload);
+
+        if (instError) {
+          console.error('Failed to create installment schedule rows:', instError);
+        }
+      } catch (scheduleErr) {
+        console.error('Error generating installment schedule:', scheduleErr);
       }
 
       return this.mapRowToCustomerScheme(data);

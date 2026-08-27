@@ -317,7 +317,7 @@ export function RecordInstallmentModal({
                 type="text"
                 value={searchQuery}
                 onChange={(e) => handleSearchCustomers(e.target.value)}
-                placeholder="Search by customer name, mobile or RJ-CUST-ID..."
+                placeholder="Search by customer name, mobile or Customer ID..."
                 className="w-full pl-10 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-medium"
               />
               {isSearching && (

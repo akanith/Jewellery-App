@@ -136,7 +136,7 @@ export default function CustomersListPage() {
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search by name, mobile, or customer number..."
+                placeholder="Search by name, mobile, or Customer ID..."
                 className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
               />
             </div>
@@ -163,7 +163,7 @@ export default function CustomersListPage() {
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col justify-between">
             <div>
               <div className="bg-slate-50 border-b border-slate-200 px-6 py-3.5 grid grid-cols-12 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                <span className="col-span-3">Customer Number</span>
+                <span className="col-span-3">Customer ID</span>
                 <span className="col-span-4">Customer Name</span>
                 <span className="col-span-3">Mobile</span>
                 <span className="col-span-2 text-right">Status</span>
@@ -199,7 +199,7 @@ export default function CustomersListPage() {
                         href={`/customers/${cust.id}`}
                         className="px-6 py-4 grid grid-cols-12 items-center text-xs hover:bg-slate-50 transition-colors group cursor-pointer"
                       >
-                        {/* Customer Number */}
+                        {/* Customer ID */}
                         <div className="col-span-3 font-mono font-bold text-slate-600 group-hover:text-blue-600">
                           {cust.customerNumber}
                         </div>
