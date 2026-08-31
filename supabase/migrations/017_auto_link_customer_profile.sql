@@ -10,7 +10,7 @@ BEGIN
     -- 1. Resolve via direct profile_id link
     SELECT id INTO v_customer_id 
     FROM public.customers 
-    WHERE profile_id = auth.uid() 
+    WHERE profile_id = auth.uid()   
     LIMIT 1;
 
     IF v_customer_id IS NOT NULL THEN

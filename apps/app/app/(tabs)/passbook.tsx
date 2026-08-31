@@ -11,7 +11,7 @@ import {
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '../../store/authStore';
 import { colors, radius, shadows, spacing } from '../../theme';
-import { supabase } from '../../services/supabase/client';
+import CustomerDataService from '../../services/customer/customer-data.service';
 import {
   ArrowLeft,
   HelpCircle,
@@ -65,24 +65,16 @@ export default function PassbookScreen() {
       setIsLoading(true);
       setError(null);
 
-      if (!identity?.customerId) {
+      if (!identity?.mobileNumber) {
         setScheme(null);
         setInstallments([]);
         setIsLoading(false);
         return;
       }
 
-      // 1. Fetch active customer scheme from public.customer_schemes
-      const { data: schemeData, error: schemeErr } = await supabase
-        .from('customer_schemes')
-        .select('*')
-        .eq('customer_id', identity.customerId)
-        .eq('status', 'ACTIVE')
-        .maybeSingle();
-
-      if (schemeErr) {
-        throw new Error(schemeErr.message);
-      }
+      // Fetch via server-side Edge Function (service role) — RLS-safe
+      const { scheme: schemeData, installments: rawList } =
+        await CustomerDataService.fetchPassbook(identity as any);
 
       if (!schemeData) {
         setScheme(null);
@@ -91,29 +83,16 @@ export default function PassbookScreen() {
         return;
       }
 
-      // 2. Fetch installments from public.installments
-      const { data: instData, error: instErr } = await supabase
-        .from('installments')
-        .select('*')
-        .eq('customer_scheme_id', schemeData.id)
-        .order('installment_number', { ascending: true });
-
-      if (instErr) {
-        throw new Error(instErr.message);
-      }
-
-      const rawList = instData || [];
       let paidCount = 0;
       let totalPaid = 0;
 
-      const mappedList: LiveInstallment[] = rawList.map((item, idx) => {
+      const mappedList: LiveInstallment[] = rawList.map((item: any, idx: number) => {
         const isPaid = item.status === 'PAID';
         if (isPaid) {
           paidCount++;
-          totalPaid += Number(item.paid_amount || item.expected_amount || 0);
+          totalPaid += Number(item.paid_amount || item.due_amount || 0);
         }
 
-        // Compute display status: PAID vs WAITING (next due) vs FUTURE
         let displayStatus: 'PAID' | 'PENDING' | 'WAITING' | 'FUTURE' = 'FUTURE';
         if (isPaid) {
           displayStatus = 'PAID';
@@ -125,7 +104,7 @@ export default function PassbookScreen() {
           id: item.id,
           installmentNumber: Number(item.installment_number || idx + 1),
           dueDate: item.due_date ? String(item.due_date) : `Month ${idx + 1}`,
-          expectedAmount: Number(item.expected_amount || schemeData.monthly_amount || 1000),
+          expectedAmount: Number(item.due_amount || schemeData.monthly_amount || 1000),
           paidAmount: item.paid_amount ? Number(item.paid_amount) : null,
           paymentDate: item.payment_date ? String(item.payment_date) : null,
           paymentMethod: item.payment_method ? String(item.payment_method) : null,
@@ -151,6 +130,7 @@ export default function PassbookScreen() {
 
       setInstallments(mappedList);
     } catch (err: any) {
+      console.error('[Passbook] fetchPassbookData error:', err?.message);
       setError(err.message || 'Unable to load your passbook. Please try again.');
     } finally {
       setIsLoading(false);

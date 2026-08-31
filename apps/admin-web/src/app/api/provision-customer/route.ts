@@ -46,8 +46,8 @@ export async function GET() {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://zeltnwyxmhuzoslpthlb.supabase.co';
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'sb_publishable_f380TZdwnJkepy6k9M3uQQ_mPpeg6o1';
 
-    // Provision all existing unprovisioned customers
-    const customersRes = await fetch(`${supabaseUrl}/rest/v1/customers?select=mobile_number,full_name,profile_id`, {
+    // Fetch all customers from database
+    const customersRes = await fetch(`${supabaseUrl}/rest/v1/customers?select=id,mobile_number,full_name,profile_id`, {
       headers: {
         'apikey': key,
         'Authorization': `Bearer ${key}`,
@@ -59,27 +59,37 @@ export async function GET() {
 
     if (Array.isArray(customers)) {
       for (const cust of customers) {
-        if (!cust.profile_id) {
-          const provRes = await fetch(`${supabaseUrl}/functions/v1/customer-auth-activate`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${key}`,
-              'apikey': key,
-            },
-            body: JSON.stringify({
-              mobile: cust.mobile_number,
-              temp_password: '12345',
-              new_password: '12345',
-            }),
-          });
-          const provData = await provRes.json();
-          results.push({ mobile: cust.mobile_number, name: cust.full_name, provData });
-        }
+        // Reconcile and set password to 12345 for ALL customers
+        const provRes = await fetch(`${supabaseUrl}/functions/v1/customer-auth-activate`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${key}`,
+            'apikey': key,
+          },
+          body: JSON.stringify({
+            mobile: cust.mobile_number,
+            full_name: cust.full_name,
+            temp_password: '12345',
+            new_password: '12345',
+          }),
+        });
+        const provData = await provRes.json();
+        results.push({
+          id: cust.id,
+          mobile: cust.mobile_number,
+          name: cust.full_name,
+          status: provRes.ok && provData?.success ? 'PROVISIONED' : 'ERROR',
+          provData,
+        });
       }
     }
 
-    return NextResponse.json({ success: true, reconciled: results });
+    return NextResponse.json({
+      success: true,
+      total_customers: Array.isArray(customers) ? customers.length : 0,
+      reconciled: results,
+    });
   } catch (err: any) {
     return NextResponse.json({ error: err.message || 'Server error' }, { status: 500 });
   }

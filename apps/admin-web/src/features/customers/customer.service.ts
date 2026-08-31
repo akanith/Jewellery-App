@@ -116,7 +116,7 @@ export class CustomerService {
   }
 
   /**
-   * Create a new customer in PostgreSQL public.customers
+   * Create a new customer in PostgreSQL public.customers and automatically provision login account
    */
   static async createCustomer(input: CreateCustomerInput): Promise<Customer> {
     const supabase = this.getSupabase();
@@ -168,7 +168,7 @@ export class CustomerService {
       try {
         const url = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://zeltnwyxmhuzoslpthlb.supabase.co';
         const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'sb_publishable_f380TZdwnJkepy6k9M3uQQ_mPpeg6o1';
-        await fetch(`${url}/functions/v1/customer-auth-activate`, {
+        const provRes = await fetch(`${url}/functions/v1/customer-auth-activate`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -182,8 +182,13 @@ export class CustomerService {
             new_password: '12345',
           }),
         });
-      } catch (provErr) {
-        console.error('Failed to provision customer auth user:', provErr);
+
+        const provData = await provRes.json();
+        if (!provRes.ok || !provData.success) {
+          console.warn('Customer Auth provisioning warning:', provData?.error);
+        }
+      } catch (provErr: any) {
+        console.warn('Customer Auth provisioning exception:', provErr?.message || provErr);
       }
 
       // Re-fetch created customer to include updated profile_id

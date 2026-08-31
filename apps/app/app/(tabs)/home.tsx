@@ -11,7 +11,7 @@ import {
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '../../store/authStore';
 import { colors, radius, shadows, spacing } from '../../theme';
-import { supabase } from '../../services/supabase/client';
+import CustomerDataService from '../../services/customer/customer-data.service';
 import { CustomerDashboardData } from '../../types';
 import { Bell, Calendar, Store, Gift, CheckCircle2, Volume2 } from 'lucide-react-native';
 
@@ -19,92 +19,121 @@ export default function HomeScreen() {
   const router = useRouter();
   const { identity } = useAuthStore();
   const [dashboardData, setDashboardData] = useState<CustomerDashboardData | null>(null);
+  const [recentInstallments, setRecentInstallments] = useState<any[]>([]);
+  const [nextInstallment, setNextInstallment] = useState<any | null>(null);
+  const [schemePlanTitle, setSchemePlanTitle] = useState<string>('Diwali Savings Scheme');
+  const [maturityDateStr, setMaturityDateStr] = useState<string>('29 Aug 2027');
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     fetchDashboardData();
   }, [identity]);
 
+  const formatDate = (dateStr?: string) => {
+    if (!dateStr) return '';
+    try {
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return dateStr;
+      return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+    } catch {
+      return dateStr;
+    }
+  };
+
   const fetchDashboardData = async () => {
     try {
       setIsLoading(true);
-      if (!identity?.customerId) {
+
+      if (!identity?.mobileNumber) {
         setDashboardData(null);
+        setRecentInstallments([]);
         return;
       }
 
-      // Fetch customer scheme
-      const { data: scheme } = await supabase
-        .from('customer_schemes')
-        .select('*')
-        .eq('customer_id', identity.customerId)
-        .eq('status', 'ACTIVE')
-        .maybeSingle();
+      // Fetch live customer dashboard via CustomerDataService
+      const { customer, scheme, schemePlanTitle: planTitle, installments: list } =
+        await CustomerDataService.fetchDashboard(identity as any);
+
+      if (planTitle) setSchemePlanTitle(planTitle);
+
+      const custName = customer?.full_name || identity.fullName;
+      const custNum = customer?.customer_number || identity.customerNumber || '';
 
       if (!scheme) {
         setDashboardData({
-          customerId: identity.customerId,
-          customerNumber: identity.customerNumber || '',
-          customerName: identity.fullName,
+          customerId: customer?.id || identity.customerId,
+          customerNumber: custNum,
+          customerName: custName,
           mobileNumber: identity.mobileNumber,
         });
+        setRecentInstallments([]);
+        setNextInstallment(null);
         return;
       }
 
-      // Fetch installments
-      const { data: installments } = await supabase
-        .from('installments')
-        .select('*')
-        .eq('customer_scheme_id', scheme.id)
-        .order('installment_number', { ascending: true });
+      // Format maturity date from live DB
+      if (scheme.maturity_date) {
+        setMaturityDateStr(formatDate(scheme.maturity_date));
+      }
 
-      const list = installments || [];
       let paidCount = 0;
       let totalPaid = 0;
+      const paidItems: any[] = [];
+      let unpaidNext: any = null;
 
       for (const item of list) {
         if (item.status === 'PAID') {
           paidCount++;
-          totalPaid += Number(item.paid_amount || 0);
+          totalPaid += Number(item.paid_amount || item.expected_amount || item.due_amount || 0);
+          paidItems.push(item);
+        } else if (!unpaidNext) {
+          unpaidNext = item;
         }
       }
+
+      setRecentInstallments(paidItems.slice(-3).reverse());
+      setNextInstallment(unpaidNext);
 
       const totalInstallments = Number(scheme.total_installments || 12);
       const monthlyAmount = Number(scheme.monthly_amount || 1000);
       const totalSchemeValue = monthlyAmount * totalInstallments;
-      const remainingAmount = Math.max(0, totalSchemeValue - totalPaid);
-      const progressPercentage = Math.min(100, (paidCount / totalInstallments) * 100);
+      const dbTotalPaid = scheme.total_amount_paid ? Number(scheme.total_amount_paid) : totalPaid;
+      const dbPaidCount = scheme.paid_installments_count ? Number(scheme.paid_installments_count) : paidCount;
+      const remainingAmount = Math.max(0, totalSchemeValue - dbTotalPaid);
+      const progressPercentage = Math.min(100, (dbPaidCount / totalInstallments) * 100);
 
       setDashboardData({
-        customerId: identity.customerId,
-        customerNumber: identity.customerNumber || '',
-        customerName: identity.fullName,
+        customerId: customer?.id || identity.customerId,
+        customerNumber: custNum,
+        customerName: custName,
         mobileNumber: identity.mobileNumber,
         schemeId: scheme.id,
         schemeAccountNumber: scheme.scheme_account_number,
         schemeStatus: scheme.status,
         monthlyAmount,
         totalInstallments,
-        paidInstallmentsCount: paidCount,
-        totalAmountPaid: totalPaid,
+        paidInstallmentsCount: dbPaidCount,
+        totalAmountPaid: dbTotalPaid,
         totalSchemeValue,
         remainingAmount,
         progressPercentage,
       });
-    } catch {
-      // Fallback state
+    } catch (err: any) {
+      console.error('[Home] fetchDashboardData error:', err?.message);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const displayName = identity?.fullName || 'Valued Customer';
-  const displayId = identity?.customerNumber || 'CUST-001';
-  const paidCount = dashboardData?.paidInstallmentsCount ?? 8;
+  const displayName = dashboardData?.customerName || identity?.fullName || 'Valued Customer';
+  const displayId = dashboardData?.schemeAccountNumber || identity?.customerNumber || 'RJ-SCH-0050005';
+  const paidCount = dashboardData?.paidInstallmentsCount ?? 0;
   const totalInst = dashboardData?.totalInstallments ?? 12;
-  const totalPaidFormatted = dashboardData?.totalAmountPaid ? `₹${dashboardData.totalAmountPaid.toLocaleString('en-IN')}` : '₹8,000';
-  const remainingFormatted = dashboardData?.remainingAmount ? `₹${dashboardData.remainingAmount.toLocaleString('en-IN')}` : '₹4,000';
-  const progressPercent = dashboardData?.progressPercentage ?? 66;
+  const totalPaidFormatted = `₹${(dashboardData?.totalAmountPaid || 0).toLocaleString('en-IN')}`;
+  const remainingFormatted = `₹${(dashboardData?.remainingAmount || 0).toLocaleString('en-IN')}`;
+  const progressPercent = dashboardData?.progressPercentage ?? 0;
+  const nextDateFormatted = formatDate(nextInstallment?.due_date) || '28 Oct 2026';
+  const nextAmountFormatted = `₹${(nextInstallment?.expected_amount || dashboardData?.monthlyAmount || 1000).toLocaleString('en-IN')}`;
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -129,9 +158,9 @@ export default function HomeScreen() {
         {/* Gold Savings Scheme Gradient Card */}
         <View style={styles.schemeCard}>
           <View style={styles.schemeHeaderRow}>
-            <Text style={styles.schemeLabel}>GOLD SAVINGS SCHEME</Text>
+            <Text style={styles.schemeLabel}>{schemePlanTitle.toUpperCase()}</Text>
             <View style={styles.idBadge}>
-              <Text style={styles.idBadgeText}>ID: {displayId}</Text>
+              <Text style={styles.idBadgeText}>ACC: {displayId}</Text>
             </View>
           </View>
 
@@ -154,8 +183,8 @@ export default function HomeScreen() {
           {/* Footer Info Row */}
           <View style={styles.schemeFooterRow}>
             <View>
-              <Text style={styles.footerLabel}>Next Maturity</Text>
-              <Text style={styles.footerValue}>May 2027</Text>
+              <Text style={styles.footerLabel}>Maturity Date</Text>
+              <Text style={styles.footerValue}>{maturityDateStr}</Text>
             </View>
             <View style={{ alignItems: 'flex-end' }}>
               <Text style={styles.footerLabel}>Remaining</Text>
@@ -171,78 +200,65 @@ export default function HomeScreen() {
               <Calendar size={22} color={colors.maroonPrimary} />
             </View>
             <View style={{ flex: 1, marginLeft: 12 }}>
-              <Text style={styles.nextPaymentLabel}>Next Payment</Text>
-              <Text style={styles.nextPaymentDate}>05 August 2026</Text>
-              <Text style={styles.nextPaymentAmount}>₹1,000</Text>
+              <Text style={styles.nextPaymentLabel}>Next Payment (Installment #{nextInstallment?.installment_number || 3})</Text>
+              <Text style={styles.nextPaymentDate}>{nextDateFormatted}</Text>
+              <Text style={styles.nextPaymentAmount}>{nextAmountFormatted}</Text>
             </View>
             <View style={styles.onTimeBadge}>
-              <Text style={styles.onTimeText}>ON TIME</Text>
+              <Text style={styles.onTimeText}>UPCOMING</Text>
             </View>
           </View>
+        </View>
 
-          <TouchableOpacity style={styles.payAtShopButton} activeOpacity={0.85}>
-            <Store size={20} color={colors.maroonPrimary} style={{ marginRight: 8 }} />
-            <Text style={styles.payAtShopText}>Pay at Shop</Text>
+        {/* Quick Actions Grid */}
+        <View style={styles.quickActionsGrid}>
+          <TouchableOpacity style={styles.actionCard} onPress={() => router.push('/(tabs)/passbook')}>
+            <View style={[styles.actionIconContainer, { backgroundColor: '#FDF2F2' }]}>
+              <Gift size={24} color={colors.maroonPrimary} />
+            </View>
+            <Text style={styles.actionCardTitle}>Passbook</Text>
+            <Text style={styles.actionCardSub}>View Installments</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.actionCard} onPress={() => router.push('/support/shop')}>
+            <View style={[styles.actionIconContainer, { backgroundColor: '#FEF3C7' }]}>
+              <Store size={24} color="#D97706" />
+            </View>
+            <Text style={styles.actionCardTitle}>Visit Store</Text>
+            <Text style={styles.actionCardSub}>Showroom Info</Text>
           </TouchableOpacity>
         </View>
 
-        {/* Bonus Benefit Dotted Card */}
-        <View style={styles.bonusCard}>
-          <View style={styles.giftBadge}>
-            <Gift size={22} color={colors.maroonPrimary} />
-          </View>
-          <View style={{ flex: 1, marginLeft: 12 }}>
-            <Text style={styles.bonusTitle}>You will receive ₹13,000</Text>
-            <Text style={styles.bonusSub}>Includes ₹1,000 Shop Bonus at maturity.</Text>
-          </View>
-        </View>
-
-        {/* Recent Payments Section */}
-        <View style={styles.recentSectionHeader}>
+        {/* Recent Activity Section */}
+        <View style={styles.sectionHeaderRow}>
           <Text style={styles.sectionTitle}>Recent Payments</Text>
           <TouchableOpacity onPress={() => router.push('/(tabs)/passbook')}>
-            <Text style={styles.viewFullText}>View Full Passbook →</Text>
+            <Text style={styles.viewAllText}>View All</Text>
           </TouchableOpacity>
         </View>
 
-        {/* Recent Payments Table Card */}
-        <View style={styles.tableCard}>
-          <View style={styles.tableHeaderRow}>
-            <Text style={[styles.colHeader, { flex: 1.2 }]}>MONTH</Text>
-            <Text style={[styles.colHeader, { flex: 1, textAlign: 'center' }]}>AMOUNT</Text>
-            <Text style={[styles.colHeader, { flex: 1, textAlign: 'right' }]}>STATUS</Text>
+        {recentInstallments.length === 0 ? (
+          <View style={styles.emptyCard}>
+            <Text style={styles.emptyText}>No recent payments recorded.</Text>
           </View>
-
-          <View style={styles.tableRow}>
-            <Text style={[styles.cellTextBold, { flex: 1.2 }]}>July 2026</Text>
-            <Text style={[styles.cellTextBold, { flex: 1, textAlign: 'center' }]}>₹1,000</Text>
-            <View style={{ flex: 1, alignItems: 'flex-end' }}>
-              <CheckCircle2 size={20} color={colors.successGreen} />
+        ) : (
+          recentInstallments.map((inst, index) => (
+            <View key={inst.id || index} style={styles.paymentRow}>
+              <View style={styles.paymentCheckCircle}>
+                <CheckCircle2 size={18} color="#166534" />
+              </View>
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <Text style={styles.paymentTitle}>Installment #{inst.installment_number}</Text>
+                <Text style={styles.paymentSub}>
+                  {formatDate(inst.payment_date || inst.due_date)} • {inst.payment_method || 'Paid'}
+                </Text>
+              </View>
+              <Text style={styles.paymentAmount}>
+                +₹{(inst.paid_amount || inst.expected_amount || 1000).toLocaleString('en-IN')}
+              </Text>
             </View>
-          </View>
-
-          <View style={styles.tableRow}>
-            <Text style={[styles.cellTextBold, { flex: 1.2 }]}>June 2026</Text>
-            <Text style={[styles.cellTextBold, { flex: 1, textAlign: 'center' }]}>₹1,000</Text>
-            <View style={{ flex: 1, alignItems: 'flex-end' }}>
-              <CheckCircle2 size={20} color={colors.successGreen} />
-            </View>
-          </View>
-
-          <View style={styles.tableRowNoBorder}>
-            <Text style={[styles.cellTextBold, { flex: 1.2 }]}>May 2026</Text>
-            <Text style={[styles.cellTextBold, { flex: 1, textAlign: 'center' }]}>₹1,000</Text>
-            <View style={{ flex: 1, alignItems: 'flex-end' }}>
-              <CheckCircle2 size={20} color={colors.successGreen} />
-            </View>
-          </View>
-        </View>
-
-        {/* Notice Banner */}
-        <View style={styles.noticeBox}>
-          <Volume2 size={18} color={colors.textMuted} style={{ marginRight: 10 }} />
-          <Text style={styles.noticeText}>Shop closed on Sunday. Happy Holidays!</Text>
-        </View>
+          ))
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -251,21 +267,20 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: colors.creamBackground,
+    backgroundColor: colors.bgLight,
   },
   scrollContent: {
-    paddingHorizontal: spacing.xl,
-    paddingTop: spacing.md,
-    paddingBottom: spacing.xxl,
+    padding: spacing.lg,
+    paddingBottom: 40,
   },
   headerRow: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: spacing.xl,
+    alignItems: 'center',
+    marginBottom: spacing.lg,
   },
   greetingText: {
-    fontSize: 13,
+    fontSize: 14,
     color: colors.textMuted,
     fontWeight: '500',
   },
@@ -278,17 +293,16 @@ const styles = StyleSheet.create({
   headerActions: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 12,
   },
   bellButton: {
-    width: 42,
-    height: 42,
-    borderRadius: radius.full,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: colors.cardWhite,
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: colors.borderSubtle,
-    marginRight: spacing.sm,
+    ...shadows.sm,
   },
   bellBadge: {
     position: 'absolute',
@@ -296,28 +310,28 @@ const styles = StyleSheet.create({
     right: 10,
     width: 8,
     height: 8,
-    borderRadius: radius.full,
-    backgroundColor: colors.errorRed,
+    borderRadius: 4,
+    backgroundColor: colors.goldSecondary,
   },
   avatarCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: radius.full,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     backgroundColor: colors.maroonPrimary,
     justifyContent: 'center',
     alignItems: 'center',
   },
   avatarText: {
-    color: colors.cardWhite,
+    color: '#FFF',
     fontSize: 18,
     fontWeight: '700',
   },
   schemeCard: {
-    backgroundColor: '#6B1D2F',
-    borderRadius: radius.xxl,
+    backgroundColor: colors.maroonPrimary,
+    borderRadius: radius.xl,
     padding: spacing.xl,
-    marginBottom: spacing.xl,
-    ...shadows.card,
+    marginBottom: spacing.lg,
+    ...shadows.md,
   },
   schemeHeaderRow: {
     flexDirection: 'row',
@@ -326,21 +340,21 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   schemeLabel: {
-    fontSize: 11,
+    color: colors.goldSecondary,
+    fontSize: 12,
     fontWeight: '800',
-    color: colors.goldLight,
-    letterSpacing: 1.2,
+    letterSpacing: 1,
   },
   idBadge: {
     backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    borderRadius: radius.full,
     paddingHorizontal: 10,
     paddingVertical: 4,
+    borderRadius: radius.full,
   },
   idBadgeText: {
+    color: '#FFF',
     fontSize: 11,
-    fontWeight: '700',
-    color: colors.cardWhite,
+    fontWeight: '600',
   },
   amountRow: {
     flexDirection: 'row',
@@ -348,18 +362,18 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
   },
   amountMainText: {
-    fontSize: 36,
+    color: '#FFF',
+    fontSize: 32,
     fontWeight: '800',
-    color: colors.cardWhite,
   },
   paidTag: {
-    fontSize: 16,
+    color: colors.goldLight,
+    fontSize: 14,
     fontWeight: '600',
-    color: 'rgba(255, 255, 255, 0.8)',
     marginLeft: 8,
   },
   progressSection: {
-    marginBottom: spacing.xl,
+    marginBottom: spacing.lg,
   },
   progressLabelRow: {
     flexDirection: 'row',
@@ -367,136 +381,124 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   progressText: {
-    fontSize: 13,
-    color: 'rgba(255, 255, 255, 0.9)',
-    fontWeight: '600',
+    color: '#E5E7EB',
+    fontSize: 12,
+    fontWeight: '500',
   },
   percentText: {
-    fontSize: 13,
-    color: colors.goldLight,
+    color: colors.goldSecondary,
+    fontSize: 12,
     fontWeight: '700',
   },
   progressBarTrack: {
-    height: 10,
-    backgroundColor: 'rgba(0, 0, 0, 0.25)',
-    borderRadius: radius.full,
+    height: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 4,
     overflow: 'hidden',
   },
   progressBarFill: {
     height: '100%',
-    backgroundColor: colors.goldLight,
-    borderRadius: radius.full,
+    backgroundColor: colors.goldSecondary,
+    borderRadius: 4,
   },
   schemeFooterRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    paddingTop: spacing.md,
     borderTopWidth: 1,
     borderTopColor: 'rgba(255, 255, 255, 0.15)',
-    paddingTop: spacing.md,
   },
   footerLabel: {
+    color: '#9CA3AF',
     fontSize: 11,
-    color: 'rgba(255, 255, 255, 0.7)',
+    fontWeight: '500',
   },
   footerValue: {
-    fontSize: 15,
+    color: '#FFF',
+    fontSize: 14,
     fontWeight: '700',
-    color: colors.cardWhite,
     marginTop: 2,
   },
   nextPaymentCard: {
     backgroundColor: colors.cardWhite,
-    borderRadius: radius.xxl,
-    padding: spacing.xl,
-    borderWidth: 1,
-    borderColor: colors.borderSubtle,
-    marginBottom: spacing.xl,
-    ...shadows.soft,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+    marginBottom: spacing.lg,
+    borderLeftWidth: 4,
+    borderLeftColor: colors.goldSecondary,
+    ...shadows.sm,
   },
   nextPaymentHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: spacing.lg,
   },
   calendarBadge: {
-    width: 48,
-    height: 48,
-    borderRadius: radius.lg,
-    backgroundColor: '#F8FAFC',
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: '#FDF2F2',
     justifyContent: 'center',
     alignItems: 'center',
   },
   nextPaymentLabel: {
     fontSize: 12,
     color: colors.textMuted,
-    fontWeight: '600',
+    fontWeight: '500',
   },
   nextPaymentDate: {
-    fontSize: 18,
-    fontWeight: '800',
+    fontSize: 16,
+    fontWeight: '700',
     color: colors.textDark,
     marginTop: 2,
   },
   nextPaymentAmount: {
-    fontSize: 16,
-    fontWeight: '800',
+    fontSize: 14,
+    fontWeight: '700',
     color: colors.maroonPrimary,
     marginTop: 2,
   },
   onTimeBadge: {
-    backgroundColor: colors.successBg,
-    borderRadius: radius.full,
-    paddingHorizontal: 10,
+    backgroundColor: '#DCFCE7',
+    paddingHorizontal: 8,
     paddingVertical: 4,
+    borderRadius: radius.sm,
   },
   onTimeText: {
-    fontSize: 11,
+    color: '#166534',
+    fontSize: 10,
     fontWeight: '800',
-    color: colors.successGreen,
   },
-  payAtShopButton: {
+  quickActionsGrid: {
     flexDirection: 'row',
-    height: 50,
-    backgroundColor: colors.goldLight,
-    borderRadius: radius.xl,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  payAtShopText: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: colors.maroonPrimary,
-  },
-  bonusCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FEFCE8',
-    borderRadius: radius.xxl,
-    padding: spacing.lg,
-    borderWidth: 1.5,
-    borderColor: colors.goldPrimary,
-    borderStyle: 'dashed',
+    gap: spacing.md,
     marginBottom: spacing.xl,
   },
-  giftBadge: {
+  actionCard: {
+    flex: 1,
+    backgroundColor: colors.cardWhite,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+    ...shadows.sm,
+  },
+  actionIconContainer: {
     width: 44,
     height: 44,
-    borderRadius: radius.full,
-    backgroundColor: colors.goldLight,
+    borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
+    marginBottom: spacing.md,
   },
-  bonusTitle: {
-    fontSize: 16,
-    fontWeight: '800',
+  actionCardTitle: {
+    fontSize: 15,
+    fontWeight: '700',
     color: colors.textDark,
   },
-  bonusSub: {
+  actionCardSub: {
     fontSize: 12,
     color: colors.textMuted,
     marginTop: 2,
   },
-  recentSectionHeader: {
+  sectionHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
@@ -504,60 +506,55 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 18,
-    fontWeight: '800',
+    fontWeight: '700',
     color: colors.textDark,
   },
-  viewFullText: {
+  viewAllText: {
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '600',
     color: colors.maroonPrimary,
   },
-  tableCard: {
+  emptyCard: {
     backgroundColor: colors.cardWhite,
-    borderRadius: radius.xxl,
-    padding: spacing.lg,
-    borderWidth: 1,
-    borderColor: colors.borderSubtle,
-    marginBottom: spacing.xl,
-    ...shadows.soft,
+    borderRadius: radius.md,
+    padding: spacing.xl,
+    alignItems: 'center',
+    ...shadows.sm,
   },
-  tableHeaderRow: {
-    flexDirection: 'row',
-    paddingBottom: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.borderInput,
-  },
-  colHeader: {
-    fontSize: 11,
-    fontWeight: '800',
+  emptyText: {
     color: colors.textMuted,
+    fontSize: 14,
   },
-  tableRow: {
+  paymentRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.borderSubtle,
+    backgroundColor: colors.cardWhite,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    marginBottom: spacing.sm,
+    ...shadows.sm,
   },
-  tableRowNoBorder: {
-    flexDirection: 'row',
+  paymentCheckCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#DCFCE7',
+    justifyContent: 'center',
     alignItems: 'center',
-    paddingTop: spacing.md,
   },
-  cellTextBold: {
-    fontSize: 15,
+  paymentTitle: {
+    fontSize: 14,
     fontWeight: '700',
     color: colors.textDark,
   },
-  noticeBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F1F5F9',
-    borderRadius: radius.lg,
-    padding: spacing.md,
-  },
-  noticeText: {
-    fontSize: 12.5,
+  paymentSub: {
+    fontSize: 12,
     color: colors.textMuted,
+    marginTop: 2,
+  },
+  paymentAmount: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#166534',
   },
 });

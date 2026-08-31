@@ -1,42 +1,49 @@
 import { create } from 'zustand';
-import { CustomerIdentity, SupportedLanguage } from '../types';
+import { CustomerSession, SupportedLanguage } from '../types';
 import AuthService from '../services/auth/auth.service';
-import { supabase } from '../services/supabase/client';
 
 interface AuthState {
-  identity: CustomerIdentity | null;
+  /** Resolved customer session — null means not logged in */
+  session: CustomerSession | null;
+  /** Keep 'identity' as alias for backward compat with dashboard screens */
+  identity: CustomerSession | null;
   language: SupportedLanguage;
   isLoading: boolean;
   isInitialized: boolean;
+
   setLanguage: (lang: SupportedLanguage) => void;
+  /** Restore session from AsyncStorage on app startup */
   initializeAuth: () => Promise<void>;
-  signInWithMobile: (mobile: string, pass: string) => Promise<void>;
+  /** Login with 10-digit mobile number only */
+  signInWithMobile: (mobile: string) => Promise<void>;
+  /** Sign out and clear session */
   signOut: () => Promise<void>;
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
+  session: null,
   identity: null,
   language: 'en',
   isLoading: false,
   isInitialized: false,
 
-  setLanguage: (lang: SupportedLanguage) => set({ language: lang }),
+  setLanguage: (lang) => set({ language: lang }),
 
   initializeAuth: async () => {
     try {
       set({ isLoading: true });
-      const identity = await AuthService.resolveCustomerIdentity();
-      set({ identity, isInitialized: true, isLoading: false });
+      const session = await AuthService.restoreSession();
+      set({ session, identity: session, isInitialized: true, isLoading: false });
     } catch {
-      set({ identity: null, isInitialized: true, isLoading: false });
+      set({ session: null, identity: null, isInitialized: true, isLoading: false });
     }
   },
 
-  signInWithMobile: async (mobile: string, pass: string) => {
+  signInWithMobile: async (mobile: string) => {
     set({ isLoading: true });
     try {
-      const identity = await AuthService.signInWithMobile(mobile, pass);
-      set({ identity, isLoading: false });
+      const session = await AuthService.signInWithMobile(mobile);
+      set({ session, identity: session, isLoading: false });
     } catch (err) {
       set({ isLoading: false });
       throw err;
@@ -48,17 +55,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     try {
       await AuthService.signOut();
     } finally {
-      set({ identity: null, isLoading: false });
+      set({ session: null, identity: null, isLoading: false });
     }
   },
 }));
-
-// Listen to Supabase auth state changes
-supabase.auth.onAuthStateChange(async (event) => {
-  if (event === 'SIGNED_OUT') {
-    useAuthStore.setState({ identity: null, isLoading: false });
-  } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-    const identity = await AuthService.resolveCustomerIdentity();
-    useAuthStore.setState({ identity, isLoading: false });
-  }
-});

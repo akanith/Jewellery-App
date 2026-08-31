@@ -11,7 +11,7 @@ import {
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '../../store/authStore';
 import { colors, radius, shadows, spacing } from '../../theme';
-import { supabase } from '../../services/supabase/client';
+import CustomerDataService from '../../services/customer/customer-data.service';
 import { NotificationItem } from '../../types';
 import {
   ArrowLeft,
@@ -42,24 +42,16 @@ export default function NotificationsScreen() {
       setIsLoading(true);
       setError(null);
 
-      let query = supabase
-        .from('notifications')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (identity?.customerId) {
-        query = query.or(`customer_id.eq.${identity.customerId},customer_id.is.null`);
-      } else {
-        query = query.is('customer_id', null);
+      if (!identity?.mobileNumber) {
+        setNotifications([]);
+        setIsLoading(false);
+        return;
       }
 
-      const { data, error: fetchErr } = await query;
+      // Fetch via server-side Edge Function (service role) — RLS-safe
+      const rows = await CustomerDataService.fetchNotifications(identity as any);
 
-      if (fetchErr) {
-        throw new Error(fetchErr.message);
-      }
-
-      const mapped: NotificationItem[] = (data || []).map((row) => ({
+      const mapped: NotificationItem[] = rows.map((row: any) => ({
         id: String(row.id),
         customerId: row.customer_id ? String(row.customer_id) : null,
         title: String(row.title ?? 'Notification'),
@@ -72,21 +64,18 @@ export default function NotificationsScreen() {
 
       setNotifications(mapped);
     } catch (err: any) {
+      console.error('[Notifications] fetchNotifications error:', err?.message);
       setError(err.message || 'Unable to load notifications.');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const markAsRead = async (id: string) => {
-    try {
-      await supabase.from('notifications').update({ is_read: true }).eq('id', id);
-      setNotifications((prev) =>
-        prev.map((n) => (n.id === id ? { ...n, isRead: true } : n))
-      );
-    } catch {
-      // Ignore update failure
-    }
+  const markAsRead = (id: string) => {
+    // Optimistic local update only
+    setNotifications((prev) =>
+      prev.map((n) => (n.id === id ? { ...n, isRead: true } : n))
+    );
   };
 
   const unreadCount = notifications.filter((n) => !n.isRead).length;

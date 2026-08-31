@@ -24,6 +24,22 @@ export interface Customer {
   updatedAt: string;
 }
 
+/**
+ * Application-level customer session.
+ * Stored in AsyncStorage. No passwords, no auth tokens.
+ * Established by mobile-number lookup via Edge Function.
+ */
+export interface CustomerSession {
+  customerId: string;
+  customerNumber: string | null;
+  fullName: string;
+  mobileNumber: string;
+}
+
+/**
+ * @deprecated Use CustomerSession instead.
+ * Kept temporarily for components still using identity?.customerId etc.
+ */
 export interface CustomerIdentity {
   profileId: string;
   customerId: string | null;

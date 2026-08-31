@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import { useRouter } from 'expo-router';
 import { useAuthStore } from '../../store/authStore';
 import { colors, radius, shadows, spacing } from '../../theme';
 import LogoutModal from '../../components/modals/LogoutModal';
+import CustomerDataService from '../../services/customer/customer-data.service';
 import {
   Pencil,
   CheckCircle,
@@ -27,16 +28,78 @@ import {
   Star,
   LogOut,
   ChevronRight,
+  ShieldCheck,
 } from 'lucide-react-native';
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const { identity, signOut, isLoading } = useAuthStore();
+  const { identity, signOut } = useAuthStore();
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [profileData, setProfileData] = useState<{
+    customerName: string;
+    customerNumber: string;
+    mobileNumber: string;
+    schemeTitle: string;
+    schemeAccNumber: string;
+    paidCount: number;
+    totalInstallments: number;
+    monthlyAmount: number;
+    nextDueDate: string;
+  }>({
+    customerName: identity?.fullName || 'Valued Customer',
+    customerNumber: identity?.customerNumber || 'RJ-SCH-0050005',
+    mobileNumber: identity?.mobileNumber ? `+91 ${identity.mobileNumber}` : '+91 87781 73681',
+    schemeTitle: 'Diwali Savings Scheme',
+    schemeAccNumber: identity?.customerNumber || 'RJ-SCH-0050005',
+    paidCount: 2,
+    totalInstallments: 12,
+    monthlyAmount: 1000,
+    nextDueDate: '28 Oct 2026',
+  });
 
-  const displayName = identity?.fullName || 'Anith Kumar';
-  const displayId = identity?.customerNumber || 'GS-2024-089';
-  const displayMobile = identity?.mobileNumber ? `+91 ${identity.mobileNumber}` : '+91 98765 43210';
+  useEffect(() => {
+    loadProfileDetails();
+  }, [identity]);
+
+  const loadProfileDetails = async () => {
+    if (!identity?.mobileNumber) return;
+    try {
+      const data = await CustomerDataService.fetchDashboard(identity as any);
+      if (data) {
+        const custName = data.customer?.full_name || identity.fullName || 'Valued Customer';
+        const custNum = data.scheme?.scheme_account_number || identity.customerNumber || 'RJ-SCH-0050005';
+        const title = data.schemePlanTitle || 'Diwali Savings Scheme';
+        const paid = data.scheme?.paid_installments_count ?? 2;
+        const total = data.scheme?.total_installments ?? 12;
+        const monthly = data.scheme?.monthly_amount ?? 1000;
+
+        // Find next due date
+        const unpaid = data.installments?.find((i: any) => i.status !== 'PAID');
+        let dueDate = '28 Oct 2026';
+        if (unpaid?.due_date) {
+          try {
+            dueDate = new Date(unpaid.due_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+          } catch {
+            dueDate = unpaid.due_date;
+          }
+        }
+
+        setProfileData({
+          customerName: custName,
+          customerNumber: custNum,
+          mobileNumber: `+91 ${data.customer?.mobile_number || identity.mobileNumber}`,
+          schemeTitle: title,
+          schemeAccNumber: custNum,
+          paidCount: paid,
+          totalInstallments: total,
+          monthlyAmount: monthly,
+          nextDueDate: dueDate,
+        });
+      }
+    } catch {
+      /* ignore */
+    }
+  };
 
   const handleLogoutConfirm = async () => {
     try {
@@ -48,14 +111,13 @@ export default function ProfileScreen() {
     }
   };
 
+  const progressPercent = Math.min(100, Math.round((profileData.paidCount / profileData.totalInstallments) * 100));
+
   return (
     <SafeAreaView style={styles.safeArea}>
       {/* Header Bar */}
       <View style={styles.headerBar}>
         <Text style={styles.headerTitle}>My Profile</Text>
-        <TouchableOpacity style={styles.editButton}>
-          <Pencil size={18} color={colors.maroonPrimary} />
-        </TouchableOpacity>
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
@@ -63,19 +125,19 @@ export default function ProfileScreen() {
         <View style={styles.profileCard}>
           <View style={styles.avatarContainer}>
             <View style={styles.avatarCircle}>
-              <Text style={styles.avatarInitial}>{displayName.charAt(0)}</Text>
+              <Text style={styles.avatarInitial}>{profileData.customerName.charAt(0)}</Text>
             </View>
             <View style={styles.verifiedBadge}>
               <CheckCircle size={14} color="#854D0E" />
             </View>
           </View>
 
-          <Text style={styles.userName}>{displayName}</Text>
-          <Text style={styles.userIdText}>ID: {displayId}</Text>
-          <Text style={styles.userMobileText}>{displayMobile}</Text>
+          <Text style={styles.userName}>{profileData.customerName}</Text>
+          <Text style={styles.userIdText}>ACC: {profileData.schemeAccNumber}</Text>
+          <Text style={styles.userMobileText}>{profileData.mobileNumber}</Text>
 
           <View style={styles.schemePill}>
-            <Text style={styles.schemePillText}>🏆 SWARNA LAKSHMI SCHEME</Text>
+            <Text style={styles.schemePillText}>🏆 {profileData.schemeTitle.toUpperCase()}</Text>
           </View>
         </View>
 
@@ -86,77 +148,29 @@ export default function ProfileScreen() {
               <PiggyBank size={18} color={colors.maroonPrimary} style={{ marginRight: 6 }} />
               <Text style={styles.cardSectionLabel}>CURRENT SCHEME</Text>
             </View>
-            <Text style={styles.paidStatusText}>8/12 Paid</Text>
+            <Text style={styles.paidStatusText}>{profileData.paidCount}/{profileData.totalInstallments} Paid</Text>
           </View>
 
-          <Text style={styles.schemeTitle}>Gold Savings</Text>
-          <Text style={styles.schemeSub}>₹1,000 Monthly | 12 Months</Text>
+          <Text style={styles.schemeTitle}>{profileData.schemeTitle}</Text>
+          <Text style={styles.schemeSub}>₹{profileData.monthlyAmount.toLocaleString('en-IN')} Monthly | {profileData.totalInstallments} Months</Text>
 
           <View style={styles.progressTrack}>
-            <View style={[styles.progressFill, { width: '66%' }]} />
+            <View style={[styles.progressFill, { width: `${progressPercent}%` }]} />
           </View>
 
-          <Text style={styles.nextDueText}>Next payment due: 15 Oct 2024</Text>
+          <Text style={styles.nextDueText}>Next payment due: {profileData.nextDueDate}</Text>
         </View>
 
-        {/* Personal Details Card */}
-        <View style={styles.detailsCard}>
-          <Text style={styles.cardSectionLabel}>PERSONAL DETAILS</Text>
-
-          <View style={styles.detailRow}>
-            <View style={styles.detailIconBadge}>
-              <MapPin size={16} color={colors.maroonPrimary} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.detailLabel}>ADDRESS</Text>
-              <Text style={styles.detailValue}>
-                No. 45, Gandhi Street, T. Nagar, Chennai - 600017
-              </Text>
-            </View>
-          </View>
-
-          <View style={{ flexDirection: 'row', marginTop: spacing.md }}>
-            <View style={{ flex: 1, flexDirection: 'row' }}>
-              <View style={styles.detailIconBadge}>
-                <Calendar size={16} color={colors.maroonPrimary} />
-              </View>
-              <View>
-                <Text style={styles.detailLabel}>JOIN DATE</Text>
-                <Text style={styles.detailValue}>15 Jan 2024</Text>
-              </View>
-            </View>
-
-            <View style={{ flex: 1, flexDirection: 'row' }}>
-              <View style={styles.detailIconBadge}>
-                <UserPlus size={16} color={colors.maroonPrimary} />
-              </View>
-              <View>
-                <Text style={styles.detailLabel}>NOMINEE</Text>
-                <Text style={styles.detailValue}>S. Meena (Wife)</Text>
-              </View>
-            </View>
-          </View>
-        </View>
-
-        {/* Quick Actions List */}
-        <Text style={[styles.cardSectionLabel, { marginBottom: spacing.sm, marginLeft: spacing.xs }]}>
-          QUICK ACTIONS
-        </Text>
-
-        <View style={styles.actionsCard}>
-          <TouchableOpacity style={styles.actionRow}>
-            <View style={styles.actionIconBadge}>
-              <Lock size={16} color={colors.maroonPrimary} />
-            </View>
-            <Text style={styles.actionTitle}>Change Password</Text>
-            <ChevronRight size={18} color={colors.textMuted} />
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.actionRow} onPress={() => router.push('/(tabs)/passbook')}>
+        {/* Navigation / Action List */}
+        <View style={styles.actionListCard}>
+          <TouchableOpacity
+            style={styles.actionRow}
+            onPress={() => router.push('/(tabs)/passbook')}
+          >
             <View style={styles.actionIconBadge}>
               <BookOpen size={16} color={colors.maroonPrimary} />
             </View>
-            <Text style={styles.actionTitle}>View Passbook</Text>
+            <Text style={styles.actionTitle}>Digital Passbook</Text>
             <ChevronRight size={18} color={colors.textMuted} />
           </TouchableOpacity>
 
@@ -178,50 +192,19 @@ export default function ProfileScreen() {
             <View style={styles.actionIconBadge}>
               <Phone size={16} color={colors.maroonPrimary} />
             </View>
-            <Text style={styles.actionTitle}>Contact Shop</Text>
-            <Phone size={16} color={colors.textMuted} />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.actionRow}
-            onPress={() => router.push('/support/help')}
-          >
-            <View style={styles.actionIconBadge}>
-              <HelpCircle size={16} color={colors.maroonPrimary} />
-            </View>
             <Text style={styles.actionTitle}>Help & Support</Text>
-            <ChevronRight size={18} color={colors.textMuted} />
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.actionRow}>
-            <View style={styles.actionIconBadge}>
-              <Info size={16} color={colors.maroonPrimary} />
-            </View>
-            <Text style={styles.actionTitle}>About Ramyas Jeweller</Text>
-            <ChevronRight size={18} color={colors.textMuted} />
-          </TouchableOpacity>
-
-          <TouchableOpacity style={[styles.actionRow, { borderBottomWidth: 0 }]}>
-            <View style={styles.actionIconBadge}>
-              <Star size={16} color={colors.maroonPrimary} />
-            </View>
-            <Text style={styles.actionTitle}>Rate App</Text>
             <ChevronRight size={18} color={colors.textMuted} />
           </TouchableOpacity>
         </View>
 
-        {/* Soft Pink Logout Button */}
+        {/* Logout Button */}
         <TouchableOpacity
-          style={styles.softLogoutButton}
+          style={styles.logoutButton}
           onPress={() => setShowLogoutModal(true)}
-          activeOpacity={0.85}
         >
-          <LogOut size={18} color={colors.maroonPrimary} style={{ marginRight: 8 }} />
-          <Text style={styles.softLogoutText}>Logout</Text>
+          <LogOut size={18} color={colors.errorRed} style={{ marginRight: 8 }} />
+          <Text style={styles.logoutText}>Log Out</Text>
         </TouchableOpacity>
-
-        {/* Footer App Version */}
-        <Text style={styles.footerVersion}>App Version 2.4.1 • Made in India</Text>
       </ScrollView>
 
       {/* Logout Confirmation Modal */}
@@ -229,7 +212,6 @@ export default function ProfileScreen() {
         visible={showLogoutModal}
         onClose={() => setShowLogoutModal(false)}
         onConfirm={handleLogoutConfirm}
-        isLoading={isLoading}
       />
     </SafeAreaView>
   );
@@ -238,78 +220,67 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: colors.creamBackground,
+    backgroundColor: colors.bgLight,
   },
   headerBar: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: spacing.xl,
+    paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
     backgroundColor: colors.cardWhite,
     borderBottomWidth: 1,
     borderBottomColor: colors.borderSubtle,
   },
   headerTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: colors.maroonPrimary,
-  },
-  editButton: {
-    width: 36,
-    height: 36,
-    borderRadius: radius.full,
-    backgroundColor: colors.creamBackground,
-    justifyContent: 'center',
-    alignItems: 'center',
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.textDark,
   },
   scrollContent: {
-    paddingHorizontal: spacing.xl,
-    paddingTop: spacing.lg,
-    paddingBottom: spacing.xxl,
+    padding: spacing.lg,
+    paddingBottom: 40,
   },
   profileCard: {
     backgroundColor: colors.cardWhite,
-    borderRadius: radius.xxl,
+    borderRadius: radius.xl,
     padding: spacing.xl,
     alignItems: 'center',
     marginBottom: spacing.lg,
-    borderWidth: 1,
-    borderColor: colors.borderSubtle,
-    ...shadows.soft,
+    ...shadows.sm,
   },
   avatarContainer: {
     position: 'relative',
     marginBottom: spacing.md,
   },
   avatarCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: radius.full,
+    width: 72,
+    height: 72,
+    borderRadius: 36,
     backgroundColor: colors.maroonPrimary,
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 3,
-    borderColor: colors.maroonPrimary,
   },
   avatarInitial: {
-    fontSize: 32,
+    color: '#FFF',
+    fontSize: 30,
     fontWeight: '800',
-    color: colors.cardWhite,
   },
   verifiedBadge: {
     position: 'absolute',
     bottom: 0,
     right: 0,
+    backgroundColor: colors.goldLight,
     width: 24,
     height: 24,
-    borderRadius: radius.full,
-    backgroundColor: colors.goldLight,
+    borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#FFF',
   },
   userName: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: '800',
     color: colors.textDark,
   },
@@ -320,125 +291,83 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   userMobileText: {
-    fontSize: 14,
+    fontSize: 13,
+    color: colors.maroonPrimary,
+    marginTop: 2,
     fontWeight: '700',
-    color: colors.textDark,
-    marginTop: 4,
   },
   schemePill: {
-    backgroundColor: colors.goldLight,
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 12,
+    paddingVertical: 5,
     borderRadius: radius.full,
-    paddingHorizontal: 16,
-    paddingVertical: 6,
     marginTop: spacing.md,
   },
   schemePillText: {
+    color: '#92400E',
     fontSize: 11,
     fontWeight: '800',
-    color: colors.maroonPrimary,
   },
   schemeCard: {
     backgroundColor: colors.cardWhite,
-    borderRadius: radius.xxl,
-    padding: spacing.xl,
-    borderWidth: 1,
-    borderColor: colors.borderSubtle,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
     marginBottom: spacing.lg,
-    ...shadows.soft,
+    borderLeftWidth: 4,
+    borderLeftColor: colors.goldSecondary,
+    ...shadows.sm,
   },
   schemeHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: spacing.sm,
+    marginBottom: spacing.xs,
   },
   cardSectionLabel: {
     fontSize: 11,
     fontWeight: '800',
-    color: colors.maroonPrimary,
-    letterSpacing: 1,
+    color: colors.textMuted,
+    letterSpacing: 0.5,
   },
   paidStatusText: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: colors.maroonPrimary,
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.goldSecondary,
   },
   schemeTitle: {
-    fontSize: 20,
+    fontSize: 16,
     fontWeight: '800',
     color: colors.textDark,
+    marginTop: 4,
   },
   schemeSub: {
-    fontSize: 13,
+    fontSize: 12,
     color: colors.textMuted,
     marginTop: 2,
-    marginBottom: spacing.md,
   },
   progressTrack: {
-    height: 10,
-    backgroundColor: colors.borderInput,
-    borderRadius: radius.full,
+    height: 6,
+    backgroundColor: '#E5E7EB',
+    borderRadius: 3,
+    marginVertical: spacing.md,
     overflow: 'hidden',
-    marginBottom: spacing.xs,
   },
   progressFill: {
     height: '100%',
-    backgroundColor: colors.maroonPrimary,
-    borderRadius: radius.full,
+    backgroundColor: colors.goldSecondary,
+    borderRadius: 3,
   },
   nextDueText: {
-    fontSize: 12,
+    fontSize: 11,
     color: colors.textMuted,
-    fontStyle: 'italic',
-    marginTop: 4,
+    fontWeight: '500',
   },
-  detailsCard: {
+  actionListCard: {
     backgroundColor: colors.cardWhite,
-    borderRadius: radius.xxl,
-    padding: spacing.xl,
-    borderWidth: 1,
-    borderColor: colors.borderSubtle,
-    marginBottom: spacing.lg,
-    ...shadows.soft,
-  },
-  detailRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginTop: spacing.md,
-    paddingBottom: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.borderSubtle,
-  },
-  detailIconBadge: {
-    width: 32,
-    height: 32,
-    borderRadius: radius.md,
-    backgroundColor: colors.creamBackground,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: spacing.sm,
-  },
-  detailLabel: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: colors.textMuted,
-    letterSpacing: 0.8,
-  },
-  detailValue: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: colors.textDark,
-    marginTop: 2,
-    lineHeight: 18,
-  },
-  actionsCard: {
-    backgroundColor: colors.cardWhite,
-    borderRadius: radius.xxl,
+    borderRadius: radius.lg,
     paddingHorizontal: spacing.lg,
-    borderWidth: 1,
-    borderColor: colors.borderSubtle,
     marginBottom: spacing.xl,
-    ...shadows.soft,
+    ...shadows.sm,
   },
   actionRow: {
     flexDirection: 'row',
@@ -448,38 +377,32 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.borderSubtle,
   },
   actionIconBadge: {
-    width: 36,
-    height: 36,
-    borderRadius: radius.md,
-    backgroundColor: colors.creamBackground,
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: '#FDF2F2',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: spacing.md,
   },
   actionTitle: {
     flex: 1,
-    fontSize: 15,
-    fontWeight: '700',
+    fontSize: 14,
+    fontWeight: '600',
     color: colors.textDark,
   },
-  softLogoutButton: {
+  logoutButton: {
     flexDirection: 'row',
-    height: 52,
-    backgroundColor: '#FCE7F3',
-    borderRadius: radius.xl,
-    justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: spacing.lg,
+    justifyContent: 'center',
+    backgroundColor: '#FEE2E2',
+    borderRadius: radius.lg,
+    paddingVertical: spacing.md,
+    marginBottom: spacing.xl,
   },
-  softLogoutText: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: colors.maroonPrimary,
-  },
-  footerVersion: {
-    fontSize: 12,
-    color: colors.textMuted,
-    textAlign: 'center',
-    fontWeight: '600',
+  logoutText: {
+    color: colors.errorRed,
+    fontSize: 15,
+    fontWeight: '700',
   },
 });

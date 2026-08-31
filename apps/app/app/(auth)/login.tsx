@@ -15,8 +15,6 @@ import { useRouter } from 'expo-router';
 import { useAuthStore } from '../../store/authStore';
 import { colors, radius, shadows, spacing } from '../../theme';
 import {
-  Eye,
-  EyeOff,
   HelpCircle,
   Phone,
   MessageSquare,
@@ -33,8 +31,6 @@ export default function LoginScreen() {
   const { signInWithMobile, isLoading } = useAuthStore();
 
   const [mobileNumber, setMobileNumber] = useState('');
-  const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const handleLogin = async () => {
@@ -43,18 +39,14 @@ export default function LoginScreen() {
       return;
     }
 
-    if (!password.trim()) {
-      setErrorMessage('Please enter your password.');
-      return;
-    }
-
     setErrorMessage(null);
 
     try {
-      await signInWithMobile(mobileNumber, password);
-      // Successful auth triggers RootLayout listener to navigate to (tabs)/home
+      await signInWithMobile(mobileNumber);
+      // Session is now set in store — navigate to customer dashboard
+      router.replace('/(tabs)/home');
     } catch (err: any) {
-      setErrorMessage(err.message || 'Incorrect mobile number or password.');
+      setErrorMessage(err.message || 'Customer not found. Please contact Ramyas Jeweller.');
     }
   };
 
@@ -92,7 +84,7 @@ export default function LoginScreen() {
           <View style={styles.formCard}>
             <Text style={styles.welcomeTitle}>Welcome Back</Text>
 
-            {/* Mobile Number Input */}
+            {/* Mobile Number Input ONLY */}
             <Text style={styles.inputLabel}>Mobile Number</Text>
             <View style={styles.inputRowContainer}>
               <View style={styles.prefixBadge}>
@@ -110,35 +102,6 @@ export default function LoginScreen() {
               />
             </View>
 
-            {/* Password Input */}
-            <Text style={styles.inputLabel}>Password</Text>
-            <View style={styles.inputRowContainer}>
-              <TextInput
-                style={[styles.textInput, { paddingLeft: 14 }]}
-                placeholder="Enter password"
-                placeholderTextColor={colors.textMuted}
-                secureTextEntry={!showPassword}
-                value={password}
-                onChangeText={setPassword}
-                editable={!isLoading}
-              />
-              <TouchableOpacity
-                style={styles.eyeIconButton}
-                onPress={() => setShowPassword(!showPassword)}
-              >
-                {showPassword ? (
-                  <EyeOff size={20} color={colors.textMuted} />
-                ) : (
-                  <Eye size={20} color={colors.textMuted} />
-                )}
-              </TouchableOpacity>
-            </View>
-
-            {/* Forgot Password */}
-            <TouchableOpacity style={styles.forgotPasswordButton}>
-              <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
-            </TouchableOpacity>
-
             {/* Error Message Banner */}
             {errorMessage && (
               <View style={styles.errorBanner}>
@@ -155,22 +118,25 @@ export default function LoginScreen() {
               activeOpacity={0.85}
             >
               {isLoading ? (
-                <ActivityIndicator color={colors.cardWhite} size="small" />
+                <View style={styles.loginButtonContent}>
+                  <ActivityIndicator color={colors.cardWhite} size="small" style={{ marginRight: 8 }} />
+                  <Text style={styles.loginButtonText}>Checking your mobile number...</Text>
+                </View>
               ) : (
                 <View style={styles.loginButtonContent}>
-                  <Text style={styles.loginButtonText}>Login</Text>
+                  <Text style={styles.loginButtonText}>LOGIN</Text>
                   <ArrowRight size={20} color={colors.cardWhite} style={{ marginLeft: 8 }} />
                 </View>
               )}
             </TouchableOpacity>
 
-            {/* Yellow First-Time Login Info Pill */}
+            {/* Registered Customer Info Pill */}
             <View style={styles.yellowInfoBox}>
               <Info size={20} color={colors.textDark} style={{ marginRight: 10, marginTop: 2 }} />
               <View style={{ flex: 1 }}>
-                <Text style={styles.yellowInfoTitle}>First-time Login?</Text>
+                <Text style={styles.yellowInfoTitle}>Registered Customer?</Text>
                 <Text style={styles.yellowInfoSub}>
-                  Use your registered mobile and default password '12345' to start.
+                  Enter your registered 10-digit mobile number to access your savings scheme.
                 </Text>
               </View>
             </View>
@@ -318,19 +284,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: colors.textDark,
   },
-  eyeIconButton: {
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-  },
-  forgotPasswordButton: {
-    alignSelf: 'flex-end',
-    marginBottom: spacing.lg,
-  },
-  forgotPasswordText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: colors.maroonPrimary,
-  },
   errorBanner: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -361,8 +314,9 @@ const styles = StyleSheet.create({
   },
   loginButtonText: {
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: '800',
     color: colors.cardWhite,
+    letterSpacing: 0.5,
   },
   yellowInfoBox: {
     flexDirection: 'row',
