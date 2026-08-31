@@ -6,28 +6,16 @@ yarn-error.log*
 pnpm-debug.log*
 .pnpm-debug.log*
 
-# Next.js
+# Next.js & Web
 .next/
 out/
 build/
 dist/
 .vercel
 
-# Flutter & Dart
-.dart_tool/
-.flutter-plugins
-.flutter-plugins-dependencies
-.packages
-.pub-cache/
-.pub/
-build/
-ios/Runner.xcworkspace
-ios/Runner.xcodeproj/project.xcworkspace
-android/.gradle
-android/captures
-*.apk
-*.aab
-*.app
+# Expo & Mobile
+.expo/
+.expo-shared/
 
 # Environment & Secrets
 .env

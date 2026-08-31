@@ -164,7 +164,36 @@ export class CustomerService {
         throw new AppError('Failed to create customer record.', ErrorCode.INTERNAL_ERROR, 500);
       }
 
-      return this.mapRowToCustomer(data);
+      // Automatically provision corresponding Supabase Auth user & profile link
+      try {
+        const url = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://zeltnwyxmhuzoslpthlb.supabase.co';
+        const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'sb_publishable_f380TZdwnJkepy6k9M3uQQ_mPpeg6o1';
+        await fetch(`${url}/functions/v1/customer-auth-activate`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': key,
+            'Authorization': `Bearer ${key}`,
+          },
+          body: JSON.stringify({
+            mobile: mobileNumber,
+            full_name: fullName,
+            temp_password: '12345',
+            new_password: '12345',
+          }),
+        });
+      } catch (provErr) {
+        console.error('Failed to provision customer auth user:', provErr);
+      }
+
+      // Re-fetch created customer to include updated profile_id
+      const { data: updatedCust } = await supabase
+        .from('customers')
+        .select('*')
+        .eq('id', data.id)
+        .maybeSingle();
+
+      return this.mapRowToCustomer(updatedCust || data);
     } catch (error) {
       throw normalizeError(error);
     }

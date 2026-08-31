@@ -33,9 +33,10 @@ export async function middleware(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const isLoginRoute = request.nextUrl.pathname === '/login';
+  const isApiRoute = request.nextUrl.pathname.startsWith('/api/');
 
   // 1. Unauthenticated user trying to access any admin route -> redirect to /login
-  if (!user && !isLoginRoute) {
+  if (!user && !isLoginRoute && !isApiRoute) {
     const url = request.nextUrl.clone();
     url.pathname = '/login';
     return NextResponse.redirect(url);
@@ -54,8 +55,8 @@ export async function middleware(request: NextRequest) {
 export const config = {
   matcher: [
     /*
-     * Match all admin request paths except static files & images
+     * Match all admin request paths except static files, images, and API routes
      */
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|api/|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 };

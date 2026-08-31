@@ -5,7 +5,7 @@ const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'sb_publishable_f380TZd
 
 export const revalidate = 0;
 
-export default async function LoginPage() {
+export default async function TestAuthPage() {
   const results: Record<string, any> = {};
 
   try {
@@ -19,7 +19,7 @@ export default async function LoginPage() {
 
     results['existing_customers'] = { count: customers?.length || 0, customers, error: errCust?.message };
 
-    // 2. Target Customer A (8778173681) & Ram (9842143308)
+    // 2. Check Customer A (Anith: 8778173681) & Customer Ram (RJ-2026-003: 9842143308)
     const custA = customers?.find(c => c.mobile_number === '8778173681' || c.customer_number === 'RJ-2026-001');
     const custRam = customers?.find(c => c.mobile_number === '9842143308' || c.customer_number === 'RJ-2026-003');
 
@@ -135,11 +135,11 @@ export default async function LoginPage() {
   }
 
   return (
-    <div style={{ padding: 40, background: '#0f172a', color: '#f8fafc', fontFamily: 'monospace', minHeight: '100vh' }}>
-      <h1 style={{ color: '#fbbf24', fontSize: 24, marginBottom: 20 }}>E2E SUPABASE AUTH LINKING VERIFICATION REPORT</h1>
-      <pre style={{ background: '#1e293b', padding: 24, borderRadius: 12, border: '1px solid #334155', fontSize: 13, color: '#4ade80' }}>
+    <main style={{ padding: 40, fontFamily: 'monospace', background: '#0f172a', color: '#f8fafc', minHeight: '100vh' }}>
+      <h1>E2E SUPABASE AUTH LINKING VERIFICATION RESULTS</h1>
+      <pre style={{ background: '#1e293b', padding: 20, borderRadius: 12, overflow: 'auto' }}>
         {JSON.stringify(results, null, 2)}
       </pre>
-    </div>
+    </main>
   );
 }
