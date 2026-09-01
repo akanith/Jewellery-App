@@ -126,13 +126,13 @@ export default function HomeScreen() {
   };
 
   const displayName = dashboardData?.customerName || identity?.fullName || 'Valued Customer';
-  const displayId = dashboardData?.schemeAccountNumber || identity?.customerNumber || 'RJ-SCH-0050005';
+  const displayId = dashboardData?.schemeAccountNumber || identity?.customerNumber || '';
   const paidCount = dashboardData?.paidInstallmentsCount ?? 0;
   const totalInst = dashboardData?.totalInstallments ?? 12;
   const totalPaidFormatted = `₹${(dashboardData?.totalAmountPaid || 0).toLocaleString('en-IN')}`;
   const remainingFormatted = `₹${(dashboardData?.remainingAmount || 0).toLocaleString('en-IN')}`;
   const progressPercent = dashboardData?.progressPercentage ?? 0;
-  const nextDateFormatted = formatDate(nextInstallment?.due_date) || '28 Oct 2026';
+  const nextDateFormatted = formatDate(nextInstallment?.due_date) || '-';
   const nextAmountFormatted = `₹${(nextInstallment?.expected_amount || dashboardData?.monthlyAmount || 1000).toLocaleString('en-IN')}`;
 
   return (
@@ -160,7 +160,7 @@ export default function HomeScreen() {
           <View style={styles.schemeHeaderRow}>
             <Text style={styles.schemeLabel}>{schemePlanTitle.toUpperCase()}</Text>
             <View style={styles.idBadge}>
-              <Text style={styles.idBadgeText}>ACC: {displayId}</Text>
+              <Text style={styles.idBadgeText}>ID: {displayId}</Text>
             </View>
           </View>
 
@@ -183,7 +183,7 @@ export default function HomeScreen() {
           {/* Footer Info Row */}
           <View style={styles.schemeFooterRow}>
             <View>
-              <Text style={styles.footerLabel}>Maturity Date</Text>
+              <Text style={styles.footerLabel}>Next Maturity</Text>
               <Text style={styles.footerValue}>{maturityDateStr}</Text>
             </View>
             <View style={{ alignItems: 'flex-end' }}>
@@ -193,72 +193,83 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        {/* Next Payment Alert Card */}
+        {/* Next Payment Card */}
         <View style={styles.nextPaymentCard}>
           <View style={styles.nextPaymentHeader}>
             <View style={styles.calendarBadge}>
               <Calendar size={22} color={colors.maroonPrimary} />
             </View>
             <View style={{ flex: 1, marginLeft: 12 }}>
-              <Text style={styles.nextPaymentLabel}>Next Payment (Installment #{nextInstallment?.installment_number || 3})</Text>
+              <Text style={styles.nextPaymentLabel}>Next Payment</Text>
               <Text style={styles.nextPaymentDate}>{nextDateFormatted}</Text>
               <Text style={styles.nextPaymentAmount}>{nextAmountFormatted}</Text>
             </View>
             <View style={styles.onTimeBadge}>
-              <Text style={styles.onTimeText}>UPCOMING</Text>
+              <Text style={styles.onTimeText}>ON TIME</Text>
             </View>
+          </View>
+
+          {/* Pay at Shop Button */}
+          <TouchableOpacity style={styles.payAtShopButton} activeOpacity={0.85}>
+            <Store size={20} color="#7A0C2E" style={{ marginRight: 8 }} />
+            <Text style={styles.payAtShopText}>Pay at Shop</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Maturity Benefit Card */}
+        <View style={styles.maturityBenefitCard}>
+          <View style={styles.giftBadge}>
+            <Gift size={24} color="#B45309" />
+          </View>
+          <View style={{ flex: 1, marginLeft: 12 }}>
+            <Text style={styles.benefitTitle}>You will receive ₹{(dashboardData?.totalSchemeValue ? dashboardData.totalSchemeValue + 1000 : 13000).toLocaleString('en-IN')}</Text>
+            <Text style={styles.benefitSub}>Includes ₹1,000 Shop Bonus at maturity.</Text>
           </View>
         </View>
 
-        {/* Quick Actions Grid */}
-        <View style={styles.quickActionsGrid}>
-          <TouchableOpacity style={styles.actionCard} onPress={() => router.push('/(tabs)/passbook')}>
-            <View style={[styles.actionIconContainer, { backgroundColor: '#FDF2F2' }]}>
-              <Gift size={24} color={colors.maroonPrimary} />
-            </View>
-            <Text style={styles.actionCardTitle}>Passbook</Text>
-            <Text style={styles.actionCardSub}>View Installments</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.actionCard} onPress={() => router.push('/support/shop')}>
-            <View style={[styles.actionIconContainer, { backgroundColor: '#FEF3C7' }]}>
-              <Store size={24} color="#D97706" />
-            </View>
-            <Text style={styles.actionCardTitle}>Visit Store</Text>
-            <Text style={styles.actionCardSub}>Showroom Info</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Recent Activity Section */}
+        {/* Recent Payments Section */}
         <View style={styles.sectionHeaderRow}>
           <Text style={styles.sectionTitle}>Recent Payments</Text>
-          <TouchableOpacity onPress={() => router.push('/(tabs)/passbook')}>
-            <Text style={styles.viewAllText}>View All</Text>
+          <TouchableOpacity onPress={() => router.push('/(tabs)/passbook')} style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <Text style={styles.viewAllText}>View Full Passbook</Text>
+            <Text style={[styles.viewAllText, { marginLeft: 4 }]}>→</Text>
           </TouchableOpacity>
         </View>
 
-        {recentInstallments.length === 0 ? (
-          <View style={styles.emptyCard}>
-            <Text style={styles.emptyText}>No recent payments recorded.</Text>
+        {/* Payments Table Container */}
+        <View style={styles.tableCard}>
+          <View style={styles.tableHeaderRow}>
+            <Text style={[styles.tableColHeader, { flex: 1.5 }]}>MONTH</Text>
+            <Text style={[styles.tableColHeader, { flex: 1.5, textAlign: 'center' }]}>AMOUNT</Text>
+            <Text style={[styles.tableColHeader, { flex: 1, textAlign: 'right' }]}>STATUS</Text>
           </View>
-        ) : (
-          recentInstallments.map((inst, index) => (
-            <View key={inst.id || index} style={styles.paymentRow}>
-              <View style={styles.paymentCheckCircle}>
-                <CheckCircle2 size={18} color="#166534" />
-              </View>
-              <View style={{ flex: 1, marginLeft: 12 }}>
-                <Text style={styles.paymentTitle}>Installment #{inst.installment_number}</Text>
-                <Text style={styles.paymentSub}>
-                  {formatDate(inst.payment_date || inst.due_date)} • {inst.payment_method || 'Paid'}
-                </Text>
-              </View>
-              <Text style={styles.paymentAmount}>
-                +₹{(inst.paid_amount || inst.expected_amount || 1000).toLocaleString('en-IN')}
-              </Text>
+
+          {recentInstallments.length === 0 ? (
+            <View style={styles.emptyTableBody}>
+              <Text style={styles.emptyText}>No recent payments recorded.</Text>
             </View>
-          ))
-        )}
+          ) : (
+            recentInstallments.map((inst, index) => (
+              <View key={inst.id || index} style={[styles.tableRow, index === recentInstallments.length - 1 && { borderBottomWidth: 0 }]}>
+                <Text style={[styles.tableCellMonth, { flex: 1.5 }]}>
+                  {formatDate(inst.payment_date || inst.due_date) || `Installment #${inst.installment_number}`}
+                </Text>
+                <Text style={[styles.tableCellAmount, { flex: 1.5, textAlign: 'center' }]}>
+                  ₹{(inst.paid_amount || inst.expected_amount || 1000).toLocaleString('en-IN')}
+                </Text>
+                <View style={{ flex: 1, alignItems: 'flex-end' }}>
+                  <CheckCircle2 size={20} color="#16A34A" />
+                </View>
+              </View>
+            ))
+          )}
+        </View>
+
+        {/* Announcement Pill */}
+        <View style={styles.announcementPill}>
+          <Volume2 size={18} color="#4B5563" style={{ marginRight: 10 }} />
+          <Text style={styles.announcementText}>Shop closed on Sunday. Happy Holidays!</Text>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -457,104 +468,109 @@ const styles = StyleSheet.create({
     color: colors.maroonPrimary,
     marginTop: 2,
   },
-  onTimeBadge: {
-    backgroundColor: '#DCFCE7',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: radius.sm,
+  payAtShopButton: {
+    backgroundColor: '#F9C041',
+    borderRadius: radius.md,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: spacing.md,
   },
-  onTimeText: {
-    color: '#166534',
-    fontSize: 10,
+  payAtShopText: {
+    color: '#7A0C2E',
+    fontSize: 15,
     fontWeight: '800',
   },
-  quickActionsGrid: {
-    flexDirection: 'row',
-    gap: spacing.md,
-    marginBottom: spacing.xl,
-  },
-  actionCard: {
-    flex: 1,
-    backgroundColor: colors.cardWhite,
+  maturityBenefitCard: {
+    backgroundColor: '#FFFDF0',
     borderRadius: radius.lg,
     padding: spacing.lg,
-    ...shadows.sm,
+    marginBottom: spacing.xl,
+    borderWidth: 1.5,
+    borderColor: '#FACC15',
+    borderStyle: 'dashed',
+    flexDirection: 'row',
+    alignItems: 'center',
   },
-  actionIconContainer: {
+  giftBadge: {
     width: 44,
     height: 44,
-    borderRadius: 12,
+    borderRadius: 22,
+    backgroundColor: '#FEF3C7',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: spacing.md,
   },
-  actionCardTitle: {
+  benefitTitle: {
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: '800',
     color: colors.textDark,
   },
-  actionCardSub: {
+  benefitSub: {
     fontSize: 12,
-    color: colors.textMuted,
+    color: '#78350F',
     marginTop: 2,
+    fontWeight: '500',
   },
-  sectionHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: spacing.md,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: colors.textDark,
-  },
-  viewAllText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.maroonPrimary,
-  },
-  emptyCard: {
+  tableCard: {
     backgroundColor: colors.cardWhite,
-    borderRadius: radius.md,
+    borderRadius: radius.lg,
+    overflow: 'hidden',
+    marginBottom: spacing.xl,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    ...shadows.sm,
+  },
+  tableHeaderRow: {
+    flexDirection: 'row',
+    backgroundColor: '#F8FAFC',
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  tableColHeader: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#6B7280',
+    letterSpacing: 0.5,
+  },
+  emptyTableBody: {
     padding: spacing.xl,
     alignItems: 'center',
-    ...shadows.sm,
   },
-  emptyText: {
-    color: colors.textMuted,
-    fontSize: 14,
-  },
-  paymentRow: {
+  tableRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.cardWhite,
-    borderRadius: radius.md,
-    padding: spacing.md,
-    marginBottom: spacing.sm,
-    ...shadows.sm,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
   },
-  paymentCheckCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#DCFCE7',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  paymentTitle: {
+  tableCellMonth: {
     fontSize: 14,
     fontWeight: '700',
     color: colors.textDark,
   },
-  paymentSub: {
-    fontSize: 12,
-    color: colors.textMuted,
-    marginTop: 2,
-  },
-  paymentAmount: {
-    fontSize: 15,
+  tableCellAmount: {
+    fontSize: 14,
     fontWeight: '700',
-    color: '#166534',
+    color: colors.maroonPrimary,
+  },
+  announcementPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F3F4F6',
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  announcementText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#374151',
+    flex: 1,
   },
 });

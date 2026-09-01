@@ -17,194 +17,149 @@ export async function OPTIONS() {
   return new NextResponse('ok', { headers: corsHeaders });
 }
 
-// Internal helper: query Supabase via RPC or fallback data map
+function normalizeMobile(raw: string): string {
+  let clean = String(raw || '').replace(/\D/g, '');
+  if (clean.length > 10 && clean.startsWith('91')) clean = clean.substring(2);
+  else if (clean.length > 10 && clean.startsWith('0')) clean = clean.substring(1);
+  return clean;
+}
+
+function isValidMobile(clean: string): boolean {
+  return /^[6-9]\d{9}$/.test(clean);
+}
+
+// Pure PostgreSQL database resolution by mobile number
 async function resolveCustomerData(mobile: string) {
-  const cleanMobile = mobile.replace(/\D/g, '');
-  if (!cleanMobile || !/^[6-9]\d{9}$/.test(cleanMobile)) {
-    return { success: false, code: 'INVALID_MOBILE', message: 'Please enter a valid 10-digit mobile number.' };
-  }
+  const cleanMobile = normalizeMobile(mobile);
 
-  // 1. Attempt to invoke Supabase RPC get_customer_by_mobile
-  try {
-    const client = createClient(url, anonKey);
-    const { data: rpcRows, error: rpcErr } = await client.rpc('get_customer_by_mobile', { p_mobile: cleanMobile });
-
-    if (!rpcErr && Array.isArray(rpcRows) && rpcRows.length > 0) {
-      const cust = rpcRows[0];
-      const { data: schemeData } = await client.rpc('get_customer_scheme_data', { p_customer_id: cust.id, p_mobile: cleanMobile });
-      if (schemeData && schemeData.success) {
-        return {
-          success: true,
-          customer: schemeData.customer || cust,
-          scheme: schemeData.scheme || null,
-          installments: schemeData.installments || [],
-        };
-      }
-    }
-  } catch { /* fallback below */ }
-
-  // 2. Fallback: Query live database records directly for known customers
-  // (Anith: 8778173681, A.B.Kathiravven: 9842143307, Mahalakshmi: 9842143301, Shiva: 9842143309, Perumal: 8778173682, Ram: 9842143308)
-  const knownCustomers: Record<string, any> = {
-    '8778173681': {
-      id: 'a2b7218e-5b12-4c2e-9d41-5a0b784a9e10',
-      full_name: 'Anith',
-      mobile_number: '8778173681',
-      customer_number: 'RJ-2026-001',
-      scheme: {
-        id: 'cs-0050005',
-        customer_id: 'a2b7218e-5b12-4c2e-9d41-5a0b784a9e10',
-        scheme_account_number: 'RJ-SCH-0050005',
-        scheme_plan_title: 'Diwali Savings Scheme',
-        monthly_amount: 1000,
-        total_installments: 12,
-        paid_installments_count: 2,
-        total_amount_paid: 2000,
-        status: 'ACTIVE',
-        start_date: '2026-08-29',
-        maturity_date: '2027-08-29',
-      },
-      installments: Array.from({ length: 12 }, (_, i) => {
-        const num = i + 1;
-        const isPaid = num <= 2;
-        const dueDate = new Date(2026, 7 + i, 29).toISOString().split('T')[0];
-        return {
-          id: `inst-005-${num}`,
-          installment_number: num,
-          due_date: dueDate,
-          expected_amount: 1000,
-          due_amount: 1000,
-          paid_amount: isPaid ? 1000 : null,
-          payment_date: isPaid ? (num === 1 ? '2026-08-29' : '2026-08-30') : null,
-          payment_method: isPaid ? 'CASH' : null,
-          payment_reference: isPaid ? `PAY-005-${num}` : null,
-          status: isPaid ? 'PAID' : (num === 3 ? 'WAITING' : 'FUTURE'),
-        };
-      }),
-    },
-    '9842143307': {
-      id: 'c97f4803-b0df-4f4d-b8e7-dfef7bf3c72b',
-      full_name: 'A.B.Kathiravven',
-      mobile_number: '9842143307',
-      customer_number: 'RJ-2026-002',
-      scheme: {
-        id: 'cs-0050001',
-        customer_id: 'c97f4803-b0df-4f4d-b8e7-dfef7bf3c72b',
-        scheme_account_number: 'RJ-SCH-0050001',
-        scheme_plan_title: 'Diwali Savings Scheme',
-        monthly_amount: 1000,
-        total_installments: 12,
-        paid_installments_count: 2,
-        total_amount_paid: 2000,
-        status: 'ACTIVE',
-        start_date: '2026-08-27',
-        maturity_date: '2027-08-27',
-      },
-      installments: Array.from({ length: 12 }, (_, i) => {
-        const num = i + 1;
-        const isPaid = num <= 2;
-        const dueDate = new Date(2026, 7 + i, 27).toISOString().split('T')[0];
-        return {
-          id: `inst-001-${num}`,
-          installment_number: num,
-          due_date: dueDate,
-          expected_amount: 1000,
-          due_amount: 1000,
-          paid_amount: isPaid ? 1000 : null,
-          payment_date: isPaid ? (num === 1 ? '2026-08-27' : '2026-08-28') : null,
-          payment_method: isPaid ? 'UPI' : null,
-          payment_reference: isPaid ? `PAY-001-${num}` : null,
-          status: isPaid ? 'PAID' : (num === 3 ? 'WAITING' : 'FUTURE'),
-        };
-      }),
-    },
-  };
-
-  if (knownCustomers[cleanMobile]) {
-    const k = knownCustomers[cleanMobile];
+  if (!cleanMobile || !isValidMobile(cleanMobile)) {
     return {
-      success: true,
-      customer: {
-        id: k.id,
-        full_name: k.full_name,
-        mobile_number: k.mobile_number,
-        customer_number: k.customer_number,
-        status: 'ACTIVE',
-      },
-      scheme: k.scheme,
-      installments: k.installments,
+      success: false,
+      code: 'INVALID_MOBILE',
+      message: 'Enter a valid 10-digit mobile number.',
+      status: 400,
     };
   }
 
-  return { success: false, code: 'CUSTOMER_NOT_FOUND', message: 'Customer not found. Please contact Ramyas Jeweller.' };
+  try {
+    const client = createClient(url, anonKey);
+
+    // 1. Direct database lookup in public.customers
+    const { data: dbCust, error: custErr } = await client
+      .from('customers')
+      .select('id, full_name, mobile_number, customer_number, status')
+      .eq('mobile_number', cleanMobile)
+      .maybeSingle();
+
+    if (custErr) {
+      console.error('[CustomerAPI] DB lookup error:', custErr.message);
+      return {
+        success: false,
+        code: 'SERVER_ERROR',
+        message: 'Unable to connect. Please try again.',
+        status: 500,
+      };
+    }
+
+    if (!dbCust) {
+      return {
+        success: false,
+        code: 'CUSTOMER_NOT_FOUND',
+        message: 'Customer not found. Please contact Ramyas Jeweller.',
+        status: 404,
+      };
+    }
+
+    // 2. Query active scheme for resolved customer
+    const { data: schemeRow } = await client
+      .from('customer_schemes')
+      .select('*, scheme_plans(title)')
+      .eq('customer_id', dbCust.id)
+      .eq('status', 'ACTIVE')
+      .order('created_at', { ascending: false })
+      .maybeSingle();
+
+    let installments: any[] = [];
+    if (schemeRow) {
+      const { data: instRows } = await client
+        .from('installments')
+        .select('*')
+        .eq('customer_scheme_id', schemeRow.id)
+        .order('installment_number', { ascending: true });
+
+      installments = instRows || [];
+    }
+
+    const schemeObj = schemeRow
+      ? {
+          ...schemeRow,
+          scheme_plan_title: schemeRow.scheme_plans?.title || 'Diwali Savings Scheme',
+        }
+      : null;
+
+    const issuedAt = new Date().toISOString();
+    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+
+    return {
+      success: true,
+      status: 200,
+      customer: {
+        id: dbCust.id,
+        full_name: dbCust.full_name,
+        mobile_number: dbCust.mobile_number,
+        customer_number: dbCust.customer_number || dbCust.id,
+        status: dbCust.status || 'ACTIVE',
+      },
+      session: {
+        token: `c_sess_${dbCust.id}_${Date.now()}`,
+        customerId: dbCust.id,
+        customerNumber: dbCust.customer_number || dbCust.id,
+        fullName: dbCust.full_name || 'Valued Customer',
+        mobileNumber: dbCust.mobile_number,
+        issuedAt,
+        expiresAt,
+      },
+      scheme: schemeObj,
+      installments,
+    };
+  } catch (err: any) {
+    console.error('[CustomerAPI] Resolution exception:', err?.message);
+    return {
+      success: false,
+      code: 'SERVER_ERROR',
+      message: 'Unable to connect. Please try again.',
+      status: 500,
+    };
+  }
 }
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  const mobile = searchParams.get('mobile') || '8778173681';
+  const mobile = searchParams.get('mobile') || '';
   const data = await resolveCustomerData(mobile);
-  return NextResponse.json(data, { headers: corsHeaders });
+  return NextResponse.json(data, {
+    status: data.status || (data.success ? 200 : 400),
+    headers: corsHeaders,
+  });
 }
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { action, mobile, customerId } = body;
-    const cleanMobile = String(mobile || '').replace(/\D/g, '');
-
-    if (action === 'login') {
-      const data = await resolveCustomerData(cleanMobile);
-      if (!data.success) {
-        return NextResponse.json(data, { status: data.code === 'CUSTOMER_NOT_FOUND' ? 404 : 400, headers: corsHeaders });
-      }
-      return NextResponse.json({
-        success: true,
-        session: {
-          customerId: data.customer.id,
-          customerNumber: data.customer.customer_number || null,
-          fullName: data.customer.full_name,
-          mobileNumber: data.customer.mobile_number,
-        },
-      }, { headers: corsHeaders });
-    }
-
-    if (action === 'dashboard' || action === 'passbook') {
-      const data = await resolveCustomerData(cleanMobile);
-      if (!data.success) {
-        return NextResponse.json(data, { status: 400, headers: corsHeaders });
-      }
-      if (customerId && data.customer.id !== customerId) {
-        return NextResponse.json({ success: false, code: 'ACCESS_DENIED', message: 'Access denied.' }, { status: 403, headers: corsHeaders });
-      }
-      return NextResponse.json(data, { headers: corsHeaders });
-    }
-
-    if (action === 'notifications') {
-      return NextResponse.json({
-        success: true,
-        notifications: [
-          {
-            id: 'notif-1',
-            title: 'Welcome to Ramyas Jeweller',
-            message: 'Your Diwali Savings Scheme is active. Enjoy exclusive benefits!',
-            type: 'ANNOUNCEMENT',
-            is_read: false,
-            created_at: new Date().toISOString(),
-          },
-          {
-            id: 'notif-2',
-            title: 'Payment Received',
-            message: 'Installment #2 payment of ₹1,000 received successfully. Thank you!',
-            type: 'PAYMENT',
-            is_read: true,
-            created_at: new Date(Date.now() - 86400000).toISOString(),
-          },
-        ],
-      }, { headers: corsHeaders });
-    }
-
-    return NextResponse.json({ success: false, message: 'Unknown action' }, { status: 400, headers: corsHeaders });
+    const rawMobile = body.mobile_number || body.mobile || '';
+    const data = await resolveCustomerData(rawMobile);
+    return NextResponse.json(data, {
+      status: data.status || (data.success ? 200 : 400),
+      headers: corsHeaders,
+    });
   } catch (err: any) {
-    return NextResponse.json({ success: false, message: err?.message || 'Server error' }, { status: 500, headers: corsHeaders });
+    return NextResponse.json(
+      {
+        success: false,
+        code: 'SERVER_ERROR',
+        message: 'Unable to connect. Please try again.',
+      },
+      { status: 500, headers: corsHeaders }
+    );
   }
 }

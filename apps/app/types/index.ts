@@ -30,10 +30,13 @@ export interface Customer {
  * Established by mobile-number lookup via Edge Function.
  */
 export interface CustomerSession {
+  token?: string;
   customerId: string;
   customerNumber: string | null;
   fullName: string;
   mobileNumber: string;
+  issuedAt?: string;
+  expiresAt?: string;
 }
 
 /**

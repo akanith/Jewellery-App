@@ -4,7 +4,24 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
 };
+
+/** Normalize Indian mobile numbers to 10 digits */
+function normalizeMobile(raw: string): string {
+  let clean = raw.replace(/\D/g, '');
+  if (clean.length > 10 && clean.startsWith('91')) {
+    clean = clean.substring(2);
+  } else if (clean.length > 10 && clean.startsWith('0')) {
+    clean = clean.substring(1);
+  }
+  return clean;
+}
+
+/** Check valid 10-digit mobile format starting with 6, 7, 8, or 9 */
+function isValidMobile(clean: string): boolean {
+  return /^[6-9]\d{9}$/.test(clean);
+}
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -34,59 +51,54 @@ serve(async (req) => {
     try {
       body = await req.json();
     } catch {
-      // Handle empty body
+      // Empty body handling
     }
 
-    const { mobile } = body;
+    const rawMobile = body.mobile_number || body.mobile || '';
 
-    if (!mobile || typeof mobile !== 'string') {
+    if (!rawMobile || typeof rawMobile !== 'string') {
       return new Response(
         JSON.stringify({
           success: false,
           code: 'INVALID_MOBILE',
-          message: 'Please enter a valid 10-digit mobile number.',
+          message: 'Enter a valid 10-digit mobile number.',
         }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // 1. Normalize mobile to 10 digits
-    let cleanMobile = mobile.replace(/\D/g, '');
-    if (cleanMobile.length > 10 && cleanMobile.startsWith('91')) {
-      cleanMobile = cleanMobile.substring(2);
-    } else if (cleanMobile.length > 10 && cleanMobile.startsWith('0')) {
-      cleanMobile = cleanMobile.substring(1);
-    }
+    const cleanMobile = normalizeMobile(rawMobile);
 
-    if (!/^[6-9]\d{9}$/.test(cleanMobile)) {
+    if (!isValidMobile(cleanMobile)) {
       return new Response(
         JSON.stringify({
           success: false,
           code: 'INVALID_MOBILE',
-          message: 'Please enter a valid 10-digit mobile number.',
+          message: 'Enter a valid 10-digit mobile number.',
         }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // 2. Query public.customers for cleanMobile
+    // Direct database query on public.customers for cleanMobile
     const { data: customerList, error: custErr } = await supabaseAdmin
       .from('customers')
-      .select('id, full_name, mobile_number, profile_id, status')
+      .select('id, full_name, mobile_number, customer_number, status')
       .eq('mobile_number', cleanMobile);
 
     if (custErr) {
+      console.error('[CustomerMobileLogin] DB error:', custErr.message);
       return new Response(
         JSON.stringify({
           success: false,
-          code: 'DATABASE_ERROR',
+          code: 'SERVER_ERROR',
           message: 'Unable to connect. Please try again.',
         }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // 3. Handle zero customers found
+    // 0 customers found -> 404 CUSTOMER_NOT_FOUND
     if (!customerList || customerList.length === 0) {
       return new Response(
         JSON.stringify({
@@ -98,125 +110,47 @@ serve(async (req) => {
       );
     }
 
-    // 4. Handle duplicate mobile numbers
-    if (customerList.length > 1) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          code: 'DUPLICATE_MOBILE',
-          message: 'Multiple customer accounts found for this mobile number. Please contact shop admin.',
-        }),
-        { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
+    // Select matching customer record
     const customer = customerList[0];
 
-    // 5. Ensure internal Auth User exists and is confirmed
-    const internalEmail = `${cleanMobile}@customer.ramyas.local`;
-    const defaultPassword = '12345';
-    let userId: string;
+    const issuedAt = new Date().toISOString();
+    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
 
-    const { data: newUser, error: createErr } = await supabaseAdmin.auth.admin.createUser({
-      email: internalEmail,
-      password: defaultPassword,
-      email_confirm: true,
-      user_metadata: {
-        full_name: customer.full_name,
-        role: 'CUSTOMER',
-      },
-    });
+    // Create session token payload
+    const tokenData = {
+      customerId: customer.id,
+      customerNumber: customer.customer_number || customer.id,
+      fullName: customer.full_name || 'Valued Customer',
+      mobileNumber: customer.mobile_number,
+      issuedAt,
+      expiresAt,
+    };
 
-    if (newUser?.user) {
-      userId = newUser.user.id;
-    } else if (createErr) {
-      // Find existing user by email
-      const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers({ perPage: 1000 });
-      const existingUser = existingUsers?.users?.find(u => u.email === internalEmail);
+    // Safe customer identity payload
+    const safeCustomer = {
+      id: customer.id,
+      customer_number: customer.customer_number || customer.id,
+      full_name: customer.full_name || 'Valued Customer',
+      mobile_number: customer.mobile_number,
+    };
 
-      if (existingUser) {
-        userId = existingUser.id;
-        await supabaseAdmin.auth.admin.updateUserById(userId, {
-          password: defaultPassword,
-          email_confirm: true,
-          user_metadata: { full_name: customer.full_name, role: 'CUSTOMER' },
-        });
-      } else {
-        return new Response(
-          JSON.stringify({
-            success: false,
-            code: 'AUTH_PROVISION_ERROR',
-            message: 'Unable to connect. Please try again.',
-          }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-    } else {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          code: 'AUTH_PROVISION_ERROR',
-          message: 'Unable to connect. Please try again.',
-        }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // 6. Upsert public.profiles
-    const { error: profErr } = await supabaseAdmin.from('profiles').upsert({
-      id: userId,
-      full_name: customer.full_name,
-      mobile_number: cleanMobile,
-      role: 'CUSTOMER',
-      is_active: true,
-      updated_at: new Date().toISOString(),
-    });
-
-    if (profErr) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          code: 'PROFILE_UPSERT_ERROR',
-          message: 'Unable to connect. Please try again.',
-        }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // 7. Link public.customers.profile_id
-    if (customer.profile_id !== userId) {
-      const { error: linkErr } = await supabaseAdmin.from('customers').update({
-        profile_id: userId,
-        updated_at: new Date().toISOString(),
-      }).eq('id', customer.id);
-
-      if (linkErr) {
-        return new Response(
-          JSON.stringify({
-            success: false,
-            code: 'CUSTOMER_LINK_ERROR',
-            message: 'Unable to connect. Please try again.',
-          }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-    }
-
-    // Return minimum required payload (no service role key, no internal secrets)
     return new Response(
       JSON.stringify({
         success: true,
-        customer_id: customer.id,
-        profile_id: userId,
-        message: 'Customer mobile login verified successfully.',
+        customer: safeCustomer,
+        session: {
+          token: `c_sess_${customer.id}_${Date.now()}`,
+          ...tokenData,
+        },
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (err: any) {
+    console.error('[CustomerMobileLogin] Unexpected exception:', err?.message);
     return new Response(
       JSON.stringify({
         success: false,
-        code: 'UNEXPECTED_ERROR',
+        code: 'SERVER_ERROR',
         message: 'Unable to connect. Please try again.',
       }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

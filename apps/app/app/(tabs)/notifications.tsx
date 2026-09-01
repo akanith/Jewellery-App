@@ -136,9 +136,9 @@ export default function NotificationsScreen() {
         {/* Top Hero Arrival Banner Card */}
         <View style={styles.heroCard}>
           <View style={styles.heroOverlay}>
-            <Text style={styles.heroTitle}>Ramya's Jeweller</Text>
+            <Text style={styles.heroTitle}>New Arrivals</Text>
             <Text style={styles.heroSub}>
-              Notifications, Scheme Updates & Special Offers
+              Check out our latest 22K Gold Temple Collection.
             </Text>
           </View>
         </View>

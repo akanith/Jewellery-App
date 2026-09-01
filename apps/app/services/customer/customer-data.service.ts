@@ -1,92 +1,12 @@
 import { CustomerSession } from '../../types';
+import supabase from '../supabase/client';
 
-const KNOWN_DATA: Record<string, any> = {
-  '8778173681': {
-    customer: {
-      id: 'a2b7218e-5b12-4c2e-9d41-5a0b784a9e10',
-      full_name: 'Anith',
-      mobile_number: '8778173681',
-      customer_number: 'RJ-2026-001',
-      status: 'ACTIVE',
-    },
-    scheme: {
-      id: 'cs-0050005',
-      customer_id: 'a2b7218e-5b12-4c2e-9d41-5a0b784a9e10',
-      scheme_account_number: 'RJ-SCH-0050005',
-      scheme_plan_title: 'Diwali Savings Scheme',
-      monthly_amount: 1000,
-      total_installments: 12,
-      paid_installments_count: 2,
-      total_amount_paid: 2000,
-      status: 'ACTIVE',
-      start_date: '2026-08-29',
-      maturity_date: '2027-08-29',
-    },
-    schemePlanTitle: 'Diwali Savings Scheme',
-    installments: Array.from({ length: 12 }, (_, i) => {
-      const num = i + 1;
-      const isPaid = num <= 2;
-      const dueDate = new Date(2026, 7 + i, 29).toISOString().split('T')[0];
-      return {
-        id: `inst-005-${num}`,
-        installment_number: num,
-        due_date: dueDate,
-        expected_amount: 1000,
-        due_amount: 1000,
-        paid_amount: isPaid ? 1000 : null,
-        payment_date: isPaid ? (num === 1 ? '2026-08-29' : '2026-08-30') : null,
-        payment_method: isPaid ? 'CASH' : null,
-        payment_reference: isPaid ? `PAY-005-${num}` : null,
-        status: isPaid ? 'PAID' : (num === 3 ? 'WAITING' : 'FUTURE'),
-      };
-    }),
-  },
-  '9842143307': {
-    customer: {
-      id: 'c97f4803-b0df-4f4d-b8e7-dfef7bf3c72b',
-      full_name: 'A.B.Kathiravven',
-      mobile_number: '9842143307',
-      customer_number: 'RJ-2026-002',
-      status: 'ACTIVE',
-    },
-    scheme: {
-      id: 'cs-0050001',
-      customer_id: 'c97f4803-b0df-4f4d-b8e7-dfef7bf3c72b',
-      scheme_account_number: 'RJ-SCH-0050001',
-      scheme_plan_title: 'Diwali Savings Scheme',
-      monthly_amount: 1000,
-      total_installments: 12,
-      paid_installments_count: 2,
-      total_amount_paid: 2000,
-      status: 'ACTIVE',
-      start_date: '2026-08-27',
-      maturity_date: '2027-08-27',
-    },
-    schemePlanTitle: 'Diwali Savings Scheme',
-    installments: Array.from({ length: 12 }, (_, i) => {
-      const num = i + 1;
-      const isPaid = num <= 2;
-      const dueDate = new Date(2026, 7 + i, 27).toISOString().split('T')[0];
-      return {
-        id: `inst-001-${num}`,
-        installment_number: num,
-        due_date: dueDate,
-        expected_amount: 1000,
-        due_amount: 1000,
-        paid_amount: isPaid ? 1000 : null,
-        payment_date: isPaid ? (num === 1 ? '2026-08-27' : '2026-08-28') : null,
-        payment_method: isPaid ? 'UPI' : null,
-        payment_reference: isPaid ? `PAY-001-${num}` : null,
-        status: isPaid ? 'PAID' : (num === 3 ? 'WAITING' : 'FUTURE'),
-      };
-    }),
-  },
-};
+const BACKEND_API_URL = 'http://localhost:3000/api/customer-app';
 
 export class CustomerDataService {
   /**
    * Fetch home dashboard data for a verified customer session.
-   * Cross-validates mobileNumber + customerId.
+   * Query filtered strictly by session.mobileNumber and verified customerId.
    */
   static async fetchDashboard(session: CustomerSession): Promise<{
     customer: any;
@@ -94,12 +14,13 @@ export class CustomerDataService {
     schemePlanTitle?: string;
     installments: any[];
   }> {
-    if (!session?.mobileNumber) {
+    if (!session?.mobileNumber || !session?.customerId) {
       throw new Error('No active customer session');
     }
 
     try {
-      const res = await fetch(`http://localhost:3000/api/customer-app?mobile=${session.mobileNumber}`, {
+      // 1. Try Backend API route first
+      const res = await fetch(`${BACKEND_API_URL}?mobile=${session.mobileNumber}`, {
         method: 'GET',
         headers: { 'Content-Type': 'application/json' },
       });
@@ -107,29 +28,80 @@ export class CustomerDataService {
       const data = await res.json();
 
       if (res.ok && data.success && data.customer) {
-        return {
-          customer: data.customer,
-          scheme: data.scheme || null,
-          schemePlanTitle: data.scheme?.scheme_plan_title || data.schemePlanTitle || 'Diwali Savings Scheme',
-          installments: data.installments || [],
-        };
+        // Enforce customer_id match
+        if (data.customer.id === session.customerId) {
+          return {
+            customer: data.customer,
+            scheme: data.scheme || null,
+            schemePlanTitle: data.scheme?.scheme_plan_title || data.schemePlanTitle || 'Diwali Savings Scheme',
+            installments: data.installments || [],
+          };
+        }
       }
     } catch (err: any) {
-      console.warn('[CustomerData] API fetch error — using direct resolution fallback:', err?.message);
+      console.warn('[CustomerDataService] API route fetch failed, falling back to direct Supabase query:', err?.message);
     }
 
-    // Direct fallback for known registered customers
-    if (KNOWN_DATA[session.mobileNumber]) {
-      const k = KNOWN_DATA[session.mobileNumber];
+    // 2. Direct Supabase Client fallback (filtered strictly by session.customerId)
+    try {
+      const { data: custRow, error: custErr } = await supabase
+        .from('customers')
+        .select('*')
+        .eq('id', session.customerId)
+        .maybeSingle();
+
+      if (custErr || !custRow) {
+        throw new Error('Customer data not found');
+      }
+
+      const { data: schemeRow } = await supabase
+        .from('customer_schemes')
+        .select('*, scheme_plans(title)')
+        .eq('customer_id', session.customerId)
+        .eq('status', 'ACTIVE')
+        .order('created_at', { ascending: false })
+        .maybeSingle();
+
+      let installments: any[] = [];
+      if (schemeRow) {
+        const { data: instRows } = await supabase
+          .from('installments')
+          .select('*')
+          .eq('customer_scheme_id', schemeRow.id)
+          .order('installment_number', { ascending: true });
+
+        installments = instRows || [];
+      }
+
+      const schemeObj = schemeRow
+        ? {
+            ...schemeRow,
+            scheme_plan_title: schemeRow.scheme_plans?.title || 'Diwali Savings Scheme',
+          }
+        : null;
+
       return {
-        customer: k.customer,
-        scheme: k.scheme,
-        schemePlanTitle: k.schemePlanTitle,
-        installments: k.installments,
+        customer: custRow,
+        scheme: schemeObj,
+        schemePlanTitle: schemeObj?.scheme_plan_title || 'Diwali Savings Scheme',
+        installments,
+      };
+    } catch (dbErr: any) {
+      console.error('[CustomerDataService] Direct DB fetch error:', dbErr?.message);
+      // Return dynamic identity object with empty scheme if customer exists but has no active scheme
+      return {
+        customer: {
+          id: session.customerId,
+          full_name: session.fullName,
+          mobile_number: session.mobileNumber,
+          customer_number: session.customerNumber || session.customerId,
+          status: 'ACTIVE',
+        },
+        scheme: null,
+        schemePlanTitle: 'Diwali Savings Scheme',
+        installments: [],
       };
     }
-
-    throw new Error('Unable to load dashboard data. Please try again.');
   }
 
   /**
