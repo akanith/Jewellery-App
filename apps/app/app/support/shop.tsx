@@ -30,15 +30,15 @@ export default function VisitShopScreen() {
   const router = useRouter();
 
   const handleCall = () => {
-    Linking.openURL('tel:+919876543210');
+    Linking.openURL('tel:+919842143307');
   };
 
   const handleWhatsApp = () => {
-    Linking.openURL('https://wa.me/919876543210');
+    Linking.openURL('https://wa.me/919842143307');
   };
 
   const handleDirections = () => {
-    Linking.openURL('https://maps.google.com/?q=Ramyas+Jeweller+Coimbatore');
+    Linking.openURL('https://maps.app.goo.gl/mVPzjCGnXxXpSE4M8');
   };
 
   return (
@@ -67,7 +67,7 @@ export default function VisitShopScreen() {
             {[1, 2, 3, 4, 5].map((star) => (
               <Star key={star} size={14} color="#F59E0B" fill="#F59E0B" style={{ marginRight: 2 }} />
             ))}
-            <Text style={styles.ratingText}>Trusted Since 1995</Text>
+            <Text style={styles.ratingText}>Trusted Since 1999</Text>
           </View>
 
           <Text style={styles.taglineText}>Premium Jewellery Savings Partner</Text>
@@ -109,7 +109,7 @@ export default function VisitShopScreen() {
             <View style={{ flex: 1 }}>
               <Text style={styles.infoLabel}>Address</Text>
               <Text style={styles.infoValue}>
-                No. 124, Temple View Road, Opp. Sivan Temple, Retail Hub, Coimbatore - 641001
+                91 Main Road, Dindigul - 624 001
               </Text>
             </View>
           </View>
@@ -132,7 +132,7 @@ export default function VisitShopScreen() {
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.infoLabel}>Weekly Holiday</Text>
-              <Text style={styles.infoValue}>Tuesday</Text>
+              <Text style={styles.infoValue}>Sunday</Text>
             </View>
           </View>
 
@@ -143,7 +143,7 @@ export default function VisitShopScreen() {
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.infoLabel}>Email</Text>
-              <Text style={styles.infoValue}>contact@ramyasjewellers.com</Text>
+              <Text style={styles.infoValue}>ramyasjeweller@gmail.com</Text>
             </View>
           </View>
         </View>
@@ -152,7 +152,7 @@ export default function VisitShopScreen() {
         <View style={styles.flagshipCard}>
           <View style={styles.flagshipOverlay}>
             <Text style={styles.flagshipTag}>Our Flagship Store</Text>
-            <Text style={styles.flagshipTitle}>Coimbatore Main</Text>
+            <Text style={styles.flagshipTitle}>Dindigul Main</Text>
             <TouchableOpacity style={styles.viewMapButton} onPress={handleDirections} activeOpacity={0.85}>
               <BookOpen size={16} color="#7A0C2E" style={{ marginRight: 6 }} />
               <Text style={styles.viewMapText}>View on Maps</Text>

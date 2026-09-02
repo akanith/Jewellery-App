@@ -3,7 +3,6 @@ import { CustomerSession } from '../../types';
 import supabase from '../supabase/client';
 
 const SESSION_KEY = 'ramyas_customer_session';
-const BACKEND_API_URL = 'http://localhost:3000/api/customer-app';
 
 export class AuthService {
   /** Strip non-digits and normalize to 10-digit Indian mobile number. */
@@ -14,101 +13,106 @@ export class AuthService {
     return clean;
   }
 
-  /** Check valid 10-digit mobile format. */
+  /** Check valid 10-digit mobile format starting with 6-9. */
   static isValidMobile(mobile: string): boolean {
     return /^[6-9]\d{9}$/.test(mobile);
   }
 
   /**
    * Mobile-only customer authentication flow.
-   * Resolves customer identity from live Supabase Edge Function / Backend API.
+   * Resolves customer identity directly from Supabase Cloud PostgreSQL.
    * Wipes previous session before establishing new customer identity.
    */
   static async signInWithMobile(mobile: string): Promise<CustomerSession> {
     const cleanMobile = this.normalizeMobile(mobile);
 
-    console.log(`[CustomerAuth] Mobile login attempt for: ${cleanMobile}`);
+    console.log(`[CustomerAuth] Starting mobile login for: ${cleanMobile}`);
 
     if (!this.isValidMobile(cleanMobile)) {
-      console.log(`[CustomerAuth] Invalid mobile number format: ${cleanMobile}`);
-      throw new Error('Enter a valid 10-digit mobile number.');
+      console.log(`[CustomerAuth] Invalid mobile format: ${cleanMobile}`);
+      throw new Error('Please enter a valid 10-digit mobile number.');
     }
 
     // Always clear previous customer session prior to authenticating new customer
     await this.signOut();
 
-    let resData: any = null;
-    let httpStatus = 500;
-
-    // 1. Try Supabase Edge Function customer-mobile-login first
     try {
-      const { data, error } = await supabase.functions.invoke('customer-mobile-login', {
-        body: { mobile_number: cleanMobile },
-      });
+      // 1. Direct Supabase RPC lookup (SECURITY DEFINER, no auth.users dependency)
+      let cust: any = null;
 
-      if (!error && data?.success) {
-        resData = data;
-        httpStatus = 200;
-      } else if (error || data) {
-        if (data?.code === 'CUSTOMER_NOT_FOUND' || error?.status === 404) {
-          httpStatus = 404;
-          resData = data;
-        } else if (data?.code === 'INVALID_MOBILE' || error?.status === 400) {
-          httpStatus = 400;
-          resData = data;
-        }
-      }
-    } catch (edgeErr: any) {
-      console.warn('[CustomerAuth] Edge Function call failed, trying API fallback:', edgeErr?.message);
-    }
-
-    // 2. Next.js API route fallback if Edge Function invocation did not resolve
-    if (!resData || httpStatus === 500) {
       try {
-        const apiRes = await fetch(`${BACKEND_API_URL}?mobile=${cleanMobile}`, {
-          method: 'GET',
-          headers: { 'Content-Type': 'application/json' },
+        const { data: rpcRows, error: rpcErr } = await supabase.rpc('get_customer_by_mobile', {
+          p_mobile: cleanMobile,
         });
 
-        httpStatus = apiRes.status;
-        resData = await apiRes.json();
-      } catch (apiErr: any) {
-        console.warn('[CustomerAuth] API fetch exception:', apiErr?.message);
-        throw new Error('Unable to connect. Please try again.');
+        if (!rpcErr && Array.isArray(rpcRows) && rpcRows.length > 0) {
+          cust = rpcRows[0];
+          console.log(`[CustomerAuth] Customer resolved via get_customer_by_mobile RPC: ${cust.full_name}`);
+        }
+      } catch (rpcEx) {
+        console.warn('[CustomerAuth] RPC call warning:', rpcEx);
       }
-    }
 
-    // Handle 404 Customer Not Found
-    if (httpStatus === 404 || resData?.code === 'CUSTOMER_NOT_FOUND') {
+      // 2. Direct public.customers table query fallback
+      if (!cust) {
+        const { data: dbCust, error: dbErr } = await supabase
+          .from('customers')
+          .select('id, full_name, mobile_number, customer_number, status')
+          .eq('mobile_number', cleanMobile)
+          .maybeSingle();
+
+        if (dbErr) {
+          console.error('[CustomerAuth] Direct DB lookup error:', dbErr.message);
+        } else if (dbCust) {
+          cust = dbCust;
+          console.log(`[CustomerAuth] Customer resolved via direct table query: ${cust.full_name}`);
+        }
+      }
+
+      // 3. Optional Edge Function / Backend API lookup if client DB query returned nothing
+      if (!cust) {
+        try {
+          const { data: edgeData, error: edgeErr } = await supabase.functions.invoke('customer-mobile-login', {
+            body: { mobile_number: cleanMobile },
+          });
+
+          if (!edgeErr && edgeData?.success && edgeData?.customer) {
+            cust = edgeData.customer;
+          }
+        } catch {
+          /* ignore edge error */
+        }
+      }
+
+      // If customer is found in database -> Create and save session
+      if (cust && cust.id) {
+        const session: CustomerSession = {
+          token: `c_sess_${cust.id}_${Date.now()}`,
+          customerId: cust.id,
+          customerNumber: cust.customer_number || cust.id,
+          fullName: cust.full_name || 'Valued Customer',
+          mobileNumber: cust.mobile_number || cleanMobile,
+          issuedAt: new Date().toISOString(),
+          expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+        };
+
+        await AsyncStorage.setItem(SESSION_KEY, JSON.stringify(session));
+        console.log(`[CustomerAuth] Session established for ${session.fullName} (${session.customerId})`);
+        return session;
+      }
+
+      // If database query executed and customer was not found -> 404 Customer Not Found
       throw new Error('Customer not found. Please contact Ramyas Jeweller.');
+    } catch (err: any) {
+      if (
+        err.message?.includes('Customer not found') ||
+        err.message?.includes('valid 10-digit')
+      ) {
+        throw err;
+      }
+      console.error('[CustomerAuth] Authentication exception:', err?.message);
+      throw new Error('Unable to connect. Please check your connection and try again.');
     }
-
-    // Handle 400 Invalid Mobile Number
-    if (httpStatus === 400 || resData?.code === 'INVALID_MOBILE') {
-      throw new Error('Enter a valid 10-digit mobile number.');
-    }
-
-    // Handle successful resolution
-    if ((httpStatus === 200 || resData?.success) && (resData?.customer || resData?.session)) {
-      const cust = resData.customer || {};
-      const sess = resData.session || {};
-
-      const session: CustomerSession = {
-        token: sess.token || `c_sess_${cust.id}_${Date.now()}`,
-        customerId: cust.id || sess.customerId,
-        customerNumber: cust.customer_number || sess.customerNumber || cust.id,
-        fullName: cust.full_name || sess.fullName || 'Valued Customer',
-        mobileNumber: cust.mobile_number || sess.mobileNumber || cleanMobile,
-        issuedAt: sess.issuedAt || new Date().toISOString(),
-        expiresAt: sess.expiresAt || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-      };
-
-      await AsyncStorage.setItem(SESSION_KEY, JSON.stringify(session));
-      console.log(`[CustomerAuth] Customer resolved & session saved: ${session.fullName} (${session.customerId})`);
-      return session;
-    }
-
-    throw new Error('Unable to connect. Please try again.');
   }
 
   /** Restore customer session from AsyncStorage on app startup. */
@@ -119,7 +123,6 @@ export class AuthService {
       const session: CustomerSession = JSON.parse(raw);
       if (!session?.customerId || !session?.mobileNumber) return null;
 
-      // Check session expiration if present
       if (session.expiresAt && new Date(session.expiresAt).getTime() < Date.now()) {
         console.log('[CustomerAuth] Session expired — clearing session');
         await this.signOut();

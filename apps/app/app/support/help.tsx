@@ -7,6 +7,7 @@ import {
   SafeAreaView,
   TouchableOpacity,
   TextInput,
+  Linking,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { colors, radius, shadows, spacing } from '../../theme';
@@ -133,12 +134,12 @@ export default function HelpCenterScreen() {
           <Text style={styles.stillNeedSub}>Our support team is here to assist you.</Text>
 
           <View style={styles.supportButtonsRow}>
-            <TouchableOpacity style={styles.supportPillButton} activeOpacity={0.85}>
+            <TouchableOpacity style={styles.supportPillButton} onPress={() => Linking.openURL('tel:+919842143307')} activeOpacity={0.85}>
               <Phone size={16} color="#FFF" style={{ marginRight: 6 }} />
               <Text style={styles.supportPillText}>Call Shop</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.supportPillButton} activeOpacity={0.85}>
+            <TouchableOpacity style={styles.supportPillButton} onPress={() => Linking.openURL('https://wa.me/919842143307')} activeOpacity={0.85}>
               <MessageSquare size={16} color="#FFF" style={{ marginRight: 6 }} />
               <Text style={styles.supportPillText}>WhatsApp Shop</Text>
             </TouchableOpacity>

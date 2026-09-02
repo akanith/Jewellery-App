@@ -50,18 +50,75 @@ export default function CustomerDetailsPage() {
     setError(null);
 
     try {
-      const [custData, schemesData] = await Promise.all([
-        CustomerService.getCustomerById(customerId),
-        SchemeService.getCustomerSchemes(customerId),
-      ]);
+      const res = await fetch(`/api/customers/${customerId}?t=${Date.now()}`, { cache: 'no-store' });
+      if (!res.ok) {
+        throw new Error('Customer or scheme not found in database');
+      }
 
-      setCustomer(custData);
-      setCustomerSchemes(schemesData);
+      const data = await res.json();
+      if (!data.success || !data.customer) {
+        throw new Error(data.error || 'Failed to load customer profile');
+      }
 
-      const active = schemesData.length > 0 ? schemesData[0] : null;
-      if (active) {
-        const instData = await PaymentService.getCustomerSchemeInstallments(active.id);
-        setInstallments(instData);
+      const mappedCust: Customer = {
+        id: String(data.customer.id),
+        customerNumber: String(data.customer.customer_number || ''),
+        profileId: data.customer.profile_id ? String(data.customer.profile_id) : null,
+        fullName: String(data.customer.full_name || ''),
+        mobileNumber: String(data.customer.mobile_number || ''),
+        email: data.customer.email ? String(data.customer.email) : null,
+        address: data.customer.address ? String(data.customer.address) : null,
+        city: data.customer.city ? String(data.customer.city) : null,
+        pincode: data.customer.pincode ? String(data.customer.pincode) : null,
+        nomineeName: data.customer.nominee_name ? String(data.customer.nominee_name) : null,
+        nomineeRelationship: data.customer.nominee_relationship ? String(data.customer.nominee_relationship) : null,
+        nomineeMobile: data.customer.nominee_mobile ? String(data.customer.nominee_mobile) : null,
+        status: (data.customer.status as any) || 'ACTIVE',
+        createdAt: String(data.customer.created_at || new Date().toISOString()),
+        updatedAt: String(data.customer.updated_at || new Date().toISOString()),
+      };
+
+      setCustomer(mappedCust);
+
+      if (data.scheme) {
+        const mappedScheme: CustomerScheme = {
+          id: String(data.scheme.id),
+          schemeAccountNumber: String(data.scheme.scheme_account_number || ''),
+          customerId: String(data.scheme.customer_id),
+          schemePlanId: String(data.scheme.scheme_plan_id),
+          startDate: String(data.scheme.start_date || ''),
+          maturityDate: data.scheme.maturity_date ? String(data.scheme.maturity_date) : null,
+          monthlyAmount: Number(data.scheme.monthly_amount || 0),
+          totalInstallments: Number(data.scheme.total_installments || 12),
+          paidInstallmentsCount: Number(data.scheme.paid_installments_count || 0),
+          totalAmountPaid: Number(data.scheme.total_amount_paid || 0),
+          status: (data.scheme.status as any) || 'ACTIVE',
+          createdBy: data.scheme.created_by ? String(data.scheme.created_by) : null,
+          createdAt: String(data.scheme.created_at || new Date().toISOString()),
+          updatedAt: String(data.scheme.updated_at || new Date().toISOString()),
+        };
+        setCustomerSchemes([mappedScheme]);
+      } else {
+        setCustomerSchemes([]);
+      }
+
+      if (Array.isArray(data.installments) && data.installments.length > 0) {
+        const mappedInstalls: Installment[] = data.installments.map((row: any) => ({
+          id: String(row.id),
+          customerSchemeId: String(row.customer_scheme_id || data.scheme?.id || ''),
+          installmentNumber: Number(row.installment_number || 1),
+          dueDate: String(row.due_date || ''),
+          expectedAmount: Number(row.expected_amount || row.due_amount || 0),
+          paidAmount: Number(row.paid_amount || 0),
+          paymentDate: row.payment_date ? String(row.payment_date) : null,
+          paymentMethod: row.payment_method ? row.payment_method : null,
+          paymentReference: row.payment_reference ? String(row.payment_reference) : null,
+          status: (row.status as any) || 'PENDING',
+          receivedBy: row.received_by ? String(row.received_by) : null,
+          createdAt: String(row.created_at || new Date().toISOString()),
+          updatedAt: String(row.updated_at || new Date().toISOString()),
+        }));
+        setInstallments(mappedInstalls);
       } else {
         setInstallments([]);
       }

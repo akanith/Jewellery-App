@@ -10,6 +10,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  Linking,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '../../store/authStore';
@@ -146,12 +147,12 @@ export default function LoginScreen() {
           <View style={styles.assistanceSection}>
             <Text style={styles.assistanceLabel}>NEED ASSISTANCE?</Text>
             <View style={styles.assistanceButtonsRow}>
-              <TouchableOpacity style={styles.callShopButton}>
+              <TouchableOpacity style={styles.callShopButton} onPress={() => Linking.openURL('tel:+919842143307')}>
                 <Phone size={18} color={colors.maroonPrimary} style={{ marginRight: 8 }} />
                 <Text style={styles.callShopText}>Call Shop</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity style={styles.whatsappButton}>
+              <TouchableOpacity style={styles.whatsappButton} onPress={() => Linking.openURL('https://wa.me/919842143307')}>
                 <MessageSquare size={18} color={colors.whatsappGreen} style={{ marginRight: 8 }} />
                 <Text style={styles.whatsappText}>WhatsApp</Text>
               </TouchableOpacity>

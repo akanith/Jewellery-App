@@ -50,7 +50,7 @@ export default function ShopScreen() {
           </View>
 
           <Text style={styles.shopName}>Ramyas Jeweller</Text>
-          <Text style={styles.starsText}>⭐⭐⭐⭐⭐  Trusted Since 1995</Text>
+          <Text style={styles.starsText}>⭐⭐⭐⭐⭐  Trusted Since 1999</Text>
           <Text style={styles.partnerText}>Premium Jewellery Savings Partner</Text>
 
           <View style={styles.openPill}>

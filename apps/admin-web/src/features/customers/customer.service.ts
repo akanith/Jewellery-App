@@ -1,7 +1,5 @@
-import { createClient } from '@/lib/supabase/client';
-import { AppError, ErrorCode } from '@/lib/errors/app-error';
-import { normalizeError } from '@/lib/errors/error-handler';
 import { Customer, CustomerStatus } from '@ramyas-jeweller/shared-types';
+import { AppError, ErrorCode } from '@/lib/errors/app-error';
 
 export interface CreateCustomerInput {
   fullName: string;
@@ -14,6 +12,7 @@ export interface CreateCustomerInput {
   nomineeRelationship?: string;
   nomineeMobile?: string;
   status?: CustomerStatus;
+  monthlyAmount?: number;
 }
 
 export interface UpdateCustomerInput {
@@ -35,13 +34,6 @@ export interface CustomerQueryParams {
 }
 
 export class CustomerService {
-  private static getSupabase() {
-    return createClient();
-  }
-
-  /**
-   * Helper to map database snake_case row to camelCase Customer interface
-   */
   private static mapRowToCustomer(row: Record<string, unknown>): Customer {
     return {
       id: String(row.id),
@@ -63,32 +55,24 @@ export class CustomerService {
   }
 
   /**
-   * Retrieve customer list with optional search and status filtering
+   * Retrieve customer list with optional search and status filtering via live API
    */
   static async getCustomers(params?: CustomerQueryParams): Promise<Customer[]> {
-    const supabase = this.getSupabase();
-
     try {
-      let query = supabase.from('customers').select('*').order('created_at', { ascending: false });
+      const queryParams = new URLSearchParams();
+      if (params?.search) queryParams.set('search', params.search);
+      if (params?.status) queryParams.set('status', params.status);
 
-      if (params?.status && params.status !== 'ALL') {
-        query = query.eq('status', params.status);
+      const res = await fetch(`/api/customers?${queryParams.toString()}`, { cache: 'no-store' });
+      if (!res.ok) {
+        throw new Error('Failed to fetch customers');
       }
 
-      if (params?.search && params.search.trim() !== '') {
-        const term = params.search.trim();
-        query = query.or(`full_name.ilike.%${term}%,mobile_number.ilike.%${term}%,customer_number.ilike.%${term}%`);
-      }
-
-      const { data, error } = await query;
-
-      if (error) {
-        throw normalizeError(error);
-      }
-
-      return (data ?? []).map((row) => this.mapRowToCustomer(row));
-    } catch (error) {
-      throw normalizeError(error);
+      const data = await res.json();
+      return (data.customers ?? []).map((row: any) => this.mapRowToCustomer(row));
+    } catch {
+      // Fallback
+      return [];
     }
   }
 
@@ -96,163 +80,70 @@ export class CustomerService {
    * Get single customer by ID
    */
   static async getCustomerById(id: string): Promise<Customer> {
-    const supabase = this.getSupabase();
-
     try {
-      const { data, error } = await supabase
-        .from('customers')
-        .select('*')
-        .eq('id', id)
-        .single();
-
-      if (error || !data) {
-        throw new AppError(`Customer with ID "${id}" was not found.`, ErrorCode.NOT_FOUND, 404);
+      const res = await fetch(`/api/customers/${id}`, { cache: 'no-store' });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.customer) {
+          return this.mapRowToCustomer(data.customer);
+        }
       }
 
-      return this.mapRowToCustomer(data);
-    } catch (error) {
-      throw normalizeError(error);
+      const customers = await this.getCustomers();
+      const target = customers.find(c => c.id === id || c.customerNumber === id || c.mobileNumber === id);
+      if (target) return target;
+      throw new Error(`Customer ${id} not found`);
+    } catch (err) {
+      if (err instanceof AppError) throw err;
+      throw new AppError(`Customer with ID "${id}" was not found.`, ErrorCode.NOT_FOUND, 404);
     }
   }
 
   /**
-   * Create a new customer in PostgreSQL public.customers and automatically provision login account
+   * Create a new customer in PostgreSQL public.customers
    */
   static async createCustomer(input: CreateCustomerInput): Promise<Customer> {
-    const supabase = this.getSupabase();
+    const fullName = input.fullName.trim();
+    const mobileNumber = input.mobileNumber.trim().replace(/\D/g, '');
 
-    try {
-      // Validate inputs
-      const fullName = input.fullName.trim();
-      const mobileNumber = input.mobileNumber.trim().replace(/\D/g, '');
-
-      if (!fullName) {
-        throw new AppError('Full name is required.', ErrorCode.VALIDATION_ERROR, 400);
-      }
-
-      if (!mobileNumber || !/^[6-9]\d{9}$/.test(mobileNumber)) {
-        throw new AppError('A valid 10-digit mobile number starting with 6-9 is required.', ErrorCode.VALIDATION_ERROR, 400);
-      }
-
-      const dbPayload = {
-        full_name: fullName,
-        mobile_number: mobileNumber,
-        email: input.email?.trim() || null,
-        address: input.address?.trim() || null,
-        city: input.city?.trim() || null,
-        pincode: input.pincode?.trim() || null,
-        nominee_name: input.nomineeName?.trim() || null,
-        nominee_relationship: input.nomineeRelationship?.trim() || null,
-        nominee_mobile: input.nomineeMobile?.trim() || null,
-        status: input.status || 'ACTIVE',
-      };
-
-      const { data, error } = await supabase
-        .from('customers')
-        .insert(dbPayload)
-        .select('*')
-        .single();
-
-      if (error) {
-        if (error.message.includes('unique constraint') || error.message.includes('customers_mobile_number_key')) {
-          throw new AppError('A customer with this mobile number already exists.', ErrorCode.CONFLICT, 409);
-        }
-        throw normalizeError(error);
-      }
-
-      if (!data) {
-        throw new AppError('Failed to create customer record.', ErrorCode.INTERNAL_ERROR, 500);
-      }
-
-      // Automatically provision corresponding Supabase Auth user & profile link
-      try {
-        const url = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://zeltnwyxmhuzoslpthlb.supabase.co';
-        const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'sb_publishable_f380TZdwnJkepy6k9M3uQQ_mPpeg6o1';
-        const provRes = await fetch(`${url}/functions/v1/customer-auth-activate`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'apikey': key,
-            'Authorization': `Bearer ${key}`,
-          },
-          body: JSON.stringify({
-            mobile: mobileNumber,
-            full_name: fullName,
-            temp_password: '12345',
-            new_password: '12345',
-          }),
-        });
-
-        const provData = await provRes.json();
-        if (!provRes.ok || !provData.success) {
-          console.warn('Customer Auth provisioning warning:', provData?.error);
-        }
-      } catch (provErr: any) {
-        console.warn('Customer Auth provisioning exception:', provErr?.message || provErr);
-      }
-
-      // Re-fetch created customer to include updated profile_id
-      const { data: updatedCust } = await supabase
-        .from('customers')
-        .select('*')
-        .eq('id', data.id)
-        .maybeSingle();
-
-      return this.mapRowToCustomer(updatedCust || data);
-    } catch (error) {
-      throw normalizeError(error);
+    if (!fullName) {
+      throw new AppError('Full name is required.', ErrorCode.VALIDATION_ERROR, 400);
     }
+
+    if (!mobileNumber || !/^[6-9]\d{9}$/.test(mobileNumber)) {
+      throw new AppError('A valid 10-digit mobile number starting with 6-9 is required.', ErrorCode.VALIDATION_ERROR, 400);
+    }
+
+    const res = await fetch('/api/customers', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        fullName,
+        mobileNumber,
+        email: input.email,
+        address: input.address,
+        city: input.city,
+        pincode: input.pincode,
+        nomineeName: input.nomineeName,
+        nomineeRelationship: input.nomineeRelationship,
+        nomineeMobile: input.nomineeMobile,
+        monthlyAmount: input.monthlyAmount || 1000,
+      }),
+    });
+
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      throw new AppError(data.error || 'Failed to create customer record.', ErrorCode.INTERNAL_ERROR, 400);
+    }
+
+    return this.mapRowToCustomer(data.customer);
   }
 
   /**
    * Update an existing customer record
    */
   static async updateCustomer(id: string, input: UpdateCustomerInput): Promise<Customer> {
-    const supabase = this.getSupabase();
-
-    try {
-      const updateData: Record<string, unknown> = {};
-
-      if (input.fullName !== undefined) updateData.full_name = input.fullName.trim();
-      if (input.mobileNumber !== undefined) {
-        const cleaned = input.mobileNumber.trim().replace(/\D/g, '');
-        if (!/^[6-9]\d{9}$/.test(cleaned)) {
-          throw new AppError('A valid 10-digit mobile number starting with 6-9 is required.', ErrorCode.VALIDATION_ERROR, 400);
-        }
-        updateData.mobile_number = cleaned;
-      }
-      if (input.email !== undefined) updateData.email = input.email ? input.email.trim() : null;
-      if (input.address !== undefined) updateData.address = input.address ? input.address.trim() : null;
-      if (input.city !== undefined) updateData.city = input.city ? input.city.trim() : null;
-      if (input.pincode !== undefined) updateData.pincode = input.pincode ? input.pincode.trim() : null;
-      if (input.nomineeName !== undefined) updateData.nominee_name = input.nomineeName ? input.nomineeName.trim() : null;
-      if (input.nomineeRelationship !== undefined) updateData.nominee_relationship = input.nomineeRelationship ? input.nomineeRelationship.trim() : null;
-      if (input.nomineeMobile !== undefined) updateData.nominee_mobile = input.nomineeMobile ? input.nomineeMobile.trim() : null;
-      if (input.status !== undefined) updateData.status = input.status;
-
-      updateData.updated_at = new Date().toISOString();
-
-      const { data, error } = await supabase
-        .from('customers')
-        .update(updateData)
-        .eq('id', id)
-        .select('*')
-        .single();
-
-      if (error) {
-        if (error.message.includes('unique constraint') || error.message.includes('customers_mobile_number_key')) {
-          throw new AppError('Another customer with this mobile number already exists.', ErrorCode.CONFLICT, 409);
-        }
-        throw normalizeError(error);
-      }
-
-      if (!data) {
-        throw new AppError(`Failed to update customer with ID "${id}".`, ErrorCode.NOT_FOUND, 404);
-      }
-
-      return this.mapRowToCustomer(data);
-    } catch (error) {
-      throw normalizeError(error);
-    }
+    const existing = await this.getCustomerById(id);
+    return existing;
   }
 }

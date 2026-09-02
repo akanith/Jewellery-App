@@ -45,6 +45,7 @@ interface SchemeDetails {
   paidCount: number;
   totalPaid: number;
   progressPercent: number;
+  schemePlanTitle?: string;
 }
 
 export default function PassbookScreen() {
@@ -126,6 +127,7 @@ export default function PassbookScreen() {
         paidCount,
         totalPaid,
         progressPercent,
+        schemePlanTitle: schemeData.scheme_plan_title || 'Diwali Savings Scheme',
       });
 
       setInstallments(mappedList);
@@ -139,6 +141,7 @@ export default function PassbookScreen() {
 
   const displayName = identity?.fullName || 'Valued Customer';
   const displayId = identity?.customerNumber || 'CUST-001';
+  const schemeTitle = scheme?.schemePlanTitle || 'Diwali Savings Scheme';
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -191,7 +194,7 @@ export default function PassbookScreen() {
             <View style={styles.passbookHeaderCard}>
               <View style={styles.cardTopRow}>
                 <View>
-                  <Text style={styles.schemeTag}>Gold Savings Scheme</Text>
+                  <Text style={styles.schemeTag}>{schemeTitle}</Text>
                   <Text style={styles.customerName}>{displayName}</Text>
                   <Text style={styles.customerIdText}>ID: {displayId}</Text>
                 </View>

@@ -32,8 +32,15 @@ export function AdminSidebar() {
   const router = useRouter();
 
   const handleLogout = async () => {
-    await AuthService.signOut();
-    router.replace('/login');
+    try {
+      await AuthService.signOut();
+    } catch {}
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('admin_user');
+      document.cookie = 'admin_access_token=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;';
+      document.cookie = 'admin_user=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;';
+    }
+    window.location.href = '/login';
   };
 
   return (

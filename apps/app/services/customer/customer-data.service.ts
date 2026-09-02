@@ -1,8 +1,6 @@
 import { CustomerSession } from '../../types';
 import supabase from '../supabase/client';
 
-const BACKEND_API_URL = 'http://localhost:3000/api/customer-app';
-
 export class CustomerDataService {
   /**
    * Fetch home dashboard data for a verified customer session.
@@ -18,31 +16,44 @@ export class CustomerDataService {
       throw new Error('No active customer session');
     }
 
+    // 1. Direct Supabase RPC fetch (Fastest & SECURITY DEFINER)
     try {
-      // 1. Try Backend API route first
-      const res = await fetch(`${BACKEND_API_URL}?mobile=${session.mobileNumber}`, {
-        method: 'GET',
-        headers: { 'Content-Type': 'application/json' },
+      const { data: rpcRes, error: rpcErr } = await supabase.rpc('get_customer_scheme_data', {
+        p_customer_id: session.customerId,
+        p_mobile: session.mobileNumber,
       });
 
-      const data = await res.json();
+      if (!rpcErr && rpcRes && rpcRes.success && rpcRes.customer) {
+        let fullCustomer = { ...rpcRes.customer };
+        // If address or nominee fields are missing from RPC payload, attempt direct fetch merge
+        if (!fullCustomer.address && !fullCustomer.nominee_name) {
+          try {
+            const { data: extraCust } = await supabase
+              .from('customers')
+              .select('address, city, pincode, nominee_name, nominee_relationship, created_at')
+              .eq('id', session.customerId)
+              .maybeSingle();
 
-      if (res.ok && data.success && data.customer) {
-        // Enforce customer_id match
-        if (data.customer.id === session.customerId) {
-          return {
-            customer: data.customer,
-            scheme: data.scheme || null,
-            schemePlanTitle: data.scheme?.scheme_plan_title || data.schemePlanTitle || 'Diwali Savings Scheme',
-            installments: data.installments || [],
-          };
+            if (extraCust) {
+              fullCustomer = { ...fullCustomer, ...extraCust };
+            }
+          } catch {
+            /* ignore */
+          }
         }
+
+        return {
+          customer: fullCustomer,
+          scheme: rpcRes.scheme || null,
+          schemePlanTitle: rpcRes.scheme?.scheme_plan_title || rpcRes.scheme_plan_title || 'Diwali Savings Scheme',
+          installments: rpcRes.installments || [],
+        };
       }
-    } catch (err: any) {
-      console.warn('[CustomerDataService] API route fetch failed, falling back to direct Supabase query:', err?.message);
+    } catch (rpcEx) {
+      console.warn('[CustomerDataService] RPC fetch warning:', rpcEx);
     }
 
-    // 2. Direct Supabase Client fallback (filtered strictly by session.customerId)
+    // 2. Direct Supabase Table Query Fallback (filtered strictly by session.customerId)
     try {
       const { data: custRow, error: custErr } = await supabase
         .from('customers')
@@ -88,7 +99,6 @@ export class CustomerDataService {
       };
     } catch (dbErr: any) {
       console.error('[CustomerDataService] Direct DB fetch error:', dbErr?.message);
-      // Return dynamic identity object with empty scheme if customer exists but has no active scheme
       return {
         customer: {
           id: session.customerId,
@@ -138,7 +148,7 @@ export class CustomerDataService {
           ...paid.map((p: any) => ({
             id: `notif-pay-${p.installment_number}`,
             title: 'Payment Received',
-            message: `Installment #${p.installment_number} payment of ₹${(p.paid_amount || p.expected_amount || 1000).toLocaleString('en-IN')} received on ${p.payment_date || 'recently'}. Thank you!`,
+            message: `Installment #${p.installment_number} payment of ₹${(p.paid_amount || p.expected_amount || p.due_amount || 1000).toLocaleString('en-IN')} received on ${p.payment_date || 'recently'}. Thank you!`,
             type: 'PAYMENT',
             isRead: true,
             createdAt: p.payment_date ? `${p.payment_date}T10:00:00.000Z` : new Date().toISOString(),

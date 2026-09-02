@@ -118,7 +118,7 @@ export default function PrivacyPolicyScreen() {
             </View>
             <View>
               <Text style={styles.contactLabel}>Call Us</Text>
-              <Text style={styles.contactValue}>+91 98765 43210</Text>
+              <Text style={styles.contactValue}>+91 98421 43307</Text>
             </View>
           </View>
 
@@ -128,7 +128,7 @@ export default function PrivacyPolicyScreen() {
             </View>
             <View>
               <Text style={styles.contactLabel}>Email Us</Text>
-              <Text style={styles.contactValue}>privacy@ramyasjeweller.com</Text>
+              <Text style={styles.contactValue}>ramyasjeweller@gmail.com</Text>
             </View>
           </View>
         </View>

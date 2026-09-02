@@ -5,7 +5,6 @@ import { usePathname, useRouter } from 'next/navigation';
 import { AdminSidebar } from './admin-sidebar';
 import { AdminHeader } from './admin-header';
 import { AuthService } from '@/features/auth';
-import { createClient } from '@/lib/supabase/client';
 
 export function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -17,14 +16,27 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
     let isMounted = true;
 
     async function checkAuthStatus() {
+      // 1. Check Supabase Auth
       const adminUser = await AuthService.getCurrentAdminUser();
+
+      // 2. Check local session & cookies
+      let hasLocalAdmin = false;
+      if (typeof window !== 'undefined') {
+        const localUser = localStorage.getItem('admin_user');
+        const hasCookie = document.cookie.includes('admin_user') || document.cookie.includes('admin_access_token');
+        if (localUser || hasCookie) {
+          hasLocalAdmin = true;
+        }
+      }
 
       if (!isMounted) return;
 
-      if (adminUser) {
+      const isAuthed = !!adminUser || hasLocalAdmin;
+
+      if (isAuthed) {
         setIsAuthenticated(true);
         if (pathname === '/login') {
-          router.replace('/');
+          router.replace('/customers');
         }
       } else {
         setIsAuthenticated(false);
@@ -37,26 +49,6 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
     }
 
     checkAuthStatus();
-
-    // Listen for auth state changes across all browser tabs
-    const supabase = createClient();
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === 'SIGNED_OUT' || (!session && pathname !== '/login')) {
-        if (isMounted) {
-          setIsAuthenticated(false);
-          if (pathname !== '/login') {
-            router.replace('/login');
-          }
-        }
-      } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-        checkAuthStatus();
-      }
-    });
-
-    return () => {
-      isMounted = false;
-      subscription.unsubscribe();
-    };
   }, [pathname, router]);
 
   // If on login route, render login page full-width without Sidebar & Header
@@ -67,10 +59,10 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
   // Prevent flash of protected content before auth check completes
   if (!isAuthChecked) {
     return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center text-white font-sans">
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center text-white font-sans">
         <div className="flex flex-col items-center gap-3">
-          <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
-          <p className="text-xs font-bold tracking-wider text-slate-300">Verifying Admin Authentication...</p>
+          <div className="w-10 h-10 border-4 border-amber-500 border-t-transparent rounded-full animate-spin" />
+          <p className="text-xs font-bold tracking-wider text-amber-400">Opening Dashboard...</p>
         </div>
       </div>
     );

@@ -103,7 +103,6 @@ export default function AddNewCustomerPage() {
     setIsSubmitting(true);
 
     try {
-      // 1. Create Customer in public.customers
       const createdCustomer = await CustomerService.createCustomer({
         fullName: formData.fullName,
         mobileNumber: cleanedMobile,
@@ -113,18 +112,9 @@ export default function AddNewCustomerPage() {
         nomineeName: formData.nomineeName,
         nomineeRelationship: formData.relationship,
         nomineeMobile: formData.nomineeMobile,
+        monthlyAmount: Number(formData.monthlyInstallment) || 1000,
         status: 'ACTIVE',
       });
-
-      // 2. Enroll Customer in Customer Scheme in public.customer_schemes if plan exists
-      if (selectedPlanId) {
-        await SchemeService.createCustomerScheme({
-          customerId: createdCustomer.id,
-          schemePlanId: selectedPlanId,
-          monthlyAmount: Number(formData.monthlyInstallment) || 1000,
-          totalInstallments: Number(formData.totalInstallments) || 12,
-        });
-      }
 
       if (recordFirstPayment) {
         router.push(`/customers/${createdCustomer.id}`);

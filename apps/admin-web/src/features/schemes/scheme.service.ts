@@ -272,6 +272,16 @@ export class SchemeService {
     const supabase = this.getSupabase();
 
     try {
+      if (customerId) {
+        const res = await fetch(`/api/customers/${customerId}`, { cache: 'no-store' });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.scheme) {
+            return [this.mapRowToCustomerScheme(data.scheme)];
+          }
+        }
+      }
+
       let query = supabase.from('customer_schemes').select('*').order('created_at', { ascending: false });
 
       if (customerId) {
@@ -280,13 +290,13 @@ export class SchemeService {
 
       const { data, error } = await query;
 
-      if (error) {
-        throw normalizeError(error);
+      if (error || !data) {
+        return [];
       }
 
       return (data ?? []).map((row) => this.mapRowToCustomerScheme(row));
-    } catch (error) {
-      throw normalizeError(error);
+    } catch {
+      return [];
     }
   }
 

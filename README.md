@@ -41,3 +41,6 @@ Customer ──> Customer Scheme ──> Installments ──> Scheme Completion 
 2. All database queries must be guarded by PostgreSQL **Row Level Security (RLS)**.
 3. Client applications must **NEVER** expose the Supabase `service_role` key.
 4. Business queries must be routed through service abstractions, **NEVER** called directly inside UI components.
+
+Admin Email: admin@ramyasjeweller.com (or owner@ramyasjeweller.com)
+Password: Any admin password (e.g. admin123)

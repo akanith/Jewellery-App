@@ -9,11 +9,6 @@
 -- NO OTP.
 -- NO synthetic email.
 -- NO profile_id.
---
--- Security model:
---   get_customer_by_mobile   → returns only the row matching that mobile. Empty = not found.
---   get_customer_scheme_data → validates customer_id + mobile match SAME row before any data.
---   get_customer_notifs_data → same cross-validation. Customer A cannot see Customer B's data.
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- HELPER: normalize Indian mobile to 10 digits
@@ -23,14 +18,17 @@ RETURNS TEXT AS $$
 DECLARE
   v_clean TEXT;
 BEGIN
-  v_clean := regexp_replace(p_raw, '[^0-9]', '', 'g');
+  v_clean := regexp_replace(COALESCE(p_raw, ''), '[^0-9]', '', 'g');
   IF length(v_clean) > 10 AND v_clean LIKE '91%' THEN
     v_clean := substring(v_clean FROM 3);
   ELSIF length(v_clean) > 10 AND v_clean LIKE '0%' THEN
     v_clean := substring(v_clean FROM 2);
   END IF;
   IF v_clean !~ '^[6-9][0-9]{9}$' THEN
-    RETURN NULL; -- invalid
+    v_clean := right(regexp_replace(COALESCE(p_raw, ''), '[^0-9]', '', 'g'), 10);
+  END IF;
+  IF length(v_clean) < 10 THEN
+    RETURN NULL;
   END IF;
   RETURN v_clean;
 END;
@@ -67,6 +65,8 @@ BEGIN
     c.status::TEXT
   FROM public.customers c
   WHERE c.mobile_number = v_mobile
+     OR right(regexp_replace(c.mobile_number, '[^0-9]', '', 'g'), 10) = v_mobile
+  ORDER BY c.created_at DESC
   LIMIT 1;
 END;
 $$ LANGUAGE plpgsql STABLE SECURITY DEFINER;
@@ -93,11 +93,11 @@ BEGIN
   END IF;
 
   -- CROSS-VALIDATION: both p_customer_id AND p_mobile must match same row
-  SELECT id, full_name, mobile_number, customer_number, status
+  SELECT *
   INTO v_customer
   FROM public.customers
   WHERE id = p_customer_id
-    AND mobile_number = v_mobile;
+    AND (mobile_number = v_mobile OR right(regexp_replace(mobile_number, '[^0-9]', '', 'g'), 10) = v_mobile);
 
   IF NOT FOUND THEN
     RETURN jsonb_build_object('success', false, 'code', 'ACCESS_DENIED');
@@ -164,7 +164,7 @@ CREATE OR REPLACE FUNCTION public.get_customer_notifs_data(
 RETURNS JSONB AS $$
 DECLARE
   v_mobile   TEXT;
-  v_customer RECORD;
+  v_valid    BOOLEAN;
   v_notifs   JSONB;
 BEGIN
   v_mobile := public._normalize_mobile(p_mobile);
@@ -172,26 +172,25 @@ BEGIN
     RETURN jsonb_build_object('success', false, 'code', 'INVALID_MOBILE');
   END IF;
 
-  -- Cross-validate
-  SELECT id INTO v_customer
-  FROM public.customers
-  WHERE id = p_customer_id AND mobile_number = v_mobile;
+  SELECT EXISTS (
+    SELECT 1 FROM public.customers
+    WHERE id = p_customer_id
+      AND (mobile_number = v_mobile OR right(regexp_replace(mobile_number, '[^0-9]', '', 'g'), 10) = v_mobile)
+  ) INTO v_valid;
 
-  IF NOT FOUND THEN
+  IF NOT v_valid THEN
     RETURN jsonb_build_object('success', false, 'code', 'ACCESS_DENIED');
   END IF;
 
   SELECT COALESCE(
     jsonb_agg(
       jsonb_build_object(
-        'id',          n.id,
-        'title',       n.title,
-        'message',     n.message,
-        'type',        n.type,
-        'is_read',     n.is_read,
-        'customer_id', n.customer_id,
-        'created_at',  n.created_at,
-        'metadata',    n.metadata
+        'id',         n.id,
+        'title',      n.title,
+        'message',    n.message,
+        'type',       n.type,
+        'is_read',    n.is_read,
+        'created_at', n.created_at
       ) ORDER BY n.created_at DESC
     ),
     '[]'::jsonb
@@ -199,19 +198,17 @@ BEGIN
   INTO v_notifs
   FROM public.notifications n
   WHERE n.customer_id = p_customer_id
-     OR n.customer_id IS NULL
-  LIMIT 50;
+     OR n.customer_id IS NULL;
 
-  RETURN jsonb_build_object('success', true, 'notifications', v_notifs);
+  RETURN jsonb_build_object(
+    'success', true,
+    'notifications', v_notifs
+  );
 END;
 $$ LANGUAGE plpgsql STABLE SECURITY DEFINER;
 
--- ─────────────────────────────────────────────────────────────────────────────
--- GRANTS: Allow anon (Expo app) to call these functions
--- SECURITY DEFINER means the function runs as the DB owner,
--- so it can read any row — but it only returns the specific customer's data.
--- ─────────────────────────────────────────────────────────────────────────────
-GRANT EXECUTE ON FUNCTION public._normalize_mobile(TEXT)                    TO anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.get_customer_by_mobile(TEXT)               TO anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.get_customer_scheme_data(UUID, TEXT)       TO anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.get_customer_notifs_data(UUID, TEXT)       TO anon, authenticated;
+-- Explicit RPC execution permissions for anon and authenticated clients
+GRANT EXECUTE ON FUNCTION public._normalize_mobile(TEXT) TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.get_customer_by_mobile(TEXT) TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.get_customer_scheme_data(UUID, TEXT) TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.get_customer_notifs_data(UUID, TEXT) TO anon, authenticated, service_role;
