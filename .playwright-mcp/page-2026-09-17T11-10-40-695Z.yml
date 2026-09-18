@@ -1,0 +1,46 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e3]:
+      - generic [ref=e4]:
+        - generic [ref=e5]:
+          - generic [ref=e6]:
+            - generic [ref=e7]: R
+            - generic [ref=e8]: RAMYAS
+            - generic [ref=e9]: JEWELLER
+          - heading "Jewellery Savings Scheme Management" [level=1] [ref=e11]
+        - paragraph [ref=e12]: Manage customer savings with absolute confidence and the precision of heritage craftsmanship.
+        - img "Ramyas Jeweller - Heritage Gold and Diamond Jewellery Showcase" [ref=e14]
+        - generic: RAMYAS
+      - generic [ref=e15]:
+        - generic [ref=e16]:
+          - generic [ref=e17]:
+            - heading "Welcome Back" [level=2] [ref=e18]
+            - paragraph [ref=e19]: Sign in to your dashboard
+          - generic [ref=e20]:
+            - generic [ref=e21]:
+              - generic [ref=e22]: Email Address
+              - textbox "name@aurelian.com" [ref=e23]
+            - generic [ref=e24]:
+              - generic [ref=e25]:
+                - generic [ref=e26]: Password
+                - button "Forgot Password?" [ref=e27]
+              - generic [ref=e28]:
+                - textbox "••••••••" [ref=e29]
+                - button "Show password" [ref=e30]
+            - generic [ref=e35] [cursor=pointer]:
+              - checkbox "Remember this device" [ref=e36]
+              - generic [ref=e37]: Remember this device
+            - button "Sign In" [ref=e38] [cursor=pointer]
+          - paragraph [ref=e43]:
+            - text: Admin assistance?
+            - button "Contact Support" [ref=e44]
+        - generic [ref=e45]:
+          - text: Don't have an account?
+          - button "Request access" [ref=e46]
+    - contentinfo [ref=e47]:
+      - generic [ref=e48]: © 2024 Ramyas Jeweller
+      - generic [ref=e49]:
+        - generic [ref=e50] [cursor=pointer]: Privacy Policy
+        - generic [ref=e51] [cursor=pointer]: Terms of Service
+        - generic [ref=e52] [cursor=pointer]: Security
+  - button "Open Next.js Dev Tools" [ref=e58] [cursor=pointer]

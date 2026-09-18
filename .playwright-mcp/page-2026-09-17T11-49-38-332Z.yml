@@ -1,0 +1,48 @@
+- generic [active] [ref=e1]:
+  - button "Open Next.js Dev Tools" [ref=e7] [cursor=pointer]
+  - alert [ref=e11]
+  - generic [ref=e12]:
+    - generic [ref=e13]:
+      - generic [ref=e14]:
+        - generic [ref=e15]:
+          - generic [ref=e16]:
+            - generic [ref=e17]: R
+            - generic [ref=e18]: RAMYAS
+            - generic [ref=e19]: JEWELLER
+          - heading "Jewellery Savings Scheme Management" [level=1] [ref=e21]
+        - paragraph [ref=e22]: Manage customer savings with absolute confidence and the precision of heritage craftsmanship.
+        - img "Ramyas Jeweller - Heritage Gold and Diamond Jewellery Showcase" [ref=e24]
+        - generic: RAMYAS
+      - generic [ref=e25]:
+        - generic [ref=e26]:
+          - generic [ref=e27]:
+            - heading "Welcome Back" [level=2] [ref=e28]
+            - paragraph [ref=e29]: Sign in to your dashboard
+          - generic [ref=e63]: Invalid login credentials
+          - generic [ref=e30]:
+            - generic [ref=e31]:
+              - generic [ref=e32]: Email Address
+              - textbox "name@aurelian.com" [ref=e33]: admin2@gmail.com
+            - generic [ref=e34]:
+              - generic [ref=e35]:
+                - generic [ref=e36]: Password
+                - button "Forgot Password?" [ref=e37]
+              - generic [ref=e38]:
+                - textbox "••••••••" [ref=e39]: admin123
+                - button "Show password" [ref=e40]
+            - generic [ref=e45] [cursor=pointer]:
+              - checkbox "Remember this device" [ref=e46]
+              - generic [ref=e47]: Remember this device
+            - button "Sign In" [ref=e48] [cursor=pointer]
+          - paragraph [ref=e53]:
+            - text: Admin assistance?
+            - button "Contact Support" [ref=e54]
+        - generic [ref=e55]:
+          - text: Don't have an account?
+          - button "Request access" [ref=e56]
+    - contentinfo [ref=e57]:
+      - generic [ref=e58]: © 2024 Ramyas Jeweller
+      - generic [ref=e59]:
+        - generic [ref=e60] [cursor=pointer]: Privacy Policy
+        - generic [ref=e61] [cursor=pointer]: Terms of Service
+        - generic [ref=e62] [cursor=pointer]: Security

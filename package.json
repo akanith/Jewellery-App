@@ -1,0 +1,33 @@
+{
+  "name": "ramyas-jeweller-workspace",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Ramyas Jeweller - Jewellery Savings Scheme Management System Monorepo",
+  "workspaces": [
+    "admin-web",
+    "customer-app",
+    "shared"
+  ],
+  "scripts": {
+    "dev:admin": "npm --prefix admin-web run dev",
+    "build:admin": "npm --prefix admin-web run build",
+    "start:admin": "npm --prefix admin-web run start",
+    "lint:admin": "npm --prefix admin-web run lint",
+    "dev:customer": "npm --prefix customer-app run start",
+    "android:customer": "npm --prefix customer-app run android",
+    "lint:customer": "npm --prefix customer-app run lint"
+  },
+  "keywords": [
+    "jewellery",
+    "savings-scheme",
+    "nextjs",
+    "expo",
+    "react-native",
+    "supabase"
+  ],
+  "author": "Ramyas Jeweller",
+  "license": "UNLICENSED",
+  "devDependencies": {
+    "supabase": "^2.117.0"
+  }
+}

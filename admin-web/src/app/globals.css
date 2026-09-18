@@ -1,0 +1,127 @@
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700;800&family=Playfair+Display:ital,wght@0,500;0,600;0,700;1,500&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --color-royal-blue-50: #eff6ff;
+  --color-royal-blue-100: #dbeafe;
+  --color-royal-blue-200: #bfdbfe;
+  --color-royal-blue-300: #93c5fd;
+  --color-royal-blue-400: #60a5fa;
+  --color-royal-blue-500: #3b82f6;
+  --color-royal-blue-600: #0d52bd;
+  --color-royal-blue-700: #0a4198;
+  --color-royal-blue-800: #083478;
+  --color-royal-blue-900: #06285c;
+  --color-royal-blue-950: #041a3e;
+
+  --color-gold-50: #fefce8;
+  --color-gold-100: #fef9c3;
+  --color-gold-200: #fef08a;
+  --color-gold-300: #fde047;
+  --color-gold-400: #facc15;
+  --color-gold-500: #eab308;
+  --color-gold-600: #ca8a04;
+  --color-gold-700: #a16207;
+  --color-gold-800: #854d0e;
+  --color-gold-900: #713f12;
+}
+
+:root {
+  --font-serif: 'Playfair Display', Georgia, serif;
+  --font-cinzel: 'Cinzel', serif;
+  --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  /* Luxury Brand Palette */
+  --primary-blue: #0d52bd;
+  --primary-blue-hover: #0a4198;
+  --gold-primary: #c89d28;
+  --gold-accent: #e5c158;
+  --gold-light: #fef9ea;
+  
+  --bg-main: #f8fafc;
+  --bg-card: #ffffff;
+  --border-card: #e2e8f0;
+  --text-main: #0f172a;
+  --text-muted: #64748b;
+}
+
+body {
+  background-color: var(--bg-main);
+  color: var(--text-main);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.font-serif-luxury {
+  font-family: var(--font-serif);
+}
+
+.font-cinzel {
+  font-family: var(--font-cinzel);
+}
+
+.font-mono-numbers {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Custom Luxury Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Card Glow and Shadows */
+.luxury-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.05);
+  border-radius: 1rem;
+}
+
+.luxury-card-hover {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.luxury-card-hover:hover {
+  box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.08), 0 8px 10px -6px rgba(15, 23, 42, 0.04);
+  border-color: #cbd5e1;
+}
+
+.gold-badge {
+  background: linear-gradient(135deg, #fdf6e2 0%, #faeec7 100%);
+  border: 1px solid #ebd38f;
+  color: #8c6808;
+}
+
+.royal-button {
+  background: linear-gradient(135deg, #0d52bd 0%, #136dec 100%);
+  color: #ffffff;
+  box-shadow: 0 4px 14px 0 rgba(13, 82, 189, 0.25);
+  transition: all 0.15s ease-in-out;
+}
+
+.royal-button:hover {
+  background: linear-gradient(135deg, #0a4198 0%, #0d52bd 100%);
+  box-shadow: 0 6px 20px 0 rgba(13, 82, 189, 0.35);
+  transform: translateY(-1px);
+}
+
+.royal-button:active {
+  transform: translateY(0);
+}
