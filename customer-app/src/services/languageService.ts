@@ -23,3 +23,12 @@ export const getLanguagePreference = async (): Promise<SupportedLanguage> => {
   }
   return 'en';
 };
+
+export const hasSavedLanguagePreference = async (): Promise<boolean> => {
+  try {
+    const saved = await AsyncStorage.getItem(LANGUAGE_KEY);
+    return saved === 'ta' || saved === 'en';
+  } catch {
+    return false;
+  }
+};
