@@ -52,8 +52,8 @@ export default function LoginScreen() {
     try {
       const result = await loginWithMobile(mobileNumber);
       if (result.success) {
-        // Navigate to customer home dashboard route (e.g. index/tabs)
-        router.replace('/');
+        // Navigate directly to customer app tab navigation
+        router.replace('/(tabs)' as any);
       } else {
         setErrorMessage(result.message || 'Login failed. Please check your mobile number.');
       }

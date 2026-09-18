@@ -1,9 +1,22 @@
-import React from 'react';
-import { Tabs } from 'expo-router';
+import React, { useEffect } from 'react';
+import { Tabs, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { View, Text, StyleSheet } from 'react-native';
+import { getStoredCustomerSession } from '@/services/customerAuthService';
 
 export default function TabsLayout() {
+  const router = useRouter();
+
+  useEffect(() => {
+    async function checkSessionGuard() {
+      const session = await getStoredCustomerSession();
+      if (!session) {
+        router.replace('/login');
+      }
+    }
+    checkSessionGuard();
+  }, [router]);
+
   return (
     <Tabs
       screenOptions={{
