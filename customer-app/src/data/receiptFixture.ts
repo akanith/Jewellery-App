@@ -1,18 +1,19 @@
 import { CustomerInstallmentReceipt } from '@/types/receipt';
+import { OFFICIAL_SCHEME_NAME } from '@/constants/shopData';
 
 // Presentation-safe fixture data matching approved reference UI
 export const defaultReceiptFixture: CustomerInstallmentReceipt = {
   receiptId: 'rec_008',
-  receiptNumber: 'RJ-2026-0098',
-  customerId: 'RJ-2026-0145',
-  customerName: 'Anith',
+  receiptNumber: 'Not provided',
+  customerId: 'Not provided',
+  customerName: 'Customer',
   schemeId: 'sch_001',
-  schemeCode: 'SLS-12M',
-  schemeName: 'Gold Savings',
+  schemeCode: 'DSS-12M',
+  schemeName: OFFICIAL_SCHEME_NAME,
   installmentNumber: 8,
   totalInstallments: 12,
   installmentAmount: 1000,
-  paymentDate: '05 September 2026',
+  paymentDate: 'Not provided',
   paymentMethod: 'Cash',
   transactionReference: 'TXN-884920',
   collectedAt: 'Ramyas Jeweller',
@@ -26,16 +27,16 @@ export const defaultReceiptFixture: CustomerInstallmentReceipt = {
 
 export const completedSchemeReceiptFixture: CustomerInstallmentReceipt = {
   receiptId: 'rec_012',
-  receiptNumber: 'RJ-2027-0142',
-  customerId: 'RJ-2026-0145',
-  customerName: 'Anith',
+  receiptNumber: 'Not provided',
+  customerId: 'Not provided',
+  customerName: 'Customer',
   schemeId: 'sch_001',
-  schemeCode: 'SLS-12M',
-  schemeName: 'Gold Savings',
+  schemeCode: 'DSS-12M',
+  schemeName: OFFICIAL_SCHEME_NAME,
   installmentNumber: 12,
   totalInstallments: 12,
   installmentAmount: 1000,
-  paymentDate: '05 February 2027',
+  paymentDate: 'Not provided',
   paymentMethod: 'Cash',
   transactionReference: 'TXN-995810',
   collectedAt: 'Ramyas Jeweller',

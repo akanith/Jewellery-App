@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,45 +7,89 @@ import {
   ScrollView,
   SafeAreaView,
   StatusBar,
-  Image,
   Alert,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useLanguage } from '@/i18n';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CustomerProfileViewModel } from '@/types/profile';
-import { logoutCustomer } from '@/services/customerAuthService';
+import { logoutCustomer, getStoredCustomerSession } from '@/services/customerAuthService';
+import { getCustomerProfile } from '@/services/customerDataService';
 import LogoutModal from '@/components/LogoutModal';
+import { OFFICIAL_SCHEME_NAME } from '@/constants/shopData';
 
-// Presentation-safe fixture data matching reference UI design
 const initialProfileViewModel: CustomerProfileViewModel = {
   profile: {
-    id: 'GS-2024-089',
-    name: 'Anith Kumar',
-    mobileNumber: '+91 98765 43210',
-    avatarUrl: undefined, // Uses require fallback or image asset
-    schemeBadge: 'SWARNA LAKSHMI SCHEME',
-    joinDate: '15 Jan 2024',
-    address: 'No. 45, Gandhi Street, T. Nagar, Chennai - 600017',
+    id: '',
+    name: 'Customer',
+    mobileNumber: '',
+    avatarUrl: undefined,
+    schemeBadge: OFFICIAL_SCHEME_NAME,
+    joinDate: 'Not provided',
+    address: 'Not provided',
     nominee: {
-      name: 'S. Meena',
-      relationship: 'Wife',
+      name: 'Not provided',
+      relationship: 'Not provided',
     },
   },
   currentScheme: {
-    schemeName: 'Gold Savings',
+    schemeName: OFFICIAL_SCHEME_NAME,
     monthlyInstallment: 1000,
     totalMonths: 12,
-    paidInstallments: 8,
-    nextPaymentDue: '15 Oct 2024',
+    paidInstallments: 0,
+    nextPaymentDue: 'Not provided',
   },
 };
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const [profileData] = useState<CustomerProfileViewModel>(initialProfileViewModel);
+  const { t } = useLanguage();
+  const insets = useSafeAreaInsets();
+  const [profileData, setProfileData] = useState<CustomerProfileViewModel>(initialProfileViewModel);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    let isMounted = true;
+    const loadProfile = async () => {
+      setIsLoading(true);
+      const session = await getStoredCustomerSession();
+      if (!session) {
+        if (isMounted) {
+          setIsLoading(false);
+          router.replace('/login');
+        }
+        return;
+      }
+
+      const realProfile = await getCustomerProfile();
+      if (isMounted) {
+        if (realProfile) {
+          setProfileData(realProfile);
+        }
+        setIsLoading(false);
+      }
+    };
+
+    loadProfile();
+    return () => {
+      isMounted = false;
+    };
+  }, [router]);
+
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <ActivityIndicator size="large" color="#70001E" />
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   const { profile, currentScheme } = profileData;
   const progressPercent = Math.min(
@@ -54,9 +98,8 @@ export default function ProfileScreen() {
   );
 
   const handleEditProfileNotice = () => {
-    const title = 'Edit Profile';
-    const msg =
-      'Customer profile records are maintained by the showroom administrator. Please visit or contact Ramyas Jeweller to update your details.';
+    const title = t('editProfile');
+    const msg = t('editProfileNotice');
     if (Platform.OS === 'web') {
       window.alert(`${title}\n\n${msg}`);
     } else {
@@ -65,12 +108,12 @@ export default function ProfileScreen() {
   };
 
   const handleDownloadPassbookPDF = () => {
-    const title = 'Download Passbook';
-    const msg = 'Your Digital Passbook PDF statement has been generated and saved to your device downloads.';
+    const title = t('downloadPassbookPdf');
+    const msg = t('passbookPdfFuture');
     if (Platform.OS === 'web') {
       window.alert(`${title}\n\n${msg}`);
     } else {
-      Alert.alert(title, msg, [{ text: 'OK' }]);
+      Alert.alert(title, msg, [{ text: t('ok') }]);
     }
   };
 
@@ -79,24 +122,11 @@ export default function ProfileScreen() {
   };
 
   const handleAboutShop = () => {
-    const title = 'About Ramyas Jeweller';
-    const msg =
-      'Ramyas Jeweller • Premier Gold & Diamond Showroom.\nSwarna Lakshmi Gold Savings Scheme allows customers to invest in gold with attractive bonuses and zero making charge benefits.';
-    if (Platform.OS === 'web') {
-      window.alert(`${title}\n\n${msg}`);
-    } else {
-      Alert.alert(title, msg, [{ text: 'OK' }]);
-    }
+    router.push('/shop' as any);
   };
 
-  const handleRateApp = () => {
-    const title = 'Rate App';
-    const msg = 'Thank you for using Ramyas Jeweller Customer App! We appreciate your 5-star feedback.';
-    if (Platform.OS === 'web') {
-      window.alert(`${title}\n\n${msg}`);
-    } else {
-      Alert.alert(title, msg, [{ text: 'OK' }]);
-    }
+  const handleLanguage = () => {
+    router.push('/language' as any);
   };
 
   const handleConfirmLogout = async () => {
@@ -119,12 +149,12 @@ export default function ProfileScreen() {
 
       {/* HEADER */}
       <View style={styles.headerContainer}>
-        <Text style={styles.headerTitle}>My Profile</Text>
+        <Text style={styles.headerTitle}>{t('myProfile')}</Text>
         <TouchableOpacity
           onPress={handleEditProfileNotice}
           style={styles.editButton}
           activeOpacity={0.7}
-          accessibilityLabel="Edit Profile"
+          accessibilityLabel={t('editProfile')}
         >
           <Ionicons name="create-outline" size={22} color="#70001E" />
         </TouchableOpacity>
@@ -132,22 +162,16 @@ export default function ProfileScreen() {
 
       <ScrollView
         style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: 120 + Math.max(insets.bottom, 16) },
+        ]}
         showsVerticalScrollIndicator={false}
       >
         {/* CUSTOMER PROFILE CARD */}
         <View style={styles.profileCard}>
           <View style={styles.avatarWrapper}>
-            <View style={styles.avatarBorder}>
-              <Image
-                source={require('../../../assets/images/customer_avatar.jpg')}
-                style={styles.avatarImage}
-                resizeMode="cover"
-              />
-            </View>
-            <View style={styles.verifiedBadge}>
-              <Ionicons name="checkmark-sharp" size={12} color="#FFFFFF" />
-            </View>
+            <Ionicons name="person-circle" size={72} color="#70001E" />
           </View>
 
           <Text style={styles.customerName}>{profile.name}</Text>
@@ -163,7 +187,7 @@ export default function ProfileScreen() {
         {/* CURRENT SCHEME CARD */}
         <View style={styles.schemeCard}>
           <View style={styles.schemeHeaderRow}>
-            <Text style={styles.schemeHeaderTitle}>CURRENT SCHEME</Text>
+            <Text style={styles.schemeHeaderTitle}>{t('currentScheme')}</Text>
             <Ionicons name="wallet-outline" size={20} color="#70001E" />
           </View>
 
@@ -171,14 +195,14 @@ export default function ProfileScreen() {
             <View style={styles.schemeLeftCol}>
               <Text style={styles.schemeName}>{currentScheme.schemeName}</Text>
               <Text style={styles.schemeInstallmentText}>
-                ₹{currentScheme.monthlyInstallment.toLocaleString('en-IN')} Monthly | {currentScheme.totalMonths} Months
+                ₹{currentScheme.monthlyInstallment.toLocaleString('en-IN')} | {currentScheme.totalMonths} {t('monthsLabel')}
               </Text>
             </View>
             <View style={styles.schemeRightCol}>
               <Text style={styles.paidRatioText}>
                 {currentScheme.paidInstallments}/{currentScheme.totalMonths}
               </Text>
-              <Text style={styles.paidSubtext}>Paid</Text>
+              <Text style={styles.paidSubtext}>{t('paid')}</Text>
             </View>
           </View>
 
@@ -188,13 +212,13 @@ export default function ProfileScreen() {
           </View>
 
           <Text style={styles.nextDueText}>
-            Next payment due: {currentScheme.nextPaymentDue}
+            {t('nextPayment')}: {currentScheme.nextPaymentDue}
           </Text>
         </View>
 
         {/* PERSONAL DETAILS CARD */}
         <View style={styles.sectionCard}>
-          <Text style={styles.sectionHeaderTitle}>PERSONAL DETAILS</Text>
+          <Text style={styles.sectionHeaderTitle}>{t('personalDetails')}</Text>
 
           {/* ADDRESS */}
           <View style={styles.detailRow}>
@@ -202,8 +226,8 @@ export default function ProfileScreen() {
               <Ionicons name="location-outline" size={18} color="#70001E" />
             </View>
             <View style={styles.detailTextCol}>
-              <Text style={styles.detailLabel}>ADDRESS</Text>
-              <Text style={styles.detailValue}>{profile.address}</Text>
+              <Text style={styles.detailLabel}>{t('address')}</Text>
+              <Text style={styles.detailValue}>{profile.address || t('notProvided')}</Text>
             </View>
           </View>
 
@@ -214,8 +238,8 @@ export default function ProfileScreen() {
                 <Ionicons name="calendar-outline" size={18} color="#70001E" />
               </View>
               <View style={styles.detailTextCol}>
-                <Text style={styles.detailLabel}>JOIN DATE</Text>
-                <Text style={styles.detailValue}>{profile.joinDate}</Text>
+                <Text style={styles.detailLabel}>{t('joinDate')}</Text>
+                <Text style={styles.detailValue}>{profile.joinDate || t('notProvided')}</Text>
               </View>
             </View>
 
@@ -225,9 +249,11 @@ export default function ProfileScreen() {
                 <Ionicons name="person-add-outline" size={18} color="#70001E" />
               </View>
               <View style={styles.detailTextCol}>
-                <Text style={styles.detailLabel}>NOMINEE</Text>
+                <Text style={styles.detailLabel}>{t('nominee')}</Text>
                 <Text style={styles.detailValue}>
-                  {profile.nominee.name} ({profile.nominee.relationship})
+                  {profile.nominee?.name && profile.nominee.name !== 'Not provided'
+                    ? `${profile.nominee.name}${profile.nominee.relationship && profile.nominee.relationship !== 'Not provided' ? ` (${profile.nominee.relationship})` : ''}`
+                    : t('notProvided')}
                 </Text>
               </View>
             </View>
@@ -236,7 +262,7 @@ export default function ProfileScreen() {
 
         {/* QUICK ACTIONS */}
         <View style={styles.sectionCard}>
-          <Text style={styles.sectionHeaderTitle}>QUICK ACTIONS</Text>
+          <Text style={styles.sectionHeaderTitle}>{t('quickActions')}</Text>
 
           <View style={styles.actionList}>
             {/* VIEW PASSBOOK */}
@@ -248,7 +274,7 @@ export default function ProfileScreen() {
               <View style={styles.actionIconCircle}>
                 <Ionicons name="book-outline" size={18} color="#70001E" />
               </View>
-              <Text style={styles.actionLabel}>View Passbook</Text>
+              <Text style={styles.actionLabel}>{t('viewPassbookAction')}</Text>
               <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
             </TouchableOpacity>
 
@@ -263,7 +289,7 @@ export default function ProfileScreen() {
               <View style={styles.actionIconCircle}>
                 <Ionicons name="document-text-outline" size={18} color="#70001E" />
               </View>
-              <Text style={styles.actionLabel}>Download Passbook PDF</Text>
+              <Text style={styles.actionLabel}>{t('downloadPassbookPdf')}</Text>
               <Ionicons name="download-outline" size={18} color="#64748B" />
             </TouchableOpacity>
 
@@ -278,7 +304,7 @@ export default function ProfileScreen() {
               <View style={styles.actionIconCircle}>
                 <Ionicons name="storefront-outline" size={18} color="#70001E" />
               </View>
-              <Text style={styles.actionLabel}>Contact Shop</Text>
+              <Text style={styles.actionLabel}>{t('contactShop')}</Text>
               <Ionicons name="call-outline" size={18} color="#64748B" />
             </TouchableOpacity>
 
@@ -293,7 +319,7 @@ export default function ProfileScreen() {
               <View style={styles.actionIconCircle}>
                 <Ionicons name="help-circle-outline" size={18} color="#70001E" />
               </View>
-              <Text style={styles.actionLabel}>Help & Support</Text>
+              <Text style={styles.actionLabel}>{t('helpSupport')}</Text>
               <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
             </TouchableOpacity>
 
@@ -308,22 +334,22 @@ export default function ProfileScreen() {
               <View style={styles.actionIconCircle}>
                 <Ionicons name="information-circle-outline" size={18} color="#70001E" />
               </View>
-              <Text style={styles.actionLabel}>About Ramyas Jeweller</Text>
+              <Text style={styles.actionLabel}>{t('aboutShop')}</Text>
               <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
             </TouchableOpacity>
 
             <View style={styles.actionDivider} />
 
-            {/* RATE APP */}
+            {/* LANGUAGE */}
             <TouchableOpacity
               style={styles.actionRow}
-              onPress={handleRateApp}
+              onPress={handleLanguage}
               activeOpacity={0.7}
             >
               <View style={styles.actionIconCircle}>
-                <Ionicons name="star-outline" size={18} color="#70001E" />
+                <Ionicons name="globe-outline" size={18} color="#70001E" />
               </View>
-              <Text style={styles.actionLabel}>Rate App</Text>
+              <Text style={styles.actionLabel}>{t('language')}</Text>
               <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
             </TouchableOpacity>
           </View>
@@ -338,12 +364,12 @@ export default function ProfileScreen() {
         >
           <Ionicons name="log-out-outline" size={20} color="#70001E" />
           <Text style={styles.logoutText}>
-            {isLoggingOut ? 'Logging out...' : 'Logout'}
+            {isLoggingOut ? t('loggingOut') : t('logout')}
           </Text>
         </TouchableOpacity>
 
         {/* FOOTER */}
-        <Text style={styles.footerText}>App Version 2.4.1 • Made in India</Text>
+        <Text style={styles.footerText}>{t('appVersionText')}</Text>
       </ScrollView>
 
       {/* LOGOUT CONFIRMATION MODAL */}

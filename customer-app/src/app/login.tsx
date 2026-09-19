@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -19,19 +19,18 @@ import {
   sanitizeMobileNumber,
   validateMobileNumber,
 } from '@/services/customerAuthService';
-import { getLanguagePreference } from '@/services/languageService';
+import { OFFICIAL_SHOP_INFO } from '@/constants/shopData';
+import { useLanguage } from '@/i18n';
 
 export default function LoginScreen() {
   const router = useRouter();
+  const { t } = useLanguage();
   const [mobileNumber, setMobileNumber] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'login' | 'support' | 'locate'>('login');
 
-  useEffect(() => {
-    // Read saved language preference if needed for future localization
-    getLanguagePreference();
-  }, []);
+  const isMobileValid = /^[6-9]\d{9}$/.test(mobileNumber);
 
   const handleMobileChange = (text: string) => {
     const cleaned = sanitizeMobileNumber(text);
@@ -42,7 +41,7 @@ export default function LoginScreen() {
   const handleLogin = async () => {
     const validation = validateMobileNumber(mobileNumber);
     if (!validation.isValid) {
-      setErrorMessage(validation.error || 'Please enter a valid mobile number.');
+      setErrorMessage(validation.error ? t('invalidMobile') : t('invalidMobile'));
       return;
     }
 
@@ -55,25 +54,26 @@ export default function LoginScreen() {
         // Navigate directly to customer app tab navigation
         router.replace('/(tabs)' as any);
       } else {
-        setErrorMessage(result.message || 'Login failed. Please check your mobile number.');
+        setErrorMessage(t('loginFailed'));
       }
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'An error occurred during login.';
-      setErrorMessage(msg);
+    } catch {
+      setErrorMessage(t('loginError'));
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleCallShop = () => {
-    Linking.openURL('tel:8778173682').catch(() => {
-      setErrorMessage('Unable to make a call. Please dial 8778173682.');
+    const cleanNumber = OFFICIAL_SHOP_INFO.phone.replace(/[^0-9+]/g, '');
+    Linking.openURL(`tel:${cleanNumber}`).catch(() => {
+      setErrorMessage(`${t('unableCall')} ${OFFICIAL_SHOP_INFO.phone}`);
     });
   };
 
   const handleWhatsApp = () => {
-    Linking.openURL('https://wa.me/918778173682').catch(() => {
-      setErrorMessage('Unable to open WhatsApp. Please message +91 8778173682.');
+    const message = encodeURIComponent("Hello Ramya's Jeweller, I need assistance with login.");
+    Linking.openURL(`https://wa.me/${OFFICIAL_SHOP_INFO.whatsappPhone}?text=${message}`).catch(() => {
+      setErrorMessage(`${t('unableWhatsapp')} ${OFFICIAL_SHOP_INFO.phone}`);
     });
   };
 
@@ -92,7 +92,7 @@ export default function LoginScreen() {
           onPress={handleCallShop}
           style={styles.helpButton}
           activeOpacity={0.7}
-          accessibilityLabel="Help"
+          accessibilityLabel={t('help')}
         >
           <Ionicons name="help-circle-outline" size={24} color="#70001E" />
         </TouchableOpacity>
@@ -105,7 +105,7 @@ export default function LoginScreen() {
       >
         {/* BRAND TITLE AREA */}
         <View style={styles.brandTitleSection}>
-          <Text style={styles.brandTitle}>Ramya&apos;s Jeweller</Text>
+          <Text style={styles.brandTitle}>{OFFICIAL_SHOP_INFO.name}</Text>
         </View>
 
         {/* SHOWROOM HERO IMAGE CARD */}
@@ -117,14 +117,14 @@ export default function LoginScreen() {
           />
           <View style={styles.heroOverlay}>
             <Text style={styles.heroTagline}>
-              Every Gram Saved, Every Dream Closer.
+              {t('tagline')}
             </Text>
           </View>
         </View>
 
         {/* LOGIN CARD */}
         <View style={styles.loginCard}>
-          <Text style={styles.cardTitle}>Welcome Back</Text>
+          <Text style={styles.cardTitle}>{t('welcomeBack')}</Text>
 
           {/* Validation Error Alert */}
           {errorMessage && (
@@ -136,12 +136,12 @@ export default function LoginScreen() {
 
           {/* Mobile Number Input */}
           <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Mobile Number</Text>
+            <Text style={styles.inputLabel}>{t('mobileNumber')}</Text>
             <View style={styles.inputWrapper}>
               <Text style={styles.countryCode}>+91</Text>
               <TextInput
                 style={styles.textInput}
-                placeholder="Enter mobile number"
+                placeholder={t('enterMobile')}
                 placeholderTextColor="#94A3B8"
                 keyboardType="phone-pad"
                 maxLength={10}
@@ -154,15 +154,15 @@ export default function LoginScreen() {
 
           {/* Primary Login Button */}
           <TouchableOpacity
-            style={[styles.loginButton, isLoading && styles.loginButtonDisabled]}
+            style={[styles.loginButton, (!isMobileValid || isLoading) && styles.loginButtonDisabled]}
             onPress={handleLogin}
-            disabled={isLoading}
+            disabled={!isMobileValid || isLoading}
             activeOpacity={0.9}
           >
             {isLoading ? (
               <ActivityIndicator size="small" color="#FFFFFF" />
             ) : (
-              <Text style={styles.loginButtonText}>Login  →</Text>
+              <Text style={styles.loginButtonText}>{t('loginAction')}</Text>
             )}
           </TouchableOpacity>
 
@@ -170,9 +170,9 @@ export default function LoginScreen() {
           <View style={styles.infoBox}>
             <Ionicons name="information-circle" size={20} color="#854D0E" style={styles.infoIcon} />
             <View style={styles.infoTextContainer}>
-              <Text style={styles.infoTitle}>First-time login?</Text>
+              <Text style={styles.infoTitle}>{t('firstTimeLogin')}</Text>
               <Text style={styles.infoSubtitle}>
-                Use your registered mobile number to continue.
+                {t('firstTimeLoginSub')}
               </Text>
             </View>
           </View>
@@ -180,7 +180,7 @@ export default function LoginScreen() {
 
         {/* NEED ASSISTANCE SECTION */}
         <View style={styles.assistanceSection}>
-          <Text style={styles.assistanceHeader}>NEED ASSISTANCE?</Text>
+          <Text style={styles.assistanceHeader}>{t('needAssistance')}</Text>
 
           <View style={styles.assistanceButtonsContainer}>
             {/* Call Shop Button */}
@@ -190,7 +190,7 @@ export default function LoginScreen() {
               activeOpacity={0.8}
             >
               <Ionicons name="call" size={18} color="#70001E" />
-              <Text style={styles.callButtonText}>Call Shop</Text>
+              <Text style={styles.callButtonText}>{t('callShop')}</Text>
             </TouchableOpacity>
 
             {/* WhatsApp Button */}
@@ -200,7 +200,7 @@ export default function LoginScreen() {
               activeOpacity={0.8}
             >
               <Ionicons name="logo-whatsapp" size={18} color="#16A34A" />
-              <Text style={styles.whatsappButtonText}>WhatsApp</Text>
+              <Text style={styles.whatsappButtonText}>{t('whatsapp')}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -221,7 +221,7 @@ export default function LoginScreen() {
           <Text
             style={[styles.navText, activeTab === 'login' && styles.navTextSelected]}
           >
-            Login
+            {t('login')}
           </Text>
         </TouchableOpacity>
 
@@ -241,7 +241,7 @@ export default function LoginScreen() {
           <Text
             style={[styles.navText, activeTab === 'support' && styles.navTextSelected]}
           >
-            Support
+            {t('support')}
           </Text>
         </TouchableOpacity>
 
@@ -249,7 +249,7 @@ export default function LoginScreen() {
           style={[styles.navItem, activeTab === 'locate' && styles.navItemSelected]}
           onPress={() => {
             setActiveTab('locate');
-            Linking.openURL('https://maps.google.com').catch(() => {});
+            Linking.openURL(OFFICIAL_SHOP_INFO.googleMapsUrl).catch(() => {});
           }}
           activeOpacity={0.8}
         >
@@ -261,7 +261,7 @@ export default function LoginScreen() {
           <Text
             style={[styles.navText, activeTab === 'locate' && styles.navTextSelected]}
           >
-            Locate
+            {t('locate')}
           </Text>
         </TouchableOpacity>
       </View>

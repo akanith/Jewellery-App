@@ -10,8 +10,11 @@ import {
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
+import { useLanguage } from '@/i18n';
+
 export default function OfflineScreen() {
   const router = useRouter();
+  const { t } = useLanguage();
 
   const handleRetry = () => {
     router.replace('/(tabs)');
@@ -38,6 +41,7 @@ export default function OfflineScreen() {
           onPress={() => router.back()}
           style={styles.closeButton}
           activeOpacity={0.7}
+          accessibilityLabel={t('close')}
         >
           <Ionicons name="close-outline" size={24} color="#475569" />
         </TouchableOpacity>
@@ -65,8 +69,8 @@ export default function OfflineScreen() {
         </View>
 
         {/* TEXT & ACTIONS */}
-        <Text style={styles.title}>No Internet Connection</Text>
-        <Text style={styles.subtitle}>Please check your internet and try again.</Text>
+        <Text style={styles.title}>{t('noInternetTitle')}</Text>
+        <Text style={styles.subtitle}>{t('noInternetSub')}</Text>
 
         <View style={styles.buttonContainer}>
           {/* RETRY BUTTON */}
@@ -76,7 +80,7 @@ export default function OfflineScreen() {
             activeOpacity={0.8}
           >
             <Ionicons name="refresh" size={18} color="#FFFFFF" />
-            <Text style={styles.retryButtonText}>Retry</Text>
+            <Text style={styles.retryButtonText}>{t('retry')}</Text>
           </TouchableOpacity>
 
           {/* CONTACT SHOP BUTTON */}
@@ -86,7 +90,7 @@ export default function OfflineScreen() {
             activeOpacity={0.8}
           >
             <Ionicons name="storefront-outline" size={18} color="#70001E" />
-            <Text style={styles.contactButtonText}>Contact Shop</Text>
+            <Text style={styles.contactButtonText}>{t('contactShop')}</Text>
           </TouchableOpacity>
         </View>
 

@@ -14,55 +14,97 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { OFFICIAL_SHOP_INFO } from '@/constants/shopData';
+import { OFFICIAL_SHOP_INFO, OFFICIAL_SCHEME_NAME } from '@/constants/shopData';
 import { FAQItem } from '@/types/faq';
+import { useLanguage } from '@/i18n';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-const faqItemsData: FAQItem[] = [
-  {
-    id: 'faq_1',
-    question: 'How do I pay?',
-    answer:
-      "Customers can make the monthly ₹1,000 installment at Ramyas Jeweller. The shop administrator records the payment and it appears in the customer's digital passbook after verification.",
-  },
-  {
-    id: 'faq_2',
-    question: 'When will my scheme mature?',
-    answer:
-      'The scheme completes after all 12 monthly installments are paid. After the 12th installment, the ₹1,000 completion bonus is credited and the maturity value becomes ₹13,000.',
-  },
-  {
-    id: 'faq_3',
-    question: 'Can I pay late?',
-    answer:
-      'There is no late fee or penalty. If a calendar month is missed, that installment remains PENDING. The customer can contact the shop and make the pending installment when appropriate.',
-  },
-  {
-    id: 'faq_4',
-    question: 'How do I download my passbook?',
-    answer:
-      'The customer can use the Download Passbook option from the Digital Passbook screen.',
-  },
-  {
-    id: 'faq_5',
-    question: 'How do I change my mobile number?',
-    answer:
-      'Contact Ramyas Jeweller. Customer profile and contact information changes are handled by the authorized showroom administrator.',
-  },
-];
+const getFaqItemsData = (lang: string): FAQItem[] => {
+  if (lang === 'ta') {
+    return [
+      {
+        id: 'faq_1',
+        question: 'நான் தவணையை எப்படிச் செலுத்துவது?',
+        answer:
+          'வாடிக்கையாளர்கள் மாதாந்திர ₹1,000 தவணையை ரம்யாஸ் ஜுவல்லரில் செலுத்தலாம். கடை நிர்வாகி தவணையைப் பதிவு செய்தவுடன் உங்கள் டிஜிட்டல் பாஸ்புக்கில் தோன்றும்.',
+      },
+      {
+        id: 'faq_2',
+        question: 'எனது திட்டம் எப்போது முதிர்ச்சியடையும்?',
+        answer:
+          '12 மாதாந்திர தவணைகளும் செலுத்திய பிறகு திட்டம் முதிர்ச்சியடையும். 12வது தவணைக்கு பின் ₹1,000 கடை போனஸ் சேர்க்கப்பட்டு ₹13,000 முதிர்வுத் தொகையாக கிடைக்கும்.',
+      },
+      {
+        id: 'faq_3',
+        question: 'நான் தாமதமாகப் பணம் செலுத்தலாமா?',
+        answer:
+          'தாமதக் கட்டணம் எதுவும் இல்லை. ஒரு மாதம் செலுத்தவில்லை என்றால் அது நிலுவையில் இருக்கும். உங்கள் வசதிக்கேற்ப கடையைத் தொடர்பு கொண்டு செலுத்தலாம்.',
+      },
+      {
+        id: 'faq_4',
+        question: 'எனது பாஸ்புக்கை எப்படிப் பதிவிறக்குவது?',
+        answer:
+          'டிஜிட்டல் பாஸ்புக் திரையில் உள்ள பாஸ்புக் பதிவிறக்கம் விருப்பத்தைப் பயன்படுத்தலாம்.',
+      },
+      {
+        id: 'faq_5',
+        question: 'எனது கைபேசி எண்ணை எப்படி மாற்றுவது?',
+        answer:
+          'ரம்யாஸ் ஜுவல்லரைத் தொடர்பு கொள்ளவும். வாடிக்கையாளர் சுயவிவர மாற்றங்களை கடை நிர்வாகி மட்டுமே செய்வார்.',
+      },
+    ];
+  }
+  return [
+    {
+      id: 'faq_1',
+      question: 'How do I pay?',
+      answer:
+        "Customers can make the monthly ₹1,000 installment at Ramyas Jeweller. The shop administrator records the payment and it appears in the customer's digital passbook after verification.",
+    },
+    {
+      id: 'faq_2',
+      question: 'When will my scheme mature?',
+      answer:
+        'The scheme completes after all 12 monthly installments are paid. After the 12th installment, the ₹1,000 completion bonus is credited and the maturity value becomes ₹13,000.',
+    },
+    {
+      id: 'faq_3',
+      question: 'Can I pay late?',
+      answer:
+        'There is no late fee or penalty. If a calendar month is missed, that installment remains PENDING. The customer can contact the shop and make the pending installment when appropriate.',
+    },
+    {
+      id: 'faq_4',
+      question: 'How do I download my passbook?',
+      answer:
+        'The customer can use the Download Passbook option from the Digital Passbook screen.',
+    },
+    {
+      id: 'faq_5',
+      question: 'How do I change my mobile number?',
+      answer:
+        'Contact Ramyas Jeweller. Customer profile and contact information changes are handled by the authorized showroom administrator.',
+    },
+  ];
+};
 
 export default function HelpCenterScreen() {
   const router = useRouter();
+  const { t, language } = useLanguage();
+  const insets = useSafeAreaInsets();
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedId, setExpandedId] = useState<string | null>('faq_1'); // Default first item open
 
+  const faqsData = useMemo(() => getFaqItemsData(language), [language]);
+
   const filteredFaqs = useMemo(() => {
-    if (!searchQuery.trim()) return faqItemsData;
+    if (!searchQuery.trim()) return faqsData;
     const q = searchQuery.toLowerCase().trim();
-    return faqItemsData.filter(
+    return faqsData.filter(
       (item) =>
         item.question.toLowerCase().includes(q) || item.answer.toLowerCase().includes(q)
     );
-  }, [searchQuery]);
+  }, [searchQuery, faqsData]);
 
   const toggleExpand = (id: string) => {
     setExpandedId((prev) => (prev === id ? null : id));
@@ -82,7 +124,7 @@ export default function HelpCenterScreen() {
 
   const handleWhatsAppShop = () => {
     const message = encodeURIComponent(
-      "Hello Ramya's Jeweller, I need assistance with the Swarna Lakshmi Gold Savings Scheme."
+      `Hello Ramya's Jeweller, I need assistance with the ${OFFICIAL_SCHEME_NAME}.`
     );
     const url = `https://wa.me/${OFFICIAL_SHOP_INFO.whatsappPhone}?text=${message}`;
     Linking.openURL(url).catch(() => {
@@ -105,12 +147,12 @@ export default function HelpCenterScreen() {
           onPress={() => router.back()}
           style={styles.backButton}
           activeOpacity={0.7}
-          accessibilityLabel="Back"
+          accessibilityLabel={t('back')}
         >
           <Ionicons name="arrow-back" size={24} color="#70001E" />
         </TouchableOpacity>
 
-        <Text style={styles.headerTitle}>Help Center</Text>
+        <Text style={styles.headerTitle}>{t('helpCenter')}</Text>
 
         <TouchableOpacity
           style={styles.searchIconButton}
@@ -123,7 +165,10 @@ export default function HelpCenterScreen() {
 
       <ScrollView
         style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: 120 + Math.max(insets.bottom, 16) },
+        ]}
         showsVerticalScrollIndicator={false}
       >
         {/* SEARCH BAR */}
@@ -131,7 +176,7 @@ export default function HelpCenterScreen() {
           <Ionicons name="search-outline" size={20} color="#94A3B8" style={styles.searchIcon} />
           <TextInput
             style={styles.searchInput}
-            placeholder="Search for help"
+            placeholder={t('searchHelpPlaceholder')}
             placeholderTextColor="#94A3B8"
             value={searchQuery}
             onChangeText={setSearchQuery}
@@ -145,14 +190,14 @@ export default function HelpCenterScreen() {
         </View>
 
         {/* POPULAR QUESTIONS SECTION */}
-        <Text style={styles.sectionHeaderTitle}>Popular Questions</Text>
+        <Text style={styles.sectionHeaderTitle}>{t('popularQuestions')}</Text>
 
         {filteredFaqs.length === 0 ? (
           <View style={styles.emptyContainer}>
             <Ionicons name="help-circle-outline" size={48} color="#CBD5E1" />
-            <Text style={styles.emptyTitle}>No matching questions found</Text>
+            <Text style={styles.emptyTitle}>{t('noFaqFound')}</Text>
             <Text style={styles.emptySubtitle}>
-              Try searching with a different keyword or contact our support team below.
+              {t('noFaqFoundSub')}
             </Text>
           </View>
         ) : (
@@ -187,9 +232,9 @@ export default function HelpCenterScreen() {
 
         {/* STILL NEED HELP CARD */}
         <View style={styles.supportCard}>
-          <Text style={styles.supportCardTitle}>Still need help?</Text>
+          <Text style={styles.supportCardTitle}>{t('stillNeedHelp')}</Text>
           <Text style={styles.supportCardSubtitle}>
-            Our support team is here to assist you.
+            {t('supportSubtext')}
           </Text>
 
           <View style={styles.supportButtonsRow}>
@@ -199,7 +244,7 @@ export default function HelpCenterScreen() {
               activeOpacity={0.8}
             >
               <Ionicons name="call-outline" size={18} color="#FFFFFF" />
-              <Text style={styles.supportButtonText}>Call Shop</Text>
+              <Text style={styles.supportButtonText}>{t('callShop')}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -208,7 +253,7 @@ export default function HelpCenterScreen() {
               activeOpacity={0.8}
             >
               <Ionicons name="logo-whatsapp" size={18} color="#FFFFFF" />
-              <Text style={styles.supportButtonText}>WhatsApp Shop</Text>
+              <Text style={styles.supportButtonText}>{t('whatsappShop')}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -222,7 +267,7 @@ export default function HelpCenterScreen() {
           activeOpacity={0.7}
         >
           <Ionicons name="home-outline" size={18} color="#64748B" />
-          <Text style={styles.tabText}>Home</Text>
+          <Text style={styles.tabText}>{t('home')}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -231,7 +276,7 @@ export default function HelpCenterScreen() {
           activeOpacity={0.7}
         >
           <Ionicons name="book-outline" size={18} color="#64748B" />
-          <Text style={styles.tabText}>Passbook</Text>
+          <Text style={styles.tabText}>{t('passbook')}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -240,7 +285,7 @@ export default function HelpCenterScreen() {
           activeOpacity={0.7}
         >
           <Ionicons name="megaphone-outline" size={18} color="#64748B" />
-          <Text style={styles.tabText}>Updates</Text>
+          <Text style={styles.tabText}>{t('updates')}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -249,7 +294,7 @@ export default function HelpCenterScreen() {
           activeOpacity={0.7}
         >
           <Ionicons name="person-outline" size={18} color="#64748B" />
-          <Text style={styles.tabText}>Profile</Text>
+          <Text style={styles.tabText}>{t('profile')}</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>

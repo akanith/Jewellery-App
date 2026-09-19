@@ -10,12 +10,18 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useLanguage } from '@/i18n';
 
 export default function ErrorScreen() {
   const router = useRouter();
+  const { t } = useLanguage();
 
   const handleTryAgain = () => {
-    router.replace('/(tabs)');
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/(tabs)');
+    }
   };
 
   const handleGoHome = () => {
@@ -36,7 +42,7 @@ export default function ErrorScreen() {
           <Ionicons name="arrow-back" size={24} color="#70001E" />
         </TouchableOpacity>
 
-        <Text style={styles.headerTitle}>Error</Text>
+        <Text style={styles.headerTitle}>{t('somethingWentWrong')}</Text>
 
         <Text style={styles.brandTitle}>Ramyas Digital</Text>
       </View>
@@ -53,10 +59,9 @@ export default function ErrorScreen() {
 
         {/* ERROR CARD */}
         <View style={styles.errorCard}>
-          <Text style={styles.errorTitle}>Something went wrong.</Text>
+          <Text style={styles.errorTitle}>{t('somethingWentWrong')}</Text>
           <Text style={styles.errorDescription}>
-            We encountered an unexpected error while processing your request. Please try again
-            or return to the home screen.
+            {t('errorDescription')}
           </Text>
 
           {/* TRY AGAIN BUTTON */}
@@ -66,7 +71,7 @@ export default function ErrorScreen() {
             activeOpacity={0.8}
           >
             <Ionicons name="refresh" size={18} color="#FFFFFF" />
-            <Text style={styles.tryAgainText}>Try Again</Text>
+            <Text style={styles.tryAgainText}>{t('tryAgain')}</Text>
           </TouchableOpacity>
 
           {/* GO HOME BUTTON */}
@@ -76,7 +81,7 @@ export default function ErrorScreen() {
             activeOpacity={0.8}
           >
             <Ionicons name="home-outline" size={18} color="#70001E" />
-            <Text style={styles.goHomeText}>Go Home</Text>
+            <Text style={styles.goHomeText}>{t('goHome')}</Text>
           </TouchableOpacity>
         </View>
 
@@ -92,7 +97,7 @@ export default function ErrorScreen() {
         >
           <View style={styles.tabItemActive}>
             <Ionicons name="home" size={18} color="#1E293B" />
-            <Text style={styles.tabTextActive}>Home</Text>
+            <Text style={styles.tabTextActive}>{t('home')}</Text>
           </View>
         </TouchableOpacity>
 
@@ -102,7 +107,7 @@ export default function ErrorScreen() {
           activeOpacity={0.7}
         >
           <Ionicons name="book-outline" size={18} color="#64748B" />
-          <Text style={styles.tabText}>Passbook</Text>
+          <Text style={styles.tabText}>{t('passbook')}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -111,7 +116,7 @@ export default function ErrorScreen() {
           activeOpacity={0.7}
         >
           <Ionicons name="megaphone-outline" size={18} color="#64748B" />
-          <Text style={styles.tabText}>Updates</Text>
+          <Text style={styles.tabText}>{t('updates')}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -120,7 +125,7 @@ export default function ErrorScreen() {
           activeOpacity={0.7}
         >
           <Ionicons name="person-outline" size={18} color="#64748B" />
-          <Text style={styles.tabText}>Profile</Text>
+          <Text style={styles.tabText}>{t('profile')}</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>

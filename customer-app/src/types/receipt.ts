@@ -20,3 +20,6 @@ export interface CustomerInstallmentReceipt {
   nextInstallmentMonth?: string;
   isSchemeCompleted: boolean;
 }
+
+export type CustomerReceiptData = CustomerInstallmentReceipt;
+

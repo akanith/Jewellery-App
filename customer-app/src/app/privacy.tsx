@@ -15,6 +15,8 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { OFFICIAL_SHOP_INFO } from '@/constants/shopData';
 import { PrivacyPolicyContent } from '@/types/privacy';
+import { useLanguage } from '@/i18n';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const privacyPolicyData: PrivacyPolicyContent = {
   title: 'Privacy Policy',
@@ -107,6 +109,8 @@ const privacyPolicyData: PrivacyPolicyContent = {
 
 export default function PrivacyPolicyScreen() {
   const router = useRouter();
+  const { t } = useLanguage();
+  const insets = useSafeAreaInsets();
 
   const handleCallSupport = () => {
     const cleanNumber = privacyPolicyData.contactPhone.replace(/[^0-9+]/g, '');
@@ -146,19 +150,22 @@ export default function PrivacyPolicyScreen() {
           <Ionicons name="arrow-back" size={24} color="#70001E" />
         </TouchableOpacity>
 
-        <Text style={styles.headerTitle}>{privacyPolicyData.title}</Text>
+        <Text style={styles.headerTitle}>{t('privacyPolicy')}</Text>
         <View style={styles.headerRightSpacer} />
       </View>
 
       <ScrollView
         style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: 120 + Math.max(insets.bottom, 16) },
+        ]}
         showsVerticalScrollIndicator={false}
       >
         {/* OUR COMMITMENT SECTION */}
         <View style={styles.commitmentContainer}>
-          <Text style={styles.sectionHeaderTitle}>Our Commitment</Text>
-          <Text style={styles.commitmentText}>{privacyPolicyData.commitmentText}</Text>
+          <Text style={styles.sectionHeaderTitle}>{t('ourCommitment')}</Text>
+          <Text style={styles.commitmentText}>{t('commitmentText')}</Text>
         </View>
 
         {/* DATA WE COLLECT CARD */}
@@ -266,12 +273,11 @@ export default function PrivacyPolicyScreen() {
             <View style={styles.iconCircle}>
               <Ionicons name="help-circle-outline" size={20} color="#70001E" />
             </View>
-            <Text style={styles.cardTitle}>Privacy Concerns?</Text>
+            <Text style={styles.cardTitle}>{t('privacyConcerns')}</Text>
           </View>
 
           <Text style={styles.cardDescription}>
-            If you have questions about how we handle your data or wish to update your
-            information, please contact our support team.
+            {t('privacyConcernsSub')}
           </Text>
 
           <View style={styles.contactList}>
@@ -285,7 +291,7 @@ export default function PrivacyPolicyScreen() {
                 <Ionicons name="call-outline" size={18} color="#70001E" />
               </View>
               <View style={styles.contactTextCol}>
-                <Text style={styles.contactLabel}>Call Us</Text>
+                <Text style={styles.contactLabel}>{t('callUs')}</Text>
                 <Text style={styles.contactValue}>{privacyPolicyData.contactPhone}</Text>
               </View>
             </TouchableOpacity>
@@ -300,7 +306,7 @@ export default function PrivacyPolicyScreen() {
                 <Ionicons name="mail-outline" size={18} color="#70001E" />
               </View>
               <View style={styles.contactTextCol}>
-                <Text style={styles.contactLabel}>Email Us</Text>
+                <Text style={styles.contactLabel}>{t('emailUs')}</Text>
                 <Text style={styles.contactValue}>{privacyPolicyData.contactEmail}</Text>
               </View>
             </TouchableOpacity>
@@ -309,7 +315,7 @@ export default function PrivacyPolicyScreen() {
 
         {/* LAST UPDATED */}
         <Text style={styles.lastUpdatedText}>
-          Last Updated: {privacyPolicyData.lastUpdatedDate}
+          {t('lastUpdated')}: {privacyPolicyData.lastUpdatedDate}
         </Text>
       </ScrollView>
 
@@ -321,7 +327,7 @@ export default function PrivacyPolicyScreen() {
           activeOpacity={0.7}
         >
           <Ionicons name="home-outline" size={18} color="#64748B" />
-          <Text style={styles.tabText}>Home</Text>
+          <Text style={styles.tabText}>{t('home')}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -330,7 +336,7 @@ export default function PrivacyPolicyScreen() {
           activeOpacity={0.7}
         >
           <Ionicons name="book-outline" size={18} color="#64748B" />
-          <Text style={styles.tabText}>Passbook</Text>
+          <Text style={styles.tabText}>{t('passbook')}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -339,7 +345,7 @@ export default function PrivacyPolicyScreen() {
           activeOpacity={0.7}
         >
           <Ionicons name="megaphone-outline" size={18} color="#64748B" />
-          <Text style={styles.tabText}>Updates</Text>
+          <Text style={styles.tabText}>{t('updates')}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -348,7 +354,7 @@ export default function PrivacyPolicyScreen() {
           activeOpacity={0.7}
         >
           <Ionicons name="person-outline" size={18} color="#64748B" />
-          <Text style={styles.tabText}>Profile</Text>
+          <Text style={styles.tabText}>{t('profile')}</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>

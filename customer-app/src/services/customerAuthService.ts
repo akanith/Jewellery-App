@@ -1,14 +1,25 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+export interface CustomerSession {
+  token: string;
+  customerCode: string;
+  fullName: string;
+  mobileNumber: string;
+  isAuthenticated: boolean;
+  authenticatedAt: string;
+}
+
 export interface CustomerAuthResult {
   success: boolean;
   message?: string;
-  customer?: {
-    mobileNumber: string;
-  };
+  session?: CustomerSession;
 }
 
 const CUSTOMER_SESSION_KEY = '@ramyas_customer_session';
+
+const BFF_BASE_URL =
+  process.env.EXPO_PUBLIC_BFF_BASE_URL ||
+  'https://yjpbswsgtbmgageburmy.supabase.co/functions/v1';
 
 /**
  * Sanitizes mobile number input.
@@ -40,8 +51,8 @@ export const validateMobileNumber = (mobileNumber: string): { isValid: boolean; 
 };
 
 /**
- * Abstracted customer login method.
- * Enforces mobile-only authentication rules and prepares for BFF/Edge Function connection.
+ * Authenticates customer via real Customer BFF /auth/login.
+ * Returns raw server session token and real customer identity.
  */
 export const loginWithMobile = async (mobileNumber: string): Promise<CustomerAuthResult> => {
   const validation = validateMobileNumber(mobileNumber);
@@ -55,38 +66,59 @@ export const loginWithMobile = async (mobileNumber: string): Promise<CustomerAut
   const cleanedNumber = sanitizeMobileNumber(mobileNumber);
 
   try {
-    // Save transient session state locally for customer app session
-    await AsyncStorage.setItem(
-      CUSTOMER_SESSION_KEY,
-      JSON.stringify({
-        mobileNumber: cleanedNumber,
-        authenticatedAt: new Date().toISOString(),
-      })
-    );
+    const response = await fetch(`${BFF_BASE_URL}/customer-bff/auth/login`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ mobileNumber: cleanedNumber }),
+    });
+
+    const json = await response.json().catch(() => null);
+
+    if (response.status === 401 || !response.ok || !json?.success) {
+      return {
+        success: false,
+        message:
+          'Invalid mobile number or customer account not active. Please contact Ramyas Jeweller.',
+      };
+    }
+
+    const session: CustomerSession = {
+      token: json.token,
+      customerCode: json.customer.customerCode,
+      fullName: json.customer.fullName,
+      mobileNumber: json.customer.mobileNumber,
+      isAuthenticated: true,
+      authenticatedAt: new Date().toISOString(),
+    };
+
+    await AsyncStorage.setItem(CUSTOMER_SESSION_KEY, JSON.stringify(session));
 
     return {
       success: true,
-      message: 'Mobile validation successful.',
-      customer: {
-        mobileNumber: cleanedNumber,
-      },
+      message: 'Login successful.',
+      session,
     };
-  } catch (err: unknown) {
-    const errorMsg = err instanceof Error ? err.message : 'Unable to complete login.';
+  } catch {
     return {
       success: false,
-      message: errorMsg,
+      message:
+        'Unable to connect to service. Please check your network connection and try again.',
     };
   }
 };
 
-export const getStoredCustomerSession = async (): Promise<{ mobileNumber: string } | null> => {
+/**
+ * Retrieves the stored real customer session from AsyncStorage.
+ */
+export const getStoredCustomerSession = async (): Promise<CustomerSession | null> => {
   try {
     const sessionStr = await AsyncStorage.getItem(CUSTOMER_SESSION_KEY);
     if (sessionStr) {
-      const data = JSON.parse(sessionStr);
-      if (data?.mobileNumber) {
-        return { mobileNumber: data.mobileNumber };
+      const data: CustomerSession = JSON.parse(sessionStr);
+      if (data?.token && data?.isAuthenticated) {
+        return data;
       }
     }
   } catch {
@@ -95,10 +127,33 @@ export const getStoredCustomerSession = async (): Promise<{ mobileNumber: string
   return null;
 };
 
-export const logoutCustomer = async (): Promise<void> => {
+/**
+ * Revokes the server-side customer session via BFF and clears local session.
+ * Preserves the customer's language preference (@ramyas_customer_language).
+ */
+export const logoutCustomer = async (callServer = true): Promise<void> => {
   try {
-    await AsyncStorage.removeItem(CUSTOMER_SESSION_KEY);
+    if (callServer) {
+      const sessionStr = await AsyncStorage.getItem(CUSTOMER_SESSION_KEY);
+      if (sessionStr) {
+        const session: CustomerSession = JSON.parse(sessionStr);
+        if (session?.token) {
+          await fetch(`${BFF_BASE_URL}/customer-bff/auth/logout`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${session.token}`,
+            },
+          }).catch(() => {
+            // Ignore server logout network error
+          });
+        }
+      }
+    }
   } catch {
-    // Ignore storage remove error
+    // Ignore error
+  } finally {
+    // Always clear session locally, preserving language preference
+    await AsyncStorage.removeItem(CUSTOMER_SESSION_KEY);
   }
 };

@@ -24,5 +24,7 @@ export interface CustomerPassbookData {
   totalInstallments: number;
   status: 'ACTIVE' | 'MATURED' | 'CANCELLED';
   progressPercentage: number;
+  unreadNotificationsCount?: number;
+  avatarUri?: string | null;
   installments: PassbookInstallment[];
 }

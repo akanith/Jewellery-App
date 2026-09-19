@@ -15,10 +15,14 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { OFFICIAL_SHOP_INFO } from '@/constants/shopData';
+import { OFFICIAL_SHOP_INFO, OFFICIAL_SCHEME_NAME } from '@/constants/shopData';
+import { useLanguage } from '@/i18n';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function ShopScreen() {
   const router = useRouter();
+  const { t } = useLanguage();
+  const insets = useSafeAreaInsets();
 
   // Dynamic calculation for Open / Closed state based on actual local time
   const checkIsOpen = (): { isOpen: boolean; statusText: string } => {
@@ -36,12 +40,12 @@ export default function ShopScreen() {
     if (currentMinutes >= openMinutes && currentMinutes < closeMinutes) {
       return {
         isOpen: true,
-        statusText: 'Open Now • Closes at 10:00 PM',
+        statusText: t('openNow'),
       };
     } else {
       return {
         isOpen: false,
-        statusText: 'Closed Now • Opens at 9:30 AM',
+        statusText: t('closedNow'),
       };
     }
   };
@@ -62,7 +66,7 @@ export default function ShopScreen() {
 
   const handleWhatsApp = () => {
     const message = encodeURIComponent(
-      "Hello Ramya's Jeweller, I would like to inquire about the Swarna Lakshmi Gold Savings Scheme."
+      `Hello Ramya's Jeweller, I would like to inquire about the ${OFFICIAL_SCHEME_NAME}.`
     );
     const url = `https://wa.me/${OFFICIAL_SHOP_INFO.whatsappPhone}?text=${message}`;
     Linking.openURL(url).catch(() => {
@@ -112,7 +116,7 @@ export default function ShopScreen() {
           <Ionicons name="arrow-back" size={24} color="#70001E" />
         </TouchableOpacity>
 
-        <Text style={styles.headerTitle}>Visit Our Shop</Text>
+        <Text style={styles.headerTitle}>{t('visitOurShop')}</Text>
 
         <TouchableOpacity
           onPress={handleShareShop}
@@ -126,7 +130,10 @@ export default function ShopScreen() {
 
       <ScrollView
         style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: 120 + Math.max(insets.bottom, 16) },
+        ]}
         showsVerticalScrollIndicator={false}
       >
         {/* SHOP IDENTITY CARD */}
@@ -138,14 +145,7 @@ export default function ShopScreen() {
           <Text style={styles.shopName}>{OFFICIAL_SHOP_INFO.name}</Text>
 
           <View style={styles.ratingRow}>
-            <View style={styles.starsRow}>
-              {[1, 2, 3, 4, 5].map((s) => (
-                <Ionicons key={s} name="star" size={14} color="#EAB308" />
-              ))}
-            </View>
-            <Text style={styles.ratingText}>
-              Trusted Since {OFFICIAL_SHOP_INFO.establishedYear}
-            </Text>
+            <Text style={styles.ratingText}>{OFFICIAL_SHOP_INFO.category}</Text>
           </View>
 
           <Text style={styles.shopTagline}>{OFFICIAL_SHOP_INFO.tagline}</Text>
@@ -171,7 +171,7 @@ export default function ShopScreen() {
             activeOpacity={0.8}
           >
             <Ionicons name="call-outline" size={22} color="#FFFFFF" />
-            <Text style={styles.actionButtonText}>Call Shop</Text>
+            <Text style={styles.actionButtonText}>{t('callShop')}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -180,7 +180,7 @@ export default function ShopScreen() {
             activeOpacity={0.8}
           >
             <Ionicons name="logo-whatsapp" size={22} color="#FFFFFF" />
-            <Text style={styles.actionButtonText}>WhatsApp</Text>
+            <Text style={styles.actionButtonText}>{t('whatsapp')}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -189,13 +189,13 @@ export default function ShopScreen() {
             activeOpacity={0.8}
           >
             <Ionicons name="navigate-outline" size={22} color="#FFFFFF" />
-            <Text style={styles.actionButtonText}>Directions</Text>
+            <Text style={styles.actionButtonText}>{t('directions')}</Text>
           </TouchableOpacity>
         </View>
 
         {/* SHOP INFORMATION CARD */}
         <View style={styles.infoCard}>
-          <Text style={styles.cardHeaderTitle}>Shop Information</Text>
+          <Text style={styles.cardHeaderTitle}>{t('shopInformation')}</Text>
 
           {/* ADDRESS */}
           <View style={styles.infoRow}>
@@ -203,7 +203,7 @@ export default function ShopScreen() {
               <Ionicons name="location-outline" size={20} color="#70001E" />
             </View>
             <View style={styles.infoTextCol}>
-              <Text style={styles.infoLabel}>Address</Text>
+              <Text style={styles.infoLabel}>{t('address')}</Text>
               <Text style={styles.infoValue}>
                 {OFFICIAL_SHOP_INFO.address},{'\n'}
                 {OFFICIAL_SHOP_INFO.city}, {OFFICIAL_SHOP_INFO.state} -{' '}
@@ -219,7 +219,7 @@ export default function ShopScreen() {
               <Ionicons name="time-outline" size={20} color="#70001E" />
             </View>
             <View style={styles.infoTextCol}>
-              <Text style={styles.infoLabel}>Working Hours</Text>
+              <Text style={styles.infoLabel}>{t('workingHours')}</Text>
               <Text style={styles.infoValue}>
                 9:30 AM - 10:00 PM ({OFFICIAL_SHOP_INFO.workingDays})
               </Text>
@@ -232,7 +232,7 @@ export default function ShopScreen() {
               <Ionicons name="pricetag-outline" size={20} color="#70001E" />
             </View>
             <View style={styles.infoTextCol}>
-              <Text style={styles.infoLabel}>Category</Text>
+              <Text style={styles.infoLabel}>{t('category')}</Text>
               <Text style={styles.infoValue}>{OFFICIAL_SHOP_INFO.category}</Text>
             </View>
           </View>
@@ -243,7 +243,7 @@ export default function ShopScreen() {
               <Ionicons name="call-outline" size={20} color="#70001E" />
             </View>
             <View style={styles.infoTextCol}>
-              <Text style={styles.infoLabel}>Phone</Text>
+              <Text style={styles.infoLabel}>{t('phone')}</Text>
               <Text style={styles.infoValue}>{OFFICIAL_SHOP_INFO.phone}</Text>
             </View>
           </View>
@@ -258,8 +258,8 @@ export default function ShopScreen() {
           />
           <View style={styles.bannerOverlay}>
             <View style={styles.bannerTextCol}>
-              <Text style={styles.bannerSubtitle}>Our Flagship Store</Text>
-              <Text style={styles.bannerTitle}>Dindigul Main Showroom</Text>
+              <Text style={styles.bannerSubtitle}>{t('flagshipStore')}</Text>
+              <Text style={styles.bannerTitle}>{t('showroomTitle')}</Text>
             </View>
 
             <TouchableOpacity
@@ -268,7 +268,7 @@ export default function ShopScreen() {
               activeOpacity={0.8}
             >
               <Ionicons name="map-outline" size={16} color="#70001E" />
-              <Text style={styles.viewMapsText}>View on Maps</Text>
+              <Text style={styles.viewMapsText}>{t('viewOnMaps')}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -280,9 +280,9 @@ export default function ShopScreen() {
               <Ionicons name="headset-outline" size={20} color="#B45309" />
             </View>
             <View style={styles.supportTextCol}>
-              <Text style={styles.supportTitle}>Need Help? Support Available</Text>
+              <Text style={styles.supportTitle}>{t('needHelpSupport')}</Text>
               <Text style={styles.supportSubtitle}>
-                Average Response: Under 10 Minutes
+                {t('avgResponseTime')}
               </Text>
             </View>
           </View>
@@ -294,7 +294,7 @@ export default function ShopScreen() {
               activeOpacity={0.8}
             >
               <Ionicons name="call-outline" size={16} color="#70001E" />
-              <Text style={styles.supportButtonText}>Call Support</Text>
+              <Text style={styles.supportButtonText}>{t('callSupport')}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -303,7 +303,7 @@ export default function ShopScreen() {
               activeOpacity={0.8}
             >
               <Ionicons name="logo-whatsapp" size={16} color="#70001E" />
-              <Text style={styles.supportButtonText}>WhatsApp</Text>
+              <Text style={styles.supportButtonText}>{t('whatsapp')}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -311,7 +311,7 @@ export default function ShopScreen() {
         {/* FOOTER TRUST MESSAGE */}
         <View style={styles.footerContainer}>
           <Text style={styles.footerTrustText}>
-            Thank you for choosing Ramya&apos;s Jeweller. Trusted by thousands of families.
+            {t('thankYouChoosing')}
           </Text>
 
           <View style={styles.footerIconsRow}>
@@ -330,7 +330,7 @@ export default function ShopScreen() {
           activeOpacity={0.7}
         >
           <Ionicons name="home-outline" size={18} color="#64748B" />
-          <Text style={styles.tabText}>Home</Text>
+          <Text style={styles.tabText}>{t('home')}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -339,7 +339,7 @@ export default function ShopScreen() {
           activeOpacity={0.7}
         >
           <Ionicons name="book-outline" size={18} color="#64748B" />
-          <Text style={styles.tabText}>Passbook</Text>
+          <Text style={styles.tabText}>{t('passbook')}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -348,7 +348,7 @@ export default function ShopScreen() {
           activeOpacity={0.7}
         >
           <Ionicons name="megaphone-outline" size={18} color="#64748B" />
-          <Text style={styles.tabText}>Updates</Text>
+          <Text style={styles.tabText}>{t('updates')}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -357,7 +357,7 @@ export default function ShopScreen() {
           activeOpacity={0.7}
         >
           <Ionicons name="person-outline" size={18} color="#64748B" />
-          <Text style={styles.tabText}>Profile</Text>
+          <Text style={styles.tabText}>{t('profile')}</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>

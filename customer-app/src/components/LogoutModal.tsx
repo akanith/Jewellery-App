@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useLanguage } from '@/i18n';
 
 interface LogoutModalProps {
   visible: boolean;
@@ -22,6 +23,8 @@ export default function LogoutModal({
   onConfirm,
   isLoading = false,
 }: LogoutModalProps) {
+  const { t } = useLanguage();
+
   return (
     <Modal
       visible={visible}
@@ -39,8 +42,8 @@ export default function LogoutModal({
           </View>
 
           {/* TITLE & MESSAGE */}
-          <Text style={styles.title}>Logout</Text>
-          <Text style={styles.message}>Are you sure you want to logout?</Text>
+          <Text style={styles.title}>{t('logoutConfirmTitle')}</Text>
+          <Text style={styles.message}>{t('logoutConfirmMsg')}</Text>
 
           {/* ACTIONS */}
           <View style={styles.buttonContainer}>
@@ -56,7 +59,7 @@ export default function LogoutModal({
               ) : (
                 <>
                   <Ionicons name="log-out-outline" size={18} color="#FFFFFF" />
-                  <Text style={styles.confirmButtonText}>Logout</Text>
+                  <Text style={styles.confirmButtonText}>{t('logout')}</Text>
                 </>
               )}
             </TouchableOpacity>
@@ -68,7 +71,7 @@ export default function LogoutModal({
               disabled={isLoading}
               activeOpacity={0.8}
             >
-              <Text style={styles.cancelButtonText}>Cancel</Text>
+              <Text style={styles.cancelButtonText}>{t('cancel')}</Text>
             </TouchableOpacity>
           </View>
         </View>

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,23 +10,70 @@ import {
   Share,
   Platform,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { OFFICIAL_SHOP_INFO } from '@/constants/shopData';
-import { getReceiptByIdOrNumber } from '@/data/receiptFixture';
+import { OFFICIAL_SHOP_INFO, OFFICIAL_SCHEME_NAME } from '@/constants/shopData';
 import { formatCurrency } from '@/lib/formatters';
+import { useLanguage } from '@/i18n';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { CustomerReceiptData } from '@/types/receipt';
+import { getCustomerReceipt } from '@/services/customerDataService';
+import { getStoredCustomerSession } from '@/services/customerAuthService';
 
 export default function InstallmentReceiptScreen() {
   const router = useRouter();
+  const { t } = useLanguage();
+  const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ receiptId?: string; installmentNumber?: string }>();
 
-  const instNum = params.installmentNumber ? parseInt(params.installmentNumber, 10) : undefined;
-  const receipt = getReceiptByIdOrNumber(params.receiptId, instNum);
+  const [receipt, setReceipt] = useState<CustomerReceiptData | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    const loadReceipt = async () => {
+      setIsLoading(true);
+      setErrorMsg(null);
+
+      const session = await getStoredCustomerSession();
+      if (!session) {
+        if (isMounted) {
+          setIsLoading(false);
+          router.replace('/login');
+        }
+        return;
+      }
+
+      if (params.receiptId) {
+        const realReceipt = await getCustomerReceipt(params.receiptId);
+        if (isMounted) {
+          if (realReceipt) {
+            setReceipt(realReceipt);
+          } else {
+            setErrorMsg('Receipt not found or you do not have permission to view it.');
+          }
+          setIsLoading(false);
+        }
+      } else {
+        if (isMounted) {
+          setErrorMsg('No receipt identifier provided.');
+          setIsLoading(false);
+        }
+      }
+    };
+
+    loadReceipt();
+    return () => {
+      isMounted = false;
+    };
+  }, [params.receiptId, router]);
 
   const handleDownloadPDF = () => {
-    const title = 'Download Receipt PDF';
-    const msg = `Installment Receipt PDF statement for Receipt #${receipt.receiptNumber} has been generated and saved to downloads.`;
+    const title = t('downloadReceiptPdf');
+    const msg = 'Receipt PDF export will be available in a future update.';
     if (Platform.OS === 'web') {
       window.alert(`${title}\n\n${msg}`);
     } else {
@@ -35,6 +82,7 @@ export default function InstallmentReceiptScreen() {
   };
 
   const handleShareReceipt = async () => {
+    if (!receipt) return;
     try {
       await Share.share({
         title: `Receipt #${receipt.receiptNumber}`,
@@ -49,6 +97,38 @@ export default function InstallmentReceiptScreen() {
     router.push('/shop');
   };
 
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#70001E" />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (errorMsg || !receipt) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+        <View style={styles.headerContainer}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+            <Ionicons name="arrow-back" size={24} color="#70001E" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>{t('installmentReceipt')}</Text>
+          <View style={{ width: 28 }} />
+        </View>
+        <View style={styles.errorContainer}>
+          <Ionicons name="alert-circle-outline" size={48} color="#991B1B" />
+          <Text style={styles.errorTitle}>{errorMsg ? t('receiptNotFound') : t('receiptNotFound')}</Text>
+          <TouchableOpacity style={styles.backHomeBtn} onPress={() => router.back()}>
+            <Text style={styles.backHomeBtnText}>{t('back')}</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
@@ -59,18 +139,18 @@ export default function InstallmentReceiptScreen() {
           onPress={() => router.back()}
           style={styles.backButton}
           activeOpacity={0.7}
-          accessibilityLabel="Back"
+          accessibilityLabel={t('back')}
         >
           <Ionicons name="arrow-back" size={24} color="#70001E" />
         </TouchableOpacity>
 
-        <Text style={styles.headerTitle}>Installment Receipt</Text>
+        <Text style={styles.headerTitle}>{t('installmentReceipt')}</Text>
 
         <TouchableOpacity
           onPress={handleShareReceipt}
           style={styles.shareButton}
           activeOpacity={0.7}
-          accessibilityLabel="Share Receipt"
+          accessibilityLabel={t('shareReceipt')}
         >
           <Ionicons name="share-social-outline" size={22} color="#70001E" />
         </TouchableOpacity>
@@ -78,7 +158,10 @@ export default function InstallmentReceiptScreen() {
 
       <ScrollView
         style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: 120 + Math.max(insets.bottom, 16) },
+        ]}
         showsVerticalScrollIndicator={false}
       >
         {/* SUCCESS BANNER AREA */}
@@ -87,31 +170,31 @@ export default function InstallmentReceiptScreen() {
             <Ionicons name="checkmark-circle" size={44} color="#16A34A" />
           </View>
 
-          <Text style={styles.successTitle}>Payment Received</Text>
-          <Text style={styles.successSubtitle}>Successfully</Text>
+          <Text style={styles.successTitle}>{t('paymentReceived')}</Text>
+          <Text style={styles.successSubtitle}>{t('successfully')}</Text>
 
           <View style={styles.installmentPill}>
             <Ionicons name="ribbon-outline" size={14} color="#70001E" />
             <Text style={styles.installmentPillText}>
-              Installment {receipt.installmentNumber} of {receipt.totalInstallments}
+              {t('installment')} {receipt.installmentNumber} {t('ofLabel')} {receipt.totalInstallments}
             </Text>
           </View>
 
-          <Text style={styles.paymentDateText}>Paid on {receipt.paymentDate}</Text>
+          <Text style={styles.paymentDateText}>{t('paidOn')} {receipt.paymentDate}</Text>
         </View>
 
         {/* INSTALLMENT SUMMARY CARD */}
         <View style={styles.summaryCard}>
-          <Text style={styles.summaryLabel}>INSTALLMENT AMOUNT</Text>
+          <Text style={styles.summaryLabel}>{t('installmentAmount')}</Text>
           <Text style={styles.summaryAmount}>{formatCurrency(receipt.installmentAmount)}</Text>
 
           <View style={styles.summaryRow}>
             <View style={styles.summaryCol}>
-              <Text style={styles.summarySubLabel}>Payment Method</Text>
+              <Text style={styles.summarySubLabel}>{t('paymentMethod')}</Text>
               <Text style={styles.summarySubValue}>{receipt.paymentMethod}</Text>
             </View>
             <View style={styles.summaryColRight}>
-              <Text style={styles.summarySubLabel}>Collected At</Text>
+              <Text style={styles.summarySubLabel}>{t('collectedAt')}</Text>
               <Text style={styles.summarySubValue}>{receipt.collectedAt}</Text>
             </View>
           </View>
@@ -120,45 +203,45 @@ export default function InstallmentReceiptScreen() {
         {/* DIGITAL RECEIPT CARD */}
         <View style={styles.receiptDetailsCard}>
           <View style={styles.receiptHeaderRow}>
-            <Text style={styles.receiptSectionTitle}>DIGITAL RECEIPT</Text>
+            <Text style={styles.receiptSectionTitle}>{t('digitalReceipt')}</Text>
             <Ionicons name="document-text-outline" size={18} color="#70001E" />
           </View>
 
           <View style={styles.receiptGrid}>
             <View style={styles.receiptDetailRow}>
-              <Text style={styles.detailLabel}>Receipt Number</Text>
+              <Text style={styles.detailLabel}>{t('receiptNumber')}</Text>
               <Text style={styles.detailValueBold}>{receipt.receiptNumber}</Text>
             </View>
 
             <View style={styles.receiptDetailRow}>
-              <Text style={styles.detailLabel}>Customer Name</Text>
+              <Text style={styles.detailLabel}>{t('customerName')}</Text>
               <Text style={styles.detailValue}>{receipt.customerName}</Text>
             </View>
 
             <View style={styles.receiptDetailRow}>
-              <Text style={styles.detailLabel}>Customer ID</Text>
+              <Text style={styles.detailLabel}>{t('customerId')}</Text>
               <Text style={styles.detailValue}>{receipt.customerId}</Text>
             </View>
 
             <View style={styles.receiptDetailRow}>
-              <Text style={styles.detailLabel}>Scheme</Text>
-              <Text style={styles.detailValue}>{receipt.schemeName}</Text>
+              <Text style={styles.detailLabel}>{t('scheme')}</Text>
+              <Text style={styles.detailValue}>{receipt.schemeName || OFFICIAL_SCHEME_NAME}</Text>
             </View>
 
             <View style={styles.receiptDetailRow}>
-              <Text style={styles.detailLabel}>Installment</Text>
+              <Text style={styles.detailLabel}>{t('installment')}</Text>
               <Text style={styles.detailValue}>
-                Installment {receipt.installmentNumber} of {receipt.totalInstallments}
+                {t('installment')} {receipt.installmentNumber} {t('ofLabel')} {receipt.totalInstallments}
               </Text>
             </View>
 
             <View style={styles.receiptDetailRow}>
-              <Text style={styles.detailLabel}>Payment Date</Text>
+              <Text style={styles.detailLabel}>{t('paymentDate')}</Text>
               <Text style={styles.detailValue}>{receipt.paymentDate}</Text>
             </View>
 
             <View style={styles.receiptDetailRow}>
-              <Text style={styles.detailLabel}>Collected By</Text>
+              <Text style={styles.detailLabel}>{t('collectedBy')}</Text>
               <Text style={styles.detailValue}>{receipt.collectedBy}</Text>
             </View>
           </View>
@@ -166,23 +249,23 @@ export default function InstallmentReceiptScreen() {
 
         {/* SCHEME PROGRESS SUMMARY */}
         <View style={styles.progressCard}>
-          <Text style={styles.progressSectionTitle}>SCHEME PROGRESS</Text>
+          <Text style={styles.progressSectionTitle}>{t('schemeProgress')}</Text>
 
           <View style={styles.progressGrid}>
             <View style={styles.progressCol}>
-              <Text style={styles.progressLabel}>Paid</Text>
+              <Text style={styles.progressLabel}>{t('paid')}</Text>
               <Text style={styles.progressValuePaid}>{formatCurrency(receipt.paidTotal)}</Text>
             </View>
 
             <View style={styles.progressCol}>
-              <Text style={styles.progressLabel}>Remaining</Text>
+              <Text style={styles.progressLabel}>{t('remaining')}</Text>
               <Text style={styles.progressValueRemaining}>
                 {formatCurrency(receipt.remainingContribution)}
               </Text>
             </View>
 
             <View style={styles.progressCol}>
-              <Text style={styles.progressLabel}>Bonus</Text>
+              <Text style={styles.progressLabel}>{t('bonus')}</Text>
               <Text style={styles.progressValueBonus}>{formatCurrency(receipt.bonusAmount)}</Text>
             </View>
           </View>
@@ -193,29 +276,29 @@ export default function InstallmentReceiptScreen() {
           <View style={styles.maturityCard}>
             <View style={styles.maturityHeaderRow}>
               <Ionicons name="trophy-outline" size={24} color="#B45309" />
-              <Text style={styles.maturityTitle}>SCHEME COMPLETED & MATURED</Text>
+              <Text style={styles.maturityTitle}>{t('schemeMaturedTitle')}</Text>
             </View>
             <Text style={styles.maturityMessage}>
-              Congratulations! All 12 monthly installments have been successfully completed. Your ₹1,000 completion bonus has been credited.
+              {t('schemeMaturedMsg')}
             </Text>
             <View style={styles.maturityValueBox}>
-              <Text style={styles.maturityValueLabel}>Total Maturity Value</Text>
+              <Text style={styles.maturityValueLabel}>{t('totalMaturityValue')}</Text>
               <Text style={styles.maturityValueAmount}>{formatCurrency(13000)}</Text>
             </View>
           </View>
         ) : (
           <View style={styles.nextInstallmentCard}>
             <View style={styles.nextHeaderRow}>
-              <Text style={styles.nextTitle}>Next Installment</Text>
+              <Text style={styles.nextTitle}>{t('nextInstallment')}</Text>
               <Text style={styles.nextAmount}>
                 {formatCurrency(receipt.installmentAmount)}
               </Text>
             </View>
             <Text style={styles.nextMonthText}>
-              {receipt.nextInstallmentMonth || 'Next Month'}
+              {receipt.nextInstallmentMonth || t('nextPayment')}
             </Text>
             <Text style={styles.noFixedDateNotice}>
-              No fixed daily due date. Pay at your convenience anytime during the calendar month.
+              {t('noFixedDateNotice')}
             </Text>
           </View>
         )}
@@ -229,7 +312,7 @@ export default function InstallmentReceiptScreen() {
             <Text style={styles.shopName}>{OFFICIAL_SHOP_INFO.name}</Text>
           </View>
           <Text style={styles.shopAddress}>{OFFICIAL_SHOP_INFO.address}, {OFFICIAL_SHOP_INFO.city}</Text>
-          <Text style={styles.shopPhone}>Phone: {OFFICIAL_SHOP_INFO.phone}</Text>
+          <Text style={styles.shopPhone}>{t('phone')}: {OFFICIAL_SHOP_INFO.phone}</Text>
         </View>
 
         {/* BOTTOM ACTION BUTTONS */}
@@ -240,7 +323,7 @@ export default function InstallmentReceiptScreen() {
             activeOpacity={0.8}
           >
             <Ionicons name="download-outline" size={18} color="#FFFFFF" />
-            <Text style={styles.primaryActionText}>Download Receipt PDF</Text>
+            <Text style={styles.primaryActionText}>{t('downloadReceiptPdf')}</Text>
           </TouchableOpacity>
 
           <View style={styles.secondaryActionsRow}>
@@ -250,7 +333,7 @@ export default function InstallmentReceiptScreen() {
               activeOpacity={0.8}
             >
               <Ionicons name="share-social-outline" size={16} color="#70001E" />
-              <Text style={styles.secondaryActionText}>Share Receipt</Text>
+              <Text style={styles.secondaryActionText}>{t('shareReceipt')}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -259,7 +342,7 @@ export default function InstallmentReceiptScreen() {
               activeOpacity={0.8}
             >
               <Ionicons name="storefront-outline" size={16} color="#70001E" />
-              <Text style={styles.secondaryActionText}>Contact Shop</Text>
+              <Text style={styles.secondaryActionText}>{t('contactShop')}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -273,7 +356,7 @@ export default function InstallmentReceiptScreen() {
           activeOpacity={0.7}
         >
           <Ionicons name="home-outline" size={18} color="#64748B" />
-          <Text style={styles.tabText}>Home</Text>
+          <Text style={styles.tabText}>{t('home')}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -282,7 +365,7 @@ export default function InstallmentReceiptScreen() {
           activeOpacity={0.7}
         >
           <Ionicons name="book-outline" size={18} color="#64748B" />
-          <Text style={styles.tabText}>Passbook</Text>
+          <Text style={styles.tabText}>{t('passbook')}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -291,7 +374,7 @@ export default function InstallmentReceiptScreen() {
           activeOpacity={0.7}
         >
           <Ionicons name="megaphone-outline" size={18} color="#64748B" />
-          <Text style={styles.tabText}>Updates</Text>
+          <Text style={styles.tabText}>{t('updates')}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -300,7 +383,7 @@ export default function InstallmentReceiptScreen() {
           activeOpacity={0.7}
         >
           <Ionicons name="person-outline" size={18} color="#64748B" />
-          <Text style={styles.tabText}>Profile</Text>
+          <Text style={styles.tabText}>{t('profile')}</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -730,4 +813,36 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#64748B',
   },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#FAFAFA',
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    gap: 12,
+  },
+  errorTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#991B1B',
+    textAlign: 'center',
+  },
+  backHomeBtn: {
+    backgroundColor: '#70001E',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+    marginTop: 8,
+  },
+  backHomeBtnText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: 14,
+  },
 });
+

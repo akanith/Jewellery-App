@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import {
   View,
   Text,
@@ -11,31 +11,40 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import {
-  saveLanguagePreference,
-  getLanguagePreference,
-  SupportedLanguage,
-} from '@/services/languageService';
+import { SupportedLanguage } from '@/services/languageService';
+import { useLanguage } from '@/i18n';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { OFFICIAL_SHOP_INFO, OFFICIAL_SCHEME_NAME } from '@/constants/shopData';
+import { getStoredCustomerSession } from '@/services/customerAuthService';
 
 export default function LanguageScreen() {
   const router = useRouter();
-  const [selectedLanguage, setSelectedLanguage] = useState<SupportedLanguage>('en');
+  const { language, setLanguage, t } = useLanguage();
+  const insets = useSafeAreaInsets();
 
-  useEffect(() => {
-    async function loadSavedLanguage() {
-      const saved = await getLanguagePreference();
-      setSelectedLanguage(saved);
-    }
-    loadSavedLanguage();
-  }, []);
-
-  const handleSelectLanguage = (lang: SupportedLanguage) => {
-    setSelectedLanguage(lang);
+  const handleSelectLanguage = async (lang: SupportedLanguage) => {
+    await setLanguage(lang);
   };
 
   const handleContinue = async () => {
-    await saveLanguagePreference(selectedLanguage);
-    router.push('/login');
+    await setLanguage(language);
+    const session = await getStoredCustomerSession();
+    if (session) {
+      router.replace('/(tabs)/profile');
+    } else {
+      router.push('/login');
+    }
+  };
+
+  const handleBack = async () => {
+    const session = await getStoredCustomerSession();
+    if (session) {
+      router.replace('/(tabs)/profile');
+    } else if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.push('/login');
+    }
   };
 
   return (
@@ -45,7 +54,7 @@ export default function LanguageScreen() {
       {/* TOP HEADER */}
       <View style={styles.headerContainer}>
         <TouchableOpacity
-          onPress={() => router.back()}
+          onPress={handleBack}
           style={styles.backButton}
           activeOpacity={0.7}
           accessibilityLabel="Go back"
@@ -62,13 +71,16 @@ export default function LanguageScreen() {
       </View>
 
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: 120 + Math.max(insets.bottom, 16) },
+        ]}
         showsVerticalScrollIndicator={false}
       >
         {/* BRAND INTRO */}
         <View style={styles.brandIntroSection}>
-          <Text style={styles.brandTitle}>RAMYAS JEWELLER</Text>
-          <Text style={styles.brandSubtitle}>Jewellery Savings Scheme</Text>
+          <Text style={styles.brandTitle}>{OFFICIAL_SHOP_INFO.name.toUpperCase()}</Text>
+          <Text style={styles.brandSubtitle}>{OFFICIAL_SCHEME_NAME}</Text>
         </View>
 
         {/* WELCOME IMAGE CARD */}
@@ -79,9 +91,9 @@ export default function LanguageScreen() {
             resizeMode="cover"
           />
           <View style={styles.welcomeCardBody}>
-            <Text style={styles.welcomeTitle}>Welcome</Text>
+            <Text style={styles.welcomeTitle}>{t('chooseLanguage')}</Text>
             <Text style={styles.welcomeSubtitle}>
-              Choose your preferred language to continue.
+              {t('chooseLanguageSub')}
             </Text>
           </View>
         </View>
@@ -92,7 +104,7 @@ export default function LanguageScreen() {
           <TouchableOpacity
             style={[
               styles.languageCard,
-              selectedLanguage === 'ta' && styles.languageCardSelected,
+              language === 'ta' && styles.languageCardSelected,
             ]}
             onPress={() => handleSelectLanguage('ta')}
             activeOpacity={0.85}
@@ -100,12 +112,12 @@ export default function LanguageScreen() {
             <View style={styles.languageCardLeft}>
               <Text style={styles.flagEmoji}>🇮🇳</Text>
               <View style={styles.languageTextContainer}>
-                <Text style={styles.languageTitle}>தமிழ்</Text>
-                <Text style={styles.languageSubtitle}>தமிழில் தொடரவும்</Text>
+                <Text style={styles.languageTitle}>{t('tamilTitle')}</Text>
+                <Text style={styles.languageSubtitle}>{t('tamilSub')}</Text>
               </View>
             </View>
 
-            {selectedLanguage === 'ta' && (
+            {language === 'ta' && (
               <Ionicons name="checkmark-circle" size={24} color="#854D0E" />
             )}
           </TouchableOpacity>
@@ -114,7 +126,7 @@ export default function LanguageScreen() {
           <TouchableOpacity
             style={[
               styles.languageCard,
-              selectedLanguage === 'en' && styles.languageCardSelected,
+              language === 'en' && styles.languageCardSelected,
             ]}
             onPress={() => handleSelectLanguage('en')}
             activeOpacity={0.85}
@@ -122,12 +134,12 @@ export default function LanguageScreen() {
             <View style={styles.languageCardLeft}>
               <Text style={styles.flagEmoji}>🇬🇧</Text>
               <View style={styles.languageTextContainer}>
-                <Text style={styles.languageTitle}>English</Text>
-                <Text style={styles.languageSubtitle}>Continue in English</Text>
+                <Text style={styles.languageTitle}>{t('englishTitle')}</Text>
+                <Text style={styles.languageSubtitle}>{t('englishSub')}</Text>
               </View>
             </View>
 
-            {selectedLanguage === 'en' && (
+            {language === 'en' && (
               <Ionicons name="checkmark-circle" size={24} color="#854D0E" />
             )}
           </TouchableOpacity>
@@ -137,7 +149,7 @@ export default function LanguageScreen() {
         <View style={styles.infoCard}>
           <Ionicons name="information-circle-outline" size={20} color="#64748B" style={styles.infoIcon} />
           <Text style={styles.infoText}>
-            You can change the language anytime later from your Profile settings.
+            {t('changeLanguageNotice')}
           </Text>
         </View>
 
@@ -147,13 +159,12 @@ export default function LanguageScreen() {
           onPress={handleContinue}
           activeOpacity={0.9}
         >
-          <Text style={styles.continueButtonText}>Continue  →</Text>
+          <Text style={styles.continueButtonText}>{t('continue')}</Text>
         </TouchableOpacity>
 
         {/* TRUST TEXT */}
         <View style={styles.trustSection}>
-          <Text style={styles.trustSubtitle}>Trusted by thousands of families</Text>
-          <Text style={styles.trustTitle}>Powered by Ramyas Jeweller</Text>
+          <Text style={styles.trustTitle}>{t('poweredByShop')}</Text>
         </View>
       </ScrollView>
 
@@ -162,7 +173,7 @@ export default function LanguageScreen() {
         <TouchableOpacity
           style={[
             styles.bottomTabItem,
-            selectedLanguage === 'ta' && styles.bottomTabItemSelected,
+            language === 'ta' && styles.bottomTabItemSelected,
           ]}
           onPress={() => handleSelectLanguage('ta')}
           activeOpacity={0.8}
@@ -170,12 +181,12 @@ export default function LanguageScreen() {
           <Ionicons
             name="globe-outline"
             size={18}
-            color={selectedLanguage === 'ta' ? '#1E293B' : '#64748B'}
+            color={language === 'ta' ? '#1E293B' : '#64748B'}
           />
           <Text
             style={[
               styles.bottomTabText,
-              selectedLanguage === 'ta' && styles.bottomTabTextSelected,
+              language === 'ta' && styles.bottomTabTextSelected,
             ]}
           >
             Tamil
@@ -185,7 +196,7 @@ export default function LanguageScreen() {
         <TouchableOpacity
           style={[
             styles.bottomTabItem,
-            selectedLanguage === 'en' && styles.bottomTabItemSelected,
+            language === 'en' && styles.bottomTabItemSelected,
           ]}
           onPress={() => handleSelectLanguage('en')}
           activeOpacity={0.8}
@@ -193,12 +204,12 @@ export default function LanguageScreen() {
           <Ionicons
             name="language-outline"
             size={18}
-            color={selectedLanguage === 'en' ? '#1E293B' : '#64748B'}
+            color={language === 'en' ? '#1E293B' : '#64748B'}
           />
           <Text
             style={[
               styles.bottomTabText,
-              selectedLanguage === 'en' && styles.bottomTabTextSelected,
+              language === 'en' && styles.bottomTabTextSelected,
             ]}
           >
             English

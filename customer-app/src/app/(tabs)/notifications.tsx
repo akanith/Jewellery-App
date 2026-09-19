@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,97 +8,91 @@ import {
   SafeAreaView,
   StatusBar,
   Image,
+  ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useLanguage } from '@/i18n';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   CustomerNotificationsData,
   NotificationCategory,
 } from '@/types/notification';
+import {
+  getCustomerNotifications,
+  markNotificationAsRead,
+} from '@/services/customerDataService';
+import { getStoredCustomerSession } from '@/services/customerAuthService';
+import { OFFICIAL_SCHEME_NAME } from '@/constants/shopData';
 
-// Sample presentation fixture data matching reference UI
 const initialNotificationsData: CustomerNotificationsData = {
-  unreadCount: 3,
+  unreadCount: 0,
   featuredBanner: {
     id: 'b1',
-    title: 'New Arrivals',
-    subtitle: 'Check out our latest 22K Gold Temple Collection.',
+    title: OFFICIAL_SCHEME_NAME,
+    subtitle: 'Pay ₹1,000 monthly for 12 months & receive your ₹1,000 completion bonus at maturity!',
   },
-  notifications: [
-    {
-      id: 'n1',
-      category: 'PAYMENT_RECORDED',
-      title: 'Installment Recorded',
-      message: '₹1000 received for Sept installment.',
-      timestamp: '10:30 AM',
-      section: 'TODAY',
-      isRead: true,
-    },
-    {
-      id: 'n2',
-      category: 'GOLD_RATE_UPDATE',
-      title: 'Gold Rate Update',
-      message: "Today's 22K Gold Rate: ₹6,850/gm",
-      timestamp: '09:15 AM',
-      section: 'TODAY',
-      isRead: false,
-    },
-    {
-      id: 'n3',
-      category: 'PAYMENT_REMINDER',
-      title: 'Installment Reminder',
-      message: 'Oct installment due in 5 days.',
-      timestamp: 'Yesterday',
-      section: 'THIS_WEEK',
-      isRead: false,
-    },
-    {
-      id: 'n4',
-      category: 'FESTIVAL_OFFER',
-      title: 'Festival Offer',
-      message: 'Diwali Special: No making charges! Visit our store today to explore...',
-      timestamp: '2 days ago',
-      section: 'THIS_WEEK',
-      isRead: true,
-    },
-    {
-      id: 'n5',
-      category: 'SHOP_ANNOUNCEMENT',
-      title: 'Shop Holiday',
-      message: 'Shop closed on Ganesh Chaturthi.',
-      timestamp: 'Last Week',
-      section: 'EARLIER',
-      isRead: true,
-    },
-  ],
+  notifications: [],
 };
 
 export default function CustomerNotificationsScreen() {
   const router = useRouter();
+  const { t } = useLanguage();
+  const insets = useSafeAreaInsets();
   const [data, setData] = useState<CustomerNotificationsData>(initialNotificationsData);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const handleMarkAsRead = (id: string) => {
+  useEffect(() => {
+    let isMounted = true;
+    const loadNotifications = async () => {
+      setIsLoading(true);
+      const session = await getStoredCustomerSession();
+      if (!session) {
+        if (isMounted) {
+          setIsLoading(false);
+          router.replace('/login');
+        }
+        return;
+      }
+
+      const realData = await getCustomerNotifications();
+      if (isMounted) {
+        if (realData) {
+          setData(realData);
+        }
+        setIsLoading(false);
+      }
+    };
+
+    loadNotifications();
+    return () => {
+      isMounted = false;
+    };
+  }, [router]);
+
+  const handleMarkAsRead = async (id: string) => {
+    // Optimistic UI update
     setData((prev) => ({
       ...prev,
+      unreadCount: Math.max(0, prev.unreadCount - 1),
       notifications: prev.notifications.map((n) =>
         n.id === id ? { ...n, isRead: true } : n
       ),
-      unreadCount: Math.max(
-        0,
-        prev.notifications.filter((n) => !n.isRead && n.id !== id).length
-      ),
     }));
+
+    await markNotificationAsRead(id);
   };
 
   const handleNotificationPress = (item: (typeof data.notifications)[0]) => {
     handleMarkAsRead(item.id);
 
-    if (item.category === 'PAYMENT_RECORDED') {
+    // Extract receipt number from message if present
+    const receiptMatch = item.message.match(/RJ-RCP-[A-Z0-9-]+/i);
+    if (receiptMatch) {
       router.push({
         pathname: '/installment-receipt' as any,
         params: {
-          receiptId: 'rec_008',
-          installmentNumber: '8',
+          receiptId: receiptMatch[0],
         },
       });
     }
@@ -141,10 +135,20 @@ export default function CustomerNotificationsScreen() {
   };
 
   const sections: { title: string; key: 'TODAY' | 'THIS_WEEK' | 'EARLIER' }[] = [
-    { title: 'TODAY', key: 'TODAY' },
-    { title: 'THIS WEEK', key: 'THIS_WEEK' },
-    { title: 'EARLIER', key: 'EARLIER' },
+    { title: t('today'), key: 'TODAY' },
+    { title: t('thisWeek'), key: 'THIS_WEEK' },
+    { title: t('earlier'), key: 'EARLIER' },
   ];
+
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <ActivityIndicator size="large" color="#70001E" />
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -156,12 +160,12 @@ export default function CustomerNotificationsScreen() {
           onPress={() => router.back()}
           style={styles.backButton}
           activeOpacity={0.7}
-          accessibilityLabel="Go back"
+          accessibilityLabel={t('back')}
         >
           <Ionicons name="arrow-back" size={22} color="#70001E" />
         </TouchableOpacity>
 
-        <Text style={styles.headerTitle}>Notifications</Text>
+        <Text style={styles.headerTitle}>{t('notifications')}</Text>
 
         <View style={styles.headerRightBadgeWrapper}>
           <Ionicons name="notifications" size={22} color="#70001E" />
@@ -174,7 +178,10 @@ export default function CustomerNotificationsScreen() {
       </View>
 
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: 120 + Math.max(insets.bottom, 16) },
+        ]}
         showsVerticalScrollIndicator={false}
       >
         {/* FEATURED ANNOUNCEMENT BANNER */}
@@ -198,9 +205,9 @@ export default function CustomerNotificationsScreen() {
             <View style={styles.emptyIconCircle}>
               <Ionicons name="notifications-off-outline" size={32} color="#94A3B8" />
             </View>
-            <Text style={styles.emptyTitle}>No Notifications Yet</Text>
+            <Text style={styles.emptyTitle}>{t('noNotifications')}</Text>
             <Text style={styles.emptySubtitle}>
-              You will receive scheme payment updates and shop announcements here.
+              {t('noNotificationsSub')}
             </Text>
           </View>
         ) : (
