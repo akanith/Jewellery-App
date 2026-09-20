@@ -62,14 +62,15 @@ export default function Header() {
 
       {/* Right Action Icons & User Profile */}
       <div className="flex items-center gap-4">
-        {/* Notification Bell */}
-        <button
-          title="Notifications"
-          className="p-2 rounded-xl text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors relative"
+        {/* Notification Bell / Reset Requests Inbox */}
+        <Link
+          href="/password-reset-requests"
+          title="Password Reset Requests Inbox"
+          className="p-2 rounded-xl text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors relative flex items-center justify-center"
         >
           <Bell className="w-4 h-4" />
-          <span className="w-2 h-2 rounded-full bg-rose-500 absolute top-1.5 right-1.5"></span>
-        </button>
+          <span className="w-2 h-2 rounded-full bg-amber-500 absolute top-1.5 right-1.5 animate-pulse"></span>
+        </Link>
 
         {/* Calendar / Date */}
         <button

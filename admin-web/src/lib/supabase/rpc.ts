@@ -15,6 +15,11 @@ import {
   RecordSchemeRedemptionResult,
   ProcessEmergencyRefundParams,
   ProcessEmergencyRefundResult,
+  AdminResetCustomerPasswordParams,
+  AdminResetCustomerPasswordResult,
+  PendingPasswordResetRequest,
+  CompleteCustomerPasswordResetRequestResult,
+  CancelCustomerPasswordResetRequestResult,
 } from '@/types/database';
 
 export interface RpcResponse<T> {
@@ -190,3 +195,99 @@ export async function processEmergencyRefund(
     return { data: null, error: message };
   }
 }
+
+/**
+ * Resets a customer's password to a temporary password derived from the last 4 digits of their mobile.
+ * Invokes SECURITY DEFINER procedure public.admin_reset_customer_password(uuid).
+ */
+export async function adminResetCustomerPassword(
+  params: AdminResetCustomerPasswordParams
+): Promise<RpcResponse<AdminResetCustomerPasswordResult>> {
+  try {
+    const supabase = getSupabaseBrowserClient();
+    const { data, error } = await supabase.rpc('admin_reset_customer_password', {
+      p_customer_id: params.p_customer_id,
+    });
+
+    if (error) {
+      return { data: null, error: error.message };
+    }
+
+    return { data: data as AdminResetCustomerPasswordResult, error: null };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unable to reset customer password.';
+    return { data: null, error: message };
+  }
+}
+
+/**
+ * Retrieves all PENDING customer password reset requests.
+ * Invokes SECURITY DEFINER procedure public.get_pending_customer_password_reset_requests().
+ */
+export async function getPendingCustomerPasswordResetRequests(): Promise<
+  RpcResponse<PendingPasswordResetRequest[]>
+> {
+  try {
+    const supabase = getSupabaseBrowserClient();
+    const { data, error } = await supabase.rpc('get_pending_customer_password_reset_requests');
+
+    if (error) {
+      return { data: null, error: error.message };
+    }
+
+    return { data: (data || []) as PendingPasswordResetRequest[], error: null };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unable to fetch pending password reset requests.';
+    return { data: null, error: message };
+  }
+}
+
+/**
+ * Completes a pending password reset request, issuing a temporary password.
+ * Invokes SECURITY DEFINER procedure public.complete_customer_password_reset_request(uuid).
+ */
+export async function completeCustomerPasswordResetRequest(
+  p_request_id: string
+): Promise<RpcResponse<CompleteCustomerPasswordResetRequestResult>> {
+  try {
+    const supabase = getSupabaseBrowserClient();
+    const { data, error } = await supabase.rpc('complete_customer_password_reset_request', {
+      p_request_id,
+    });
+
+    if (error) {
+      return { data: null, error: error.message };
+    }
+
+    return { data: data as CompleteCustomerPasswordResetRequestResult, error: null };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unable to complete password reset request.';
+    return { data: null, error: message };
+  }
+}
+
+/**
+ * Cancels a pending password reset request.
+ * Invokes SECURITY DEFINER procedure public.cancel_customer_password_reset_request(uuid).
+ */
+export async function cancelCustomerPasswordResetRequest(
+  p_request_id: string
+): Promise<RpcResponse<CancelCustomerPasswordResetRequestResult>> {
+  try {
+    const supabase = getSupabaseBrowserClient();
+    const { data, error } = await supabase.rpc('cancel_customer_password_reset_request', {
+      p_request_id,
+    });
+
+    if (error) {
+      return { data: null, error: error.message };
+    }
+
+    return { data: data as CancelCustomerPasswordResetRequestResult, error: null };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unable to cancel password reset request.';
+    return { data: null, error: message };
+  }
+}
+
+

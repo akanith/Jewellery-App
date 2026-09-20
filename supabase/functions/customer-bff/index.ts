@@ -136,9 +136,18 @@ async function handleLogin(req: Request): Promise<Response> {
   }
 
   const rawMobile = body?.mobileNumber;
+  const password = body?.password;
+
   if (!rawMobile || typeof rawMobile !== "string") {
     return jsonResponse(
       { success: false, error: "Mobile number is required." },
+      400
+    );
+  }
+
+  if (!password || typeof password !== "string") {
+    return jsonResponse(
+      { success: false, error: "Password is required." },
       400
     );
   }
@@ -154,28 +163,66 @@ async function handleLogin(req: Request): Promise<Response> {
   try {
     const supabase = getSupabaseAdminClient();
 
+    // Invoke customer_password_login RPC
+    const { data: loginRes, error: loginErr } = await supabase.rpc("customer_password_login", {
+      p_phone_number: normalizedMobile,
+      p_password: password,
+    });
+
+    if (loginErr) {
+      const errMsg = loginErr.message || "";
+      if (errMsg.includes("LOCKED") || errMsg.includes("attempts")) {
+        return jsonResponse(
+          { success: false, error: "Too many unsuccessful attempts. Account is temporarily locked. Please try again later." },
+          423
+        );
+      }
+      return jsonResponse(
+        { success: false, error: "Invalid mobile number or password." },
+        401
+      );
+    }
+
+    if (loginRes && loginRes.success === false) {
+      if (loginRes.error === "ACCOUNT_LOCKED" || loginRes.status === "LOCKED") {
+        return jsonResponse(
+          { success: false, error: "Too many unsuccessful attempts. Account is temporarily locked. Please try again later." },
+          423
+        );
+      }
+      return jsonResponse(
+        { success: false, error: loginRes.message || "Invalid mobile number or password." },
+        401
+      );
+    }
+
+    // Fetch customer profile to verify active status and get password_status from customer_auth
     const { data: customer, error: customerErr } = await supabase
       .from("customers")
-      .select("id, customer_code, full_name, phone_number, profiles!inner(is_active)")
+      .select("id, customer_code, full_name, phone_number, customer_auth(password_status, locked_until), profiles!inner(is_active)")
       .eq("phone_number", normalizedMobile)
       .eq("profiles.is_active", true)
       .maybeSingle();
 
-    if (customerErr) {
-      console.error("Database query error during customer lookup.");
-      return jsonResponse(
-        { success: false, error: "Unable to process login. Please try again later." },
-        500
-      );
-    }
-
-    if (!customer) {
+    if (customerErr || !customer) {
       return jsonResponse(
         {
           success: false,
           error: "Invalid mobile number or customer account not active. Please contact Ramyas Jeweller.",
         },
         401
+      );
+    }
+
+    const authRecord = Array.isArray(customer.customer_auth)
+      ? customer.customer_auth[0]
+      : customer.customer_auth;
+    const pwdStatus = authRecord?.password_status || loginRes?.[0]?.password_status || "ACTIVE";
+
+    if (pwdStatus === "LOCKED") {
+      return jsonResponse(
+        { success: false, error: "Account is temporarily locked. Please try again later or contact showroom." },
+        423
       );
     }
 
@@ -204,9 +251,84 @@ async function handleLogin(req: Request): Promise<Response> {
         customerCode: customer.customer_code,
         fullName: customer.full_name,
         mobileNumber: customer.phone_number,
+        passwordStatus: pwdStatus,
       },
     });
+  } catch (err) {
+    console.error("Login error:", err);
+    return jsonResponse(
+      { success: false, error: "An unexpected server error occurred." },
+      500
+    );
+  }
+}
+
+/**
+ * Handles POST /auth/change-password
+ */
+async function handleChangePassword(req: Request): Promise<Response> {
+  const session = await authenticateSession(req);
+  if (!session) {
+    return jsonResponse({ success: false, error: "Unauthorized session." }, 401);
+  }
+
+  let body: Record<string, unknown>;
+  try {
+    body = await req.json();
   } catch {
+    return jsonResponse({ success: false, error: "Invalid JSON request payload." }, 400);
+  }
+
+  const oldPassword =
+    typeof body?.currentPassword === "string"
+      ? body.currentPassword
+      : typeof body?.oldPassword === "string"
+      ? body.oldPassword
+      : "";
+  const newPassword = body?.newPassword;
+
+  if (typeof newPassword !== "string" || !newPassword) {
+    return jsonResponse({ success: false, error: "New password is required." }, 400);
+  }
+
+  // Validate password strength: min 8 chars, 1 letter, 1 number
+  const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d).{8,}$/;
+  if (!passwordRegex.test(newPassword)) {
+    return jsonResponse(
+      { success: false, error: "Password must be at least 8 characters long and contain at least one letter and one number." },
+      400
+    );
+  }
+
+  try {
+    const supabase = getSupabaseAdminClient();
+
+    const { data: result, error } = await supabase.rpc("customer_change_password", {
+      p_customer_id: session.customerId,
+      p_old_password: typeof oldPassword === "string" ? oldPassword : "",
+      p_new_password: newPassword,
+    });
+
+    if (error) {
+      return jsonResponse(
+        { success: false, error: error.message || "Failed to update password." },
+        400
+      );
+    }
+
+    if (result && result.success === false) {
+      return jsonResponse(
+        { success: false, error: result.error || result.message || "Current password is incorrect." },
+        400
+      );
+    }
+
+    return jsonResponse({
+      success: true,
+      message: "Password updated successfully.",
+    });
+  } catch (err) {
+    console.error("Change password error:", err);
     return jsonResponse(
       { success: false, error: "An unexpected server error occurred." },
       500
@@ -244,6 +366,45 @@ async function handleLogout(req: Request): Promise<Response> {
       200
     );
   }
+}
+
+/**
+ * Handles POST /auth/forgot-password
+ * Anti-account enumeration: Always returns generic success response.
+ */
+async function handleForgotPassword(req: Request): Promise<Response> {
+  let body: Record<string, unknown>;
+  try {
+    body = await req.json();
+  } catch {
+    return jsonResponse(
+      {
+        success: true,
+        message: "If the mobile number is registered, a password reset request has been submitted. Please contact Ramyas Jeweller.",
+      },
+      200
+    );
+  }
+
+  const rawMobile = typeof body?.mobileNumber === "string" ? body.mobileNumber : "";
+  const normalizedMobile = normalizeMobileNumber(rawMobile);
+
+  try {
+    const supabase = getSupabaseAdminClient();
+
+    // Call request_customer_password_reset RPC
+    await supabase.rpc("request_customer_password_reset", {
+      p_mobile_number: normalizedMobile,
+    });
+  } catch (err) {
+    console.error("Forgot password request error:", err);
+  }
+
+  // Always return generic success message regardless of mobile existence
+  return jsonResponse({
+    success: true,
+    message: "If the mobile number is registered, a password reset request has been submitted. Please contact Ramyas Jeweller.",
+  });
 }
 
 /**
@@ -775,12 +936,28 @@ Deno.serve(async (req: Request) => {
     return await handleLogin(req);
   }
 
+  // Route: POST /auth/change-password
+  if (path.endsWith("/auth/change-password")) {
+    if (req.method !== "POST") {
+      return jsonResponse({ success: false, error: "Method not allowed." }, 405);
+    }
+    return await handleChangePassword(req);
+  }
+
   // Route: POST /auth/logout
   if (path.endsWith("/auth/logout")) {
     if (req.method !== "POST") {
       return jsonResponse({ success: false, error: "Method not allowed." }, 405);
     }
     return await handleLogout(req);
+  }
+
+  // Route: POST /auth/forgot-password
+  if (path.endsWith("/auth/forgot-password")) {
+    if (req.method !== "POST") {
+      return jsonResponse({ success: false, error: "Method not allowed." }, 405);
+    }
+    return await handleForgotPassword(req);
   }
 
   // Protected Route: GET /dashboard

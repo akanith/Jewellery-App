@@ -18,6 +18,7 @@ import {
   Settings,
   Plus,
   Gem,
+  KeyRound,
   LucideIcon
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
@@ -36,6 +37,7 @@ interface NavItemConfig {
 const NAV_ITEMS: NavItemConfig[] = [
   { name: 'Home', href: '/', icon: LayoutDashboard },
   { name: 'Customers', href: '/customers', icon: Users },
+  { name: 'Reset Requests', href: '/password-reset-requests', icon: KeyRound },
   { name: 'Payments', href: '/payments', icon: CreditCard },
   { name: 'Redemption', href: '/redemption', icon: Gift },
   { name: 'Reports', href: '/reports', icon: BarChart3 },

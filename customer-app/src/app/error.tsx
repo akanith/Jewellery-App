@@ -4,10 +4,11 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  SafeAreaView,
   StatusBar,
   Image,
+  ScrollView,
 } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useLanguage } from '@/i18n';
@@ -15,6 +16,7 @@ import { useLanguage } from '@/i18n';
 export default function ErrorScreen() {
   const router = useRouter();
   const { t } = useLanguage();
+  const insets = useSafeAreaInsets();
 
   const handleTryAgain = () => {
     if (router.canGoBack()) {
@@ -47,7 +49,12 @@ export default function ErrorScreen() {
         <Text style={styles.brandTitle}>Ramyas Digital</Text>
       </View>
 
-      <View style={styles.mainContent}>
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{ paddingBottom: 24 + Math.max(insets.bottom, 12) }}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.mainContent}>
         {/* GRAPHIC CONTAINER */}
         <View style={styles.imageContainer}>
           <Image
@@ -87,6 +94,7 @@ export default function ErrorScreen() {
 
         <Text style={styles.errorCodeText}>Error Code: ERR_RAMYAS_JEWEL_500</Text>
       </View>
+      </ScrollView>
 
       {/* BOTTOM TAB BAR */}
       <View style={styles.tabBar}>

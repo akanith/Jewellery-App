@@ -5,23 +5,23 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  SafeAreaView,
   StatusBar,
   Alert,
   Platform,
   ActivityIndicator,
 } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Circle } from 'react-native-svg';
 import { useLanguage } from '@/i18n';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CustomerHeader } from '@/components/CustomerHeader';
 import { CustomerPassbookData, PassbookInstallment } from '@/types/passbook';
 import { formatCurrency } from '@/lib/formatters';
 import { getCustomerPassbook } from '@/services/customerDataService';
 import { getStoredCustomerSession } from '@/services/customerAuthService';
 import { OFFICIAL_SCHEME_NAME } from '@/constants/shopData';
+import { useResponsiveMetrics } from '@/constants/responsive';
 
 // Default 12 calendar-month installment fixture list (Month + Year format, no specific days)
 const defaultInstallments: PassbookInstallment[] = [
@@ -90,6 +90,7 @@ export default function CustomerPassbookScreen() {
   const router = useRouter();
   const { t } = useLanguage();
   const insets = useSafeAreaInsets();
+  const responsive = useResponsiveMetrics();
   const [data, setData] = useState<CustomerPassbookData>(initialPassbookData);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -185,9 +186,13 @@ export default function CustomerPassbookScreen() {
       />
 
       <ScrollView
+        style={{ flex: 1 }}
         contentContainerStyle={[
           styles.scrollContent,
-          { paddingBottom: 120 + Math.max(insets.bottom, 16) },
+          {
+            paddingHorizontal: responsive.pageHorizontalPadding,
+            paddingBottom: responsive.bottomClearance,
+          },
         ]}
         showsVerticalScrollIndicator={false}
       >
@@ -434,60 +439,6 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: '#FFFDF8',
-  },
-  headerContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingTop: Platform.OS === 'android' ? 12 : 8,
-    paddingBottom: 12,
-    backgroundColor: '#FFFDF8',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E9D9C4',
-  },
-  greetingText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#6F6870',
-  },
-  customerHeaderName: {
-    fontSize: 24,
-    fontWeight: '900',
-    color: '#70001E',
-    marginTop: -2,
-  },
-  headerRightRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-  },
-  bellButton: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: '#F9EEF1',
-    alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
-  },
-  bellBadgeDot: {
-    position: 'absolute',
-    top: 9,
-    right: 10,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#70001E',
-    borderWidth: 1.5,
-    borderColor: '#F9EEF1',
-  },
-  avatarImage: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    borderWidth: 2,
-    borderColor: '#D4AF37',
   },
   scrollContent: {
     paddingHorizontal: 16,
@@ -761,7 +712,8 @@ const styles = StyleSheet.create({
 
   /* Grid Card Types */
   paidGridCard: {
-    width: '48.5%',
+    flex: 1,
+    minWidth: '47%',
     backgroundColor: '#FFFFFF',
     borderRadius: 14,
     borderWidth: 1,
@@ -770,7 +722,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   dueGridCard: {
-    width: '48.5%',
+    flex: 1,
+    minWidth: '47%',
     backgroundColor: '#FFF7D6',
     borderRadius: 14,
     borderWidth: 2,
@@ -791,7 +744,8 @@ const styles = StyleSheet.create({
     borderColor: '#FFFFFF',
   },
   futureGridCard: {
-    width: '48.5%',
+    flex: 1,
+    minWidth: '47%',
     backgroundColor: '#FFFDF8',
     borderRadius: 14,
     borderWidth: 1,

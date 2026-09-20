@@ -6,14 +6,13 @@ import {
   TouchableOpacity,
   Image,
   ScrollView,
-  SafeAreaView,
   StatusBar,
 } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { SupportedLanguage } from '@/services/languageService';
 import { useLanguage } from '@/i18n';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { OFFICIAL_SHOP_INFO, OFFICIAL_SCHEME_NAME } from '@/constants/shopData';
 import { getStoredCustomerSession } from '@/services/customerAuthService';
 
@@ -71,9 +70,10 @@ export default function LanguageScreen() {
       </View>
 
       <ScrollView
+        style={{ flex: 1 }}
         contentContainerStyle={[
           styles.scrollContent,
-          { paddingBottom: 120 + Math.max(insets.bottom, 16) },
+          { paddingBottom: 24 + Math.max(insets.bottom, 12) },
         ]}
         showsVerticalScrollIndicator={false}
       >

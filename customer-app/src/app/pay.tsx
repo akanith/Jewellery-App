@@ -5,15 +5,14 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  SafeAreaView,
   StatusBar,
   Linking,
   ActivityIndicator,
   Image,
 } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLanguage } from '@/i18n';
 import { getStoredCustomerSession } from '@/services/customerAuthService';
 import { getCustomerDashboard } from '@/services/customerDataService';
@@ -105,9 +104,10 @@ export default function PayScreen() {
       </View>
 
       <ScrollView
+        style={{ flex: 1 }}
         contentContainerStyle={[
           styles.scrollContent,
-          { paddingBottom: 120 + Math.max(insets.bottom, 16) },
+          { paddingBottom: 32 + Math.max(insets.bottom, 16) },
         ]}
         showsVerticalScrollIndicator={false}
       >

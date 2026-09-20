@@ -4,9 +4,10 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  SafeAreaView,
   StatusBar,
+  ScrollView,
 } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -15,6 +16,7 @@ import { useLanguage } from '@/i18n';
 export default function OfflineScreen() {
   const router = useRouter();
   const { t } = useLanguage();
+  const insets = useSafeAreaInsets();
 
   const handleRetry = () => {
     router.replace('/(tabs)');
@@ -47,7 +49,12 @@ export default function OfflineScreen() {
         </TouchableOpacity>
       </View>
 
-      <View style={styles.mainContent}>
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{ paddingBottom: 32 + Math.max(insets.bottom, 16) }}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.mainContent}>
         {/* ILLUSTRATION CARD */}
         <View style={styles.illustrationCard}>
           <View style={styles.sparkleTopRight}>
@@ -96,6 +103,7 @@ export default function OfflineScreen() {
 
         <Text style={styles.refCodeText}>Ref: ERR_NO_CONNECTION</Text>
       </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }

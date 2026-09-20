@@ -17,6 +17,8 @@ import { getStoredCustomerSession } from '@/services/customerAuthService';
 
 import { useLanguage, TranslationKey } from '@/i18n';
 
+import { useResponsiveMetrics } from '@/constants/responsive';
+
 interface TabConfig {
   name: string;
   key: TranslationKey;
@@ -53,23 +55,33 @@ const TAB_ITEMS: TabConfig[] = [
   },
 ];
 
-const PILL_WIDTH = 66;
-const PILL_HEIGHT = 48;
-const QR_CIRCLE_SIZE = 74;
-
-function getNavBgPath(width: number, height: number, radius: number = 24) {
+function getNavBgPath(width: number, height: number, radius: number, cradleWidth: number, cradleDepth: number) {
   const cx = width / 2;
-  const notchWidth = 92;
-  const archHeight = 22;
+  const halfNotch = cradleWidth / 2;
 
-  const leftStart = cx - notchWidth / 2;
-  const rightEnd = cx + notchWidth / 2;
+  const leftStart = cx - halfNotch;
+  const rightEnd = cx + halfNotch;
+  const cpSpan = cradleWidth * 0.25;
+
+  const p1x = leftStart + cpSpan;
+  const p1y = 0;
+  const p2x = cx - cpSpan;
+  const p2y = cradleDepth;
+  const p3x = cx;
+  const p3y = cradleDepth;
+
+  const p4x = cx + cpSpan;
+  const p4y = cradleDepth;
+  const p5x = rightEnd - cpSpan;
+  const p5y = 0;
+  const p6x = rightEnd;
+  const p6y = 0;
 
   return `
     M ${radius},0
     L ${leftStart},0
-    C ${cx - 26},0 ${cx - 28},${-archHeight} ${cx},${-archHeight}
-    C ${cx + 28},${-archHeight} ${cx + 26},0 ${rightEnd},0
+    C ${p1x},${p1y} ${p2x},${p2y} ${p3x},${p3y}
+    C ${p4x},${p4y} ${p5x},${p5y} ${p6x},${p6y}
     L ${width - radius},0
     A ${radius},${radius} 0 0,1 ${width},${radius}
     L ${width},${height - radius}
@@ -84,11 +96,11 @@ function getNavBgPath(width: number, height: number, radius: number = 24) {
 
 function CustomTabBar({ state, descriptors, navigation }: any) {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const { t } = useLanguage();
+  const responsive = useResponsiveMetrics();
   const [containerWidth, setContainerWidth] = useState(0);
 
-  // Active yellow pill horizontal position animation (0, 1, 2, 3 mapped to slots 0, 1, 3, 4)
+  // Active yellow pill horizontal position animation
   const [animValue] = useState(() => new Animated.Value(state.index));
   const [qrScaleAnim] = useState(() => new Animated.Value(1));
 
@@ -107,11 +119,10 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
     setContainerWidth(e.nativeEvent.layout.width);
   };
 
-  // Calculate 5 equal flex slot positions for the navigation bar
-  const slotWidth = containerWidth > 0 ? containerWidth / 5 : 0;
-  const pillOffset = slotWidth > 0 ? (slotWidth - PILL_WIDTH) / 2 : 0;
+  const currentNavWidth = containerWidth > 0 ? containerWidth : responsive.navWidth;
+  const slotWidth = currentNavWidth / 5;
+  const pillOffset = (slotWidth - responsive.activePillWidth) / 2;
 
-  // Map 4 active tab indices (0, 1, 2, 3) to 5 visual slots (0, 1, 3, 4)
   const pillTranslateX = animValue.interpolate({
     inputRange: [0, 1, 2, 3],
     outputRange: [
@@ -135,49 +146,69 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
         useNativeDriver: true,
       }),
     ]).start(() => {
-      // Navigate to Scan QR / Payment screen route
       router.push('/pay');
     });
   };
 
-  const svgPath = containerWidth > 0 ? getNavBgPath(containerWidth, 68, 24) : '';
+  const svgPath = currentNavWidth > 0
+    ? getNavBgPath(currentNavWidth, responsive.navHeight, 28, responsive.cradleWidth, responsive.cradleDepth)
+    : '';
+
+  const qrTopPosition = -Math.round(responsive.qrDiameter * 0.45);
+  const pillTopPosition = Math.round((responsive.navHeight - responsive.activePillHeight) / 2);
 
   return (
-    <View style={[styles.outerWrapper, { paddingBottom: Math.max(insets.bottom, 12) }]}>
-      <View style={styles.navContainer} onLayout={handleLayout}>
-        {/* SVG CURVED NOTCH CONTAINER BACKGROUND */}
-        {containerWidth > 0 && (
+    <View
+      style={[
+        styles.outerWrapper,
+        {
+          paddingBottom: Math.max(responsive.insets.bottom, 12),
+        },
+      ]}
+    >
+      <View
+        style={[
+          styles.navContainer,
+          {
+            height: responsive.navHeight,
+            marginHorizontal: responsive.navHorizontalMargin,
+          },
+        ]}
+        onLayout={handleLayout}
+      >
+        {/* SVG CURVED DOWNWARD CONCAVE NOTCH BACKGROUND */}
+        {currentNavWidth > 0 && (
           <Svg
-            width={containerWidth}
-            height={68}
+            width={currentNavWidth}
+            height={responsive.navHeight}
             style={styles.svgBackground}
           >
             <Path
               d={svgPath}
-              fill="rgba(255, 255, 255, 0.94)"
-              stroke="#E5E7EB"
-              strokeWidth={1.5}
+              fill="#FFFFFF"
+              stroke="#D4AF37"
+              strokeWidth={1.8}
             />
           </Svg>
         )}
 
-        {/* HARDWARE / SYSTEM BLUR BACKDROP LAYER */}
-        <BlurView intensity={60} tint="light" style={styles.glassBlurView} />
-
         {/* SLIDING ACTIVE YELLOW ROUNDED PILL */}
-        {containerWidth > 0 && (
+        {currentNavWidth > 0 && (
           <Animated.View
             style={[
               styles.activePillBackground,
               {
+                width: responsive.activePillWidth,
+                height: responsive.activePillHeight,
+                top: pillTopPosition,
                 transform: [{ translateX: pillTranslateX }],
               },
             ]}
           />
         )}
 
-        {/* OVERLAYING HERO CENTER SCAN QR CIRCLE BUTTON */}
-        <View style={styles.qrCenterWrapper} pointerEvents="box-none">
+        {/* OVERLAYING HERO CENTER SCAN QR CIRCLE BUTTON SEATED IN CRADLE NOTCH */}
+        <View style={[styles.qrCenterWrapper, { top: qrTopPosition }]} pointerEvents="box-none">
           <TouchableOpacity
             activeOpacity={0.9}
             onPress={handleQrPress}
@@ -186,11 +217,21 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
             <Animated.View
               style={[
                 styles.qrCircleOuterRing,
-                { transform: [{ scale: qrScaleAnim }] },
+                {
+                  width: responsive.qrDiameter,
+                  height: responsive.qrDiameter,
+                  borderRadius: responsive.qrDiameter / 2,
+                  transform: [{ scale: qrScaleAnim }],
+                },
               ]}
             >
-              <View style={styles.qrCircleInner}>
-                <Ionicons name="qr-code" size={32} color="#FDE047" />
+              <View
+                style={[
+                  styles.qrCircleInner,
+                  { borderRadius: (responsive.qrDiameter - 8) / 2 },
+                ]}
+              >
+                <Ionicons name="qr-code" size={responsive.scale(32, 28, 36)} color="#FDE047" />
               </View>
               {/* TOP-RIGHT GOLD ACCENT DOT */}
               <View style={styles.qrAccentDot} />
@@ -199,22 +240,18 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
         </View>
 
         {/* 5-SLOT CONTENT ROW */}
-        {/* SLOT 0: HOME */}
-        {renderTabSlot(0, state.routes[0], 0, state, descriptors, navigation, t)}
-
-        {/* SLOT 1: PASSBOOK */}
-        {renderTabSlot(1, state.routes[1], 1, state, descriptors, navigation, t)}
+        {renderTabSlot(0, state.routes[0], 0, state, descriptors, navigation, t, responsive)}
+        {renderTabSlot(1, state.routes[1], 1, state, descriptors, navigation, t, responsive)}
 
         {/* SLOT 2: CENTER QR LABEL SPACER */}
         <View style={styles.centerQrLabelSlot} pointerEvents="box-none">
-          <Text style={styles.qrLabelText}>Scan QR</Text>
+          <Text style={[styles.qrLabelText, { fontSize: responsive.scaleFont(12.5, 11, 14) }]}>
+            Scan QR
+          </Text>
         </View>
 
-        {/* SLOT 3: UPDATES */}
-        {renderTabSlot(3, state.routes[2], 2, state, descriptors, navigation, t)}
-
-        {/* SLOT 4: PROFILE */}
-        {renderTabSlot(4, state.routes[3], 3, state, descriptors, navigation, t)}
+        {renderTabSlot(3, state.routes[2], 2, state, descriptors, navigation, t, responsive)}
+        {renderTabSlot(4, state.routes[3], 3, state, descriptors, navigation, t, responsive)}
       </View>
     </View>
   );
@@ -227,7 +264,8 @@ function renderTabSlot(
   state: any,
   descriptors: any,
   navigation: any,
-  t: (key: TranslationKey) => string
+  t: (key: TranslationKey) => string,
+  responsive: any
 ) {
   if (!route) return <View key={`slot-${slotIndex}`} style={styles.tabBarItem} />;
 
@@ -274,8 +312,8 @@ function renderTabSlot(
         <View style={styles.iconSlot}>
           <Ionicons
             name={(isFocused ? tabConfig.activeIcon : tabConfig.inactiveIcon) as any}
-            size={20}
-            color={isFocused ? '#70001E' : '#6F6870'}
+            size={responsive ? responsive.scale(22, 19, 25) : 22}
+            color={isFocused ? '#70001E' : '#746F72'}
           />
           {tabConfig.hasBadge && (
             <View style={styles.updatesBadgeDot} />
@@ -284,7 +322,11 @@ function renderTabSlot(
 
         <Text
           numberOfLines={1}
-          style={[styles.tabText, isFocused ? styles.tabTextActive : styles.tabTextInactive]}
+          style={[
+            styles.tabText,
+            { fontSize: responsive ? responsive.scaleFont(12.5, 11, 14) : 12.5 },
+            isFocused ? styles.tabTextActive : styles.tabTextInactive,
+          ]}
         >
           {localizedLabel}
         </Text>
@@ -301,6 +343,8 @@ export default function TabsLayout() {
       const session = await getStoredCustomerSession();
       if (!session) {
         router.replace('/login');
+      } else if (session.passwordStatus === 'RESET_REQUIRED') {
+        router.replace('/reset-password' as any);
       }
     }
     checkSessionGuard();
@@ -333,8 +377,6 @@ const styles = StyleSheet.create({
   },
   navContainer: {
     flexDirection: 'row',
-    height: 68,
-    marginHorizontal: 16,
     alignItems: 'center',
     position: 'relative',
     overflow: 'visible',
@@ -354,16 +396,13 @@ const styles = StyleSheet.create({
   },
   glassBlurView: {
     ...StyleSheet.absoluteFill,
-    borderRadius: 24,
+    borderRadius: 28,
     overflow: 'hidden',
   },
   activePillBackground: {
     position: 'absolute',
-    top: 10,
-    width: PILL_WIDTH,
-    height: PILL_HEIGHT,
-    borderRadius: 14,
-    backgroundColor: '#F7E7A8',
+    borderRadius: 16,
+    backgroundColor: '#FFE98A',
     borderWidth: 1,
     borderColor: '#E7C86E',
     shadowColor: '#D4AF37',
@@ -375,7 +414,6 @@ const styles = StyleSheet.create({
   },
   qrCenterWrapper: {
     position: 'absolute',
-    top: -36,
     left: 0,
     right: 0,
     alignItems: 'center',
@@ -388,9 +426,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   qrCircleOuterRing: {
-    width: QR_CIRCLE_SIZE,
-    height: QR_CIRCLE_SIZE,
-    borderRadius: QR_CIRCLE_SIZE / 2,
     backgroundColor: '#FFFFFF',
     borderWidth: 1.5,
     borderColor: '#E9D9C4',
@@ -406,7 +441,6 @@ const styles = StyleSheet.create({
   qrCircleInner: {
     width: '100%',
     height: '100%',
-    borderRadius: (QR_CIRCLE_SIZE - 8) / 2,
     backgroundColor: '#70001E',
     alignItems: 'center',
     justifyContent: 'center',
@@ -434,7 +468,7 @@ const styles = StyleSheet.create({
     height: '100%',
     alignItems: 'center',
     justifyContent: 'flex-end',
-    paddingBottom: 8,
+    paddingBottom: 10,
     zIndex: 2,
   },
   qrLabelText: {
@@ -458,8 +492,8 @@ const styles = StyleSheet.create({
     maxWidth: '100%',
   },
   iconSlot: {
-    width: 28,
-    height: 24,
+    width: 32,
+    height: 26,
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
@@ -474,12 +508,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#70001E',
   },
   tabText: {
-    fontSize: 12,
+    fontSize: 12.5,
     textAlign: 'center',
-    marginTop: 1,
+    marginTop: 2,
   },
   tabTextInactive: {
-    color: '#6F6870',
+    color: '#746F72',
     fontWeight: '600',
   },
   tabTextActive: {

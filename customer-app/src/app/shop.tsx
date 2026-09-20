@@ -5,7 +5,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  SafeAreaView,
   StatusBar,
   Image,
   Linking,
@@ -13,11 +12,11 @@ import {
   Platform,
   Alert,
 } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { OFFICIAL_SHOP_INFO, OFFICIAL_SCHEME_NAME } from '@/constants/shopData';
 import { useLanguage } from '@/i18n';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function ShopScreen() {
   const router = useRouter();
@@ -129,10 +128,10 @@ export default function ShopScreen() {
       </View>
 
       <ScrollView
-        style={styles.scrollView}
+        style={{ flex: 1 }}
         contentContainerStyle={[
           styles.scrollContent,
-          { paddingBottom: 120 + Math.max(insets.bottom, 16) },
+          { paddingBottom: 24 + Math.max(insets.bottom, 12) },
         ]}
         showsVerticalScrollIndicator={false}
       >

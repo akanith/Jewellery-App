@@ -5,19 +5,20 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  SafeAreaView,
   StatusBar,
   ActivityIndicator,
 } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { CustomerHeader } from '@/components/CustomerHeader';
 import { CustomerHomeData } from '@/types/dashboard';
 import { formatCurrency } from '../../lib/formatters';
 import { useLanguage, TranslationKey } from '@/i18n';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getStoredCustomerSession } from '@/services/customerAuthService';
 import { getCustomerDashboard } from '@/services/customerDataService';
+
+import { useResponsiveMetrics } from '@/constants/responsive';
 
 // Isolated fallback structure if network is offline before first sync
 const initialHomeData: CustomerHomeData = {
@@ -35,7 +36,7 @@ const MONTH_KEYS: TranslationKey[] = ['sep', 'oct', 'nov', 'dec', 'jan', 'feb', 
 export default function CustomerHomeScreen() {
   const router = useRouter();
   const { t } = useLanguage();
-  const insets = useSafeAreaInsets();
+  const responsive = useResponsiveMetrics();
   const [data, setData] = useState<CustomerHomeData>(initialHomeData);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -102,9 +103,13 @@ export default function CustomerHomeScreen() {
       />
 
       <ScrollView
+        style={{ flex: 1 }}
         contentContainerStyle={[
           styles.scrollContent,
-          { paddingBottom: 120 + Math.max(insets.bottom, 16) },
+          {
+            paddingHorizontal: responsive.pageHorizontalPadding,
+            paddingBottom: responsive.bottomClearance,
+          },
         ]}
         showsVerticalScrollIndicator={false}
       >
@@ -355,69 +360,6 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: '#FFFDF8',
-  },
-  headerContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 16,
-    backgroundColor: '#FFFDF8',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E8DED8',
-  },
-  headerGreetingGroup: {
-    flex: 1,
-  },
-  headerGreetingSub: {
-    fontSize: 12.5,
-    color: '#6F6870',
-    fontWeight: '600',
-  },
-  headerCustomerName: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: '#70001E',
-    marginTop: 2,
-  },
-  headerRightActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  notificationButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#F9EEF1',
-    alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
-  },
-  notificationBadgeDot: {
-    position: 'absolute',
-    top: 9,
-    right: 10,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#70001E',
-  },
-  avatarButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    overflow: 'hidden',
-    borderWidth: 2,
-    borderColor: '#D4AF37',
-    backgroundColor: '#F9EEF1',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarImage: {
-    width: '100%',
-    height: '100%',
   },
   scrollContent: {
     paddingHorizontal: 20,
@@ -698,10 +640,12 @@ const styles = StyleSheet.create({
   bubbleRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
   },
   bubbleCol: {
+    flex: 1,
     alignItems: 'center',
-    width: 44,
+    maxWidth: 52,
   },
   bubbleCircle: {
     width: 38,

@@ -5,19 +5,18 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  SafeAreaView,
   StatusBar,
   TextInput,
   Linking,
   Platform,
   Alert,
 } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { OFFICIAL_SHOP_INFO, OFFICIAL_SCHEME_NAME } from '@/constants/shopData';
 import { FAQItem } from '@/types/faq';
 import { useLanguage } from '@/i18n';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const getFaqItemsData = (lang: string): FAQItem[] => {
   if (lang === 'ta') {
@@ -164,10 +163,10 @@ export default function HelpCenterScreen() {
       </View>
 
       <ScrollView
-        style={styles.scrollView}
+        style={{ flex: 1 }}
         contentContainerStyle={[
           styles.scrollContent,
-          { paddingBottom: 120 + Math.max(insets.bottom, 16) },
+          { paddingBottom: 24 + Math.max(insets.bottom, 12) },
         ]}
         showsVerticalScrollIndicator={false}
       >

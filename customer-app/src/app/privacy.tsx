@@ -5,18 +5,17 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  SafeAreaView,
   StatusBar,
   Linking,
   Platform,
   Alert,
 } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { OFFICIAL_SHOP_INFO } from '@/constants/shopData';
 import { PrivacyPolicyContent } from '@/types/privacy';
 import { useLanguage } from '@/i18n';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const privacyPolicyData: PrivacyPolicyContent = {
   title: 'Privacy Policy',
@@ -155,10 +154,10 @@ export default function PrivacyPolicyScreen() {
       </View>
 
       <ScrollView
-        style={styles.scrollView}
+        style={{ flex: 1 }}
         contentContainerStyle={[
           styles.scrollContent,
-          { paddingBottom: 120 + Math.max(insets.bottom, 16) },
+          { paddingBottom: 24 + Math.max(insets.bottom, 12) },
         ]}
         showsVerticalScrollIndicator={false}
       >

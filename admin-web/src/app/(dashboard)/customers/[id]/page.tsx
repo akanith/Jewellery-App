@@ -22,12 +22,14 @@ import {
   AlertCircle,
   UserX,
   FileText,
-  Clock
+  Clock,
+  KeyRound
 } from 'lucide-react';
 import { formatCurrency, formatDate, formatTime } from '@/lib/formatters';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 import RecordInstallmentDrawer from '@/components/modals/RecordInstallmentDrawer';
 import EditCustomerModal from '@/components/modals/EditCustomerModal';
+import ResetPasswordModal from '@/components/modals/ResetPasswordModal';
 
 interface CustomerDetailPageProps {
   params: Promise<{ id: string }>;
@@ -45,6 +47,7 @@ interface CustomerData {
   nominee_relationship: string | null;
   notes: string | null;
   created_at: string;
+  password_status?: string | null;
 }
 
 interface InstallmentData {
@@ -85,6 +88,7 @@ export default function CustomerDetailPage({ params }: CustomerDetailPageProps) 
 
   const [isRecordDrawerOpen, setIsRecordDrawerOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isResetModalOpen, setIsResetModalOpen] = useState(false);
 
   const fetchCustomerDetails = useCallback(async () => {
     setIsLoading(true);
@@ -93,22 +97,57 @@ export default function CustomerDetailPage({ params }: CustomerDetailPageProps) 
 
     try {
       const supabase = getSupabaseBrowserClient();
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(customerId);
 
-      // 1. Fetch Customer Record
-      const { data: custData, error: custErr } = await supabase
+      // 1. Fetch Customer Record & Auth Status
+      let custData: Record<string, any> | null = null;
+      let custErr: any = null;
+
+      // Primary query attempting customer_auth join
+      let primaryQuery = supabase
         .from('customers')
-        .select('*')
-        .or(`id.eq.${customerId},customer_code.eq.${customerId}`)
-        .maybeSingle();
+        .select('*, customer_auth(password_status)');
 
-      if (custErr) throw custErr;
+      primaryQuery = isUuid
+        ? primaryQuery.eq('id', customerId)
+        : primaryQuery.eq('customer_code', customerId);
+
+      const res = await primaryQuery.maybeSingle();
+      custData = res.data;
+      custErr = res.error;
+
+      // Fallback if customer_auth relation fails or causes permission/PostgREST error
+      if (custErr) {
+        console.warn('[Customer Detail] Primary query with customer_auth failed, retrying base customer query:', custErr.message);
+        let fallbackQuery = supabase
+          .from('customers')
+          .select('*');
+
+        fallbackQuery = isUuid
+          ? fallbackQuery.eq('id', customerId)
+          : fallbackQuery.eq('customer_code', customerId);
+
+        const fallbackRes = await fallbackQuery.maybeSingle();
+        if (fallbackRes.error) {
+          throw fallbackRes.error;
+        }
+        custData = fallbackRes.data;
+      }
+
       if (!custData) {
         setNotFound(true);
         setIsLoading(false);
         return;
       }
 
-      setCustomer(custData as CustomerData);
+      const authRecord = Array.isArray(custData.customer_auth)
+        ? custData.customer_auth[0]
+        : custData.customer_auth;
+
+      setCustomer({
+        ...(custData as CustomerData),
+        password_status: authRecord?.password_status || 'ACTIVE',
+      });
 
       // 2. Fetch Customer Schemes & Installments
       const { data: schemesData, error: schemeErr } = await supabase
@@ -188,7 +227,7 @@ export default function CustomerDetailPage({ params }: CustomerDetailPageProps) 
   }
 
   // Not Found State
-  if (notFound || !customer) {
+  if (notFound) {
     return (
       <div className="max-w-xl mx-auto py-16 px-6 text-center">
         <div className="w-16 h-16 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center mx-auto mb-4 border border-rose-100">
@@ -209,6 +248,31 @@ export default function CustomerDetailPage({ params }: CustomerDetailPageProps) 
         </Link>
       </div>
     );
+  }
+
+  // Fatal Error State
+  if (errorMessage && !customer) {
+    return (
+      <div className="max-w-xl mx-auto py-16 px-6 text-center">
+        <div className="luxury-card p-6 bg-rose-50 border-rose-200 text-rose-900 space-y-4">
+          <div className="flex items-center justify-center gap-2 text-rose-700 font-bold">
+            <AlertCircle className="w-6 h-6 shrink-0" />
+            <span>Failed to Load Customer Profile</span>
+          </div>
+          <p className="text-xs text-rose-700">{errorMessage}</p>
+          <button
+            onClick={() => fetchCustomerDetails()}
+            className="px-4 py-2 rounded-xl bg-rose-600 text-white text-xs font-semibold hover:bg-rose-700 transition"
+          >
+            Retry Loading
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!customer) {
+    return null;
   }
 
   // Calculations for active scheme
@@ -236,6 +300,13 @@ export default function CustomerDetailPage({ params }: CustomerDetailPageProps) 
         </div>
 
         <div className="flex items-center gap-3">
+          <button
+            onClick={() => setIsResetModalOpen(true)}
+            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white border border-amber-200 text-xs font-semibold text-amber-800 hover:bg-amber-50/60 transition shadow-xs cursor-pointer"
+          >
+            <KeyRound className="w-4 h-4 text-amber-600" />
+            <span>Reset Password</span>
+          </button>
           <button
             onClick={() => window.print()}
             className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition shadow-xs"
@@ -288,11 +359,29 @@ export default function CustomerDetailPage({ params }: CustomerDetailPageProps) 
               </p>
             </div>
 
-            <div>
+            <div className="flex flex-wrap items-center justify-center gap-2">
               <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
                 Verified Member
               </span>
+              {customer.password_status && (
+                <span className={`inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${
+                  customer.password_status === 'RESET_REQUIRED'
+                    ? 'bg-amber-50 text-amber-800 border-amber-200'
+                    : customer.password_status === 'LOCKED'
+                    ? 'bg-rose-50 text-rose-800 border-rose-200'
+                    : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                }`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${
+                    customer.password_status === 'RESET_REQUIRED'
+                      ? 'bg-amber-500 animate-pulse'
+                      : customer.password_status === 'LOCKED'
+                      ? 'bg-rose-500'
+                      : 'bg-emerald-500'
+                  }`}></span>
+                  Password: {customer.password_status}
+                </span>
+              )}
             </div>
           </div>
 
@@ -579,6 +668,24 @@ export default function CustomerDetailPage({ params }: CustomerDetailPageProps) 
           }}
           onSuccess={() => {
             setIsEditModalOpen(false);
+            fetchCustomerDetails();
+          }}
+        />
+      )}
+
+      {/* Reset Customer Password Modal */}
+      {customer && (
+        <ResetPasswordModal
+          isOpen={isResetModalOpen}
+          onClose={() => setIsResetModalOpen(false)}
+          customer={{
+            id: customer.id,
+            customer_code: customer.customer_code,
+            full_name: customer.full_name,
+            phone_number: customer.phone_number,
+          }}
+          onSuccess={() => {
+            setIsResetModalOpen(false);
             fetchCustomerDetails();
           }}
         />

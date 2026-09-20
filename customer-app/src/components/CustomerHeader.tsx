@@ -9,6 +9,7 @@ import {
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useLanguage } from '@/i18n';
+import { useResponsiveMetrics } from '@/constants/responsive';
 
 interface CustomerHeaderProps {
   customerName?: string;
@@ -31,6 +32,7 @@ export const CustomerHeader: React.FC<CustomerHeaderProps> = ({
 }) => {
   const router = useRouter();
   const { t } = useLanguage();
+  const responsive = useResponsiveMetrics();
 
   const handleNotificationTap = () => {
     if (onNotificationPress) {
@@ -49,11 +51,13 @@ export const CustomerHeader: React.FC<CustomerHeaderProps> = ({
   };
 
   return (
-    <View style={styles.headerContainer}>
+    <View style={[styles.headerContainer, { paddingHorizontal: responsive.pageHorizontalPadding }]}>
       {/* LEFT: GREETING & CUSTOMER NAME */}
       <View style={styles.greetingCol}>
-        <Text style={styles.greetingSub}>{t('goodMorning')}</Text>
-        <Text style={styles.customerName} numberOfLines={1}>
+        <Text style={[styles.greetingSub, { fontSize: responsive.scaleFont(13, 12, 14) }]}>
+          {t('goodMorning')}
+        </Text>
+        <Text style={[styles.customerName, { fontSize: responsive.scaleFont(19, 17, 21) }]} numberOfLines={1}>
           {customerName}
         </Text>
       </View>

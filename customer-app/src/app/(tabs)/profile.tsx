@@ -5,16 +5,15 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  SafeAreaView,
   StatusBar,
   Alert,
   Platform,
   ActivityIndicator,
 } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useLanguage } from '@/i18n';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CustomerProfileViewModel } from '@/types/profile';
 import { logoutCustomer, getStoredCustomerSession } from '@/services/customerAuthService';
 import { getCustomerProfile } from '@/services/customerDataService';
@@ -44,10 +43,13 @@ const initialProfileViewModel: CustomerProfileViewModel = {
   },
 };
 
-export default function ProfileScreen() {
+import { useResponsiveMetrics } from '@/constants/responsive';
+
+export default function CustomerProfileScreen() {
   const router = useRouter();
   const { t } = useLanguage();
   const insets = useSafeAreaInsets();
+  const responsive = useResponsiveMetrics();
   const [profileData, setProfileData] = useState<CustomerProfileViewModel>(initialProfileViewModel);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
@@ -161,10 +163,13 @@ export default function ProfileScreen() {
       </View>
 
       <ScrollView
-        style={styles.scrollView}
+        style={{ flex: 1 }}
         contentContainerStyle={[
           styles.scrollContent,
-          { paddingBottom: 120 + Math.max(insets.bottom, 16) },
+          {
+            paddingHorizontal: responsive.pageHorizontalPadding,
+            paddingBottom: responsive.bottomClearance,
+          },
         ]}
         showsVerticalScrollIndicator={false}
       >
@@ -350,6 +355,21 @@ export default function ProfileScreen() {
                 <Ionicons name="globe-outline" size={18} color="#70001E" />
               </View>
               <Text style={styles.actionLabel}>{t('language')}</Text>
+              <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+            </TouchableOpacity>
+
+            <View style={styles.actionDivider} />
+
+            {/* CHANGE PASSWORD */}
+            <TouchableOpacity
+              style={styles.actionRow}
+              onPress={() => router.push('/change-password' as any)}
+              activeOpacity={0.7}
+            >
+              <View style={styles.actionIconCircle}>
+                <Ionicons name="key-outline" size={18} color="#70001E" />
+              </View>
+              <Text style={styles.actionLabel}>{t('changePassword')}</Text>
               <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
             </TouchableOpacity>
           </View>

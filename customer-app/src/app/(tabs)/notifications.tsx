@@ -5,15 +5,14 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  SafeAreaView,
   StatusBar,
   Image,
   ActivityIndicator,
 } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useLanguage } from '@/i18n';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   CustomerNotificationsData,
   NotificationCategory,
@@ -35,10 +34,12 @@ const initialNotificationsData: CustomerNotificationsData = {
   notifications: [],
 };
 
-export default function CustomerNotificationsScreen() {
+import { useResponsiveMetrics } from '@/constants/responsive';
+
+export default function NotificationsScreen() {
   const router = useRouter();
   const { t } = useLanguage();
-  const insets = useSafeAreaInsets();
+  const responsive = useResponsiveMetrics();
   const [data, setData] = useState<CustomerNotificationsData>(initialNotificationsData);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -178,9 +179,13 @@ export default function CustomerNotificationsScreen() {
       </View>
 
       <ScrollView
+        style={{ flex: 1 }}
         contentContainerStyle={[
           styles.scrollContent,
-          { paddingBottom: 120 + Math.max(insets.bottom, 16) },
+          {
+            paddingHorizontal: responsive.pageHorizontalPadding,
+            paddingBottom: responsive.bottomClearance,
+          },
         ]}
         showsVerticalScrollIndicator={false}
       >

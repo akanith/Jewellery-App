@@ -5,19 +5,18 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  SafeAreaView,
   StatusBar,
   Share,
   Platform,
   Alert,
   ActivityIndicator,
 } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { OFFICIAL_SHOP_INFO, OFFICIAL_SCHEME_NAME } from '@/constants/shopData';
 import { formatCurrency } from '@/lib/formatters';
 import { useLanguage } from '@/i18n';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CustomerReceiptData } from '@/types/receipt';
 import { getCustomerReceipt } from '@/services/customerDataService';
 import { getStoredCustomerSession } from '@/services/customerAuthService';
@@ -157,10 +156,10 @@ export default function InstallmentReceiptScreen() {
       </View>
 
       <ScrollView
-        style={styles.scrollView}
+        style={{ flex: 1 }}
         contentContainerStyle={[
           styles.scrollContent,
-          { paddingBottom: 120 + Math.max(insets.bottom, 16) },
+          { paddingBottom: 32 + Math.max(insets.bottom, 16) },
         ]}
         showsVerticalScrollIndicator={false}
       >

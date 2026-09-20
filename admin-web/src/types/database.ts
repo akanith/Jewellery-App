@@ -324,3 +324,40 @@ export interface ProcessEmergencyRefundResult {
   refund_amount: number;
   status: 'EMERGENCY_REFUNDED';
 }
+
+export interface AdminResetCustomerPasswordParams {
+  p_customer_id: string;
+}
+
+export interface AdminResetCustomerPasswordResult {
+  success: boolean;
+  customer_id: string;
+  password_status: 'RESET_REQUIRED';
+  temporary_password: string;
+}
+
+export interface PendingPasswordResetRequest {
+  request_id: string;
+  customer_id: string;
+  customer_name: string;
+  customer_code: string;
+  customer_mobile: string;
+  requested_at: string;
+  status: 'PENDING' | 'COMPLETED' | 'CANCELLED';
+}
+
+export interface CompleteCustomerPasswordResetRequestResult {
+  success: boolean;
+  customer_id: string;
+  full_name?: string;
+  customer_code?: string;
+  temporary_password: string;
+  password_status: 'RESET_REQUIRED';
+}
+
+export interface CancelCustomerPasswordResetRequestResult {
+  success: boolean;
+  message: string;
+}
+
+
