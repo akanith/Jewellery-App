@@ -119,7 +119,7 @@ export const loginWithMobile = async (mobileNumber: string, password?: string): 
       token: json.token,
       customerCode: json.customer.customerCode,
       fullName: json.customer.fullName,
-      mobileNumber: json.customer.mobileNumber,
+      mobileNumber: sanitizeMobileNumber(json.customer.mobileNumber || cleanedNumber),
       passwordStatus: json.customer.passwordStatus || 'ACTIVE',
       isAuthenticated: true,
       authenticatedAt: new Date().toISOString(),
@@ -148,6 +148,13 @@ export const changePassword = async (
   oldPassword: string,
   newPassword: string
 ): Promise<{ success: boolean; message: string; passwordStatus?: 'ACTIVE' }> => {
+  if (!oldPassword || !oldPassword.trim()) {
+    return {
+      success: false,
+      message: 'Session identity missing or temporary password invalid. Please log in again.',
+    };
+  }
+
   try {
     const session = await getStoredCustomerSession();
     if (!session?.token) {

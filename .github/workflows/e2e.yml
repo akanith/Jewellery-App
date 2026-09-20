@@ -1,0 +1,78 @@
+name: Production E2E & Security Audit Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  typecheck-and-build:
+    name: Typecheck & Production Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Admin Web Dependencies
+        run: npm ci
+        working-directory: admin-web
+
+      - name: Typecheck Admin Web
+        run: npx tsc --noEmit
+        working-directory: admin-web
+
+      - name: Build Admin Web
+        run: npx next build
+        working-directory: admin-web
+
+      - name: Install Customer App Dependencies
+        run: npm ci
+        working-directory: customer-app
+
+      - name: Typecheck Customer App
+        run: npx tsc --noEmit
+        working-directory: customer-app
+
+  e2e-tests:
+    name: Playwright E2E & Security Audit Tests
+    needs: typecheck-and-build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+        working-directory: admin-web
+
+      - name: Install Playwright Browsers
+        run: npx playwright install --with-deps
+        working-directory: admin-web
+
+      - name: Run Playwright E2E Tests
+        run: npm run test:e2e
+        working-directory: admin-web
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+
+      - name: Upload Test Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: admin-web/playwright-report/
+          retention-days: 14

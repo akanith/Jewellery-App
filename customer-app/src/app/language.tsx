@@ -29,20 +29,28 @@ export default function LanguageScreen() {
     await setLanguage(language);
     const session = await getStoredCustomerSession();
     if (session) {
-      router.replace('/(tabs)/profile');
+      if (session.passwordStatus === 'RESET_REQUIRED') {
+        router.replace('/reset-password' as any);
+      } else {
+        router.replace('/(tabs)' as any);
+      }
     } else {
-      router.push('/login');
+      router.replace('/login' as any);
     }
   };
 
   const handleBack = async () => {
     const session = await getStoredCustomerSession();
     if (session) {
-      router.replace('/(tabs)/profile');
+      if (session.passwordStatus === 'RESET_REQUIRED') {
+        router.replace('/reset-password' as any);
+      } else {
+        router.replace('/(tabs)' as any);
+      }
     } else if (router.canGoBack()) {
       router.back();
     } else {
-      router.push('/login');
+      router.replace('/login' as any);
     }
   };
 

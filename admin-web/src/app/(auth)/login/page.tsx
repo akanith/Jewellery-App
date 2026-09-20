@@ -123,10 +123,11 @@ export default function LoginPage() {
             <form onSubmit={handleSubmit} className="space-y-5">
               {/* Email Input */}
               <div>
-                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">
+                <label htmlFor="email" className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-2">
                   Email Address
                 </label>
                 <input
+                  id="email"
                   type="email"
                   required
                   value={email}
@@ -139,7 +140,7 @@ export default function LoginPage() {
               {/* Password Input */}
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                  <label htmlFor="password" className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">
                     Password
                   </label>
                   <button
@@ -152,6 +153,7 @@ export default function LoginPage() {
                 </div>
                 <div className="relative">
                   <input
+                    id="password"
                     type={showPassword ? 'text' : 'password'}
                     required
                     value={password}
@@ -163,7 +165,7 @@ export default function LoginPage() {
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
                     className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-600 transition"
-                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    aria-label={showPassword ? 'Hide secret' : 'Show secret'}
                   >
                     {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                   </button>

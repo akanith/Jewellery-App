@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -16,6 +16,7 @@ import {
   changePassword,
   validatePasswordCriteria,
   getStoredCustomerSession,
+  sanitizeMobileNumber,
 } from '@/services/customerAuthService';
 import { OFFICIAL_SHOP_INFO } from '@/constants/shopData';
 import { useLanguage } from '@/i18n';
@@ -35,6 +36,17 @@ export default function ResetPasswordScreen() {
 
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function verifySession() {
+      const session = await getStoredCustomerSession();
+      const cleanedMobile = session?.mobileNumber ? sanitizeMobileNumber(session.mobileNumber) : '';
+      if (!session || !cleanedMobile || cleanedMobile.length < 10) {
+        setErrorMessage('Session expired or mobile identity missing. Please log in again.');
+      }
+    }
+    verifySession();
+  }, []);
 
   const isFormValid =
     newPassword.length >= 8 && confirmPassword.length >= 8 && newPassword === confirmPassword;
@@ -56,7 +68,14 @@ export default function ResetPasswordScreen() {
 
     try {
       const session = await getStoredCustomerSession();
-      const oldPass = currentPassword.trim() || (session?.mobileNumber ? session.mobileNumber.slice(-4) : '');
+      const rawMobile = session?.mobileNumber ? sanitizeMobileNumber(session.mobileNumber) : '';
+      const oldPass = currentPassword.trim() || (rawMobile.length >= 4 ? rawMobile.slice(-4) : '');
+
+      if (!oldPass || oldPass.length < 4) {
+        setErrorMessage('Unable to verify current session identity. Please log in again.');
+        return;
+      }
+
       const result = await changePassword(oldPass, newPassword);
 
       if (result.success) {
