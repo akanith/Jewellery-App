@@ -24,6 +24,14 @@ jobs:
         run: npm ci --include=optional
         working-directory: admin-web
 
+      - name: Install Tailwind Oxide Linux Native Binding
+        run: npm install --no-save --package-lock=false @tailwindcss/oxide-linux-x64-gnu@4.3.3
+        working-directory: admin-web
+
+      - name: Verify Tailwind Oxide Native Binding
+        run: node -e "require.resolve('@tailwindcss/oxide-linux-x64-gnu')"
+        working-directory: admin-web
+
       - name: Typecheck Admin Web
         run: npx tsc --noEmit
         working-directory: admin-web
@@ -56,6 +64,14 @@ jobs:
 
       - name: Install Dependencies
         run: npm ci --include=optional
+        working-directory: admin-web
+
+      - name: Install Tailwind Oxide Linux Native Binding
+        run: npm install --no-save --package-lock=false @tailwindcss/oxide-linux-x64-gnu@4.3.3
+        working-directory: admin-web
+
+      - name: Verify Tailwind Oxide Native Binding
+        run: node -e "require.resolve('@tailwindcss/oxide-linux-x64-gnu')"
         working-directory: admin-web
 
       - name: Install Playwright Browsers
