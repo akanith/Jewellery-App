@@ -17,11 +17,11 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: 'npm'
 
       - name: Install Admin Web Dependencies
-        run: npm ci
+        run: npm ci --include=optional
         working-directory: admin-web
 
       - name: Typecheck Admin Web
@@ -33,7 +33,7 @@ jobs:
         working-directory: admin-web
 
       - name: Install Customer App Dependencies
-        run: npm ci
+        run: npm ci --include=optional
         working-directory: customer-app
 
       - name: Typecheck Customer App
@@ -51,11 +51,11 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: 'npm'
 
       - name: Install Dependencies
-        run: npm ci
+        run: npm ci --include=optional
         working-directory: admin-web
 
       - name: Install Playwright Browsers
