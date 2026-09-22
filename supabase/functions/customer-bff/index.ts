@@ -508,7 +508,7 @@ async function handleDashboard(req: Request): Promise<Response> {
         scheme: scheme
           ? {
               schemeId: scheme.id,
-              schemeName: "SWARNA LAKSHMI GOLD SAVINGS SCHEME",
+              schemeName: "Ramyas Jeweller Savings Scheme",
               schemeCode: scheme.scheme_code,
               paidAmount,
               remainingContribution,
@@ -618,7 +618,7 @@ async function handlePassbook(req: Request): Promise<Response> {
       data: {
         customerName: customer?.full_name || session.fullName,
         customerCode: customer?.customer_code || session.customerCode,
-        schemeName: "SWARNA LAKSHMI GOLD SAVINGS SCHEME",
+        schemeName: "Ramyas Jeweller Savings Scheme",
         schemeCode: scheme?.scheme_code || session.customerCode,
         financialYear: `FY ${new Date().getFullYear()}-${(new Date().getFullYear() + 1).toString().slice(2)}`,
         monthlyInstallment: Number(scheme?.monthly_installment_amount || 1000),
@@ -694,7 +694,7 @@ async function handleProfile(req: Request): Promise<Response> {
           name: customer.full_name,
           mobileNumber: `+91 ${customer.phone_number}`,
           alternatePhone: customer.alternate_phone ? `+91 ${customer.alternate_phone}` : undefined,
-          schemeBadge: "SWARNA LAKSHMI SCHEME",
+          schemeBadge: "Ramyas Jeweller Savings Scheme",
           joinDate: formatDateFormatted(customer.created_at),
           address: fullAddress || "91, Main Road, Begambur, Dindigul - 624001",
           nominee: {
@@ -703,7 +703,7 @@ async function handleProfile(req: Request): Promise<Response> {
           },
         },
         currentScheme: {
-          schemeName: "SWARNA LAKSHMI GOLD SAVINGS SCHEME",
+          schemeName: "Ramyas Jeweller Savings Scheme",
           monthlyInstallment: Number(scheme?.monthly_installment_amount || 1000),
           totalMonths: scheme?.total_installments || 12,
           paidInstallments: paidInstallmentsCount,
@@ -766,7 +766,7 @@ async function handleNotifications(req: Request): Promise<Response> {
         unreadCount,
         featuredBanner: {
           id: "b1",
-          title: "Swarna Lakshmi Gold Savings",
+          title: "Ramyas Jeweller Savings Scheme",
           subtitle: "Pay 11 installments & get the 12th installment as 100% shop bonus at maturity!",
         },
         notifications: formattedNotifications,
@@ -896,7 +896,7 @@ async function handleReceipt(req: Request): Promise<Response> {
         receiptNumber: payment.receipt_number,
         customerName: customer?.full_name || session.fullName,
         customerId: customer?.customer_code || session.customerCode,
-        schemeName: "SWARNA LAKSHMI GOLD SAVINGS SCHEME",
+        schemeName: "Ramyas Jeweller Savings Scheme",
         installmentNumber: payment.installment_number,
         totalInstallments: totalInstallmentsCount,
         installmentAmount: Number(payment.amount),
