@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { getE2EAdminCredentials } from './helpers/test-utils';
 
 test.describe('AW-01: Admin Authentication & Route Protection', () => {
 
@@ -16,14 +17,14 @@ test.describe('AW-01: Admin Authentication & Route Protection', () => {
   test('admin can log in successfully with valid credentials', async ({ page }) => {
     await page.goto('/login');
 
-    // Fill login form using resilient role/label selectors
-    await page.getByLabel(/email address/i).fill('admin1@gmail.com');
-    await page.getByLabel(/password/i).fill('AdminPassword123!');
+    const { email, password } = getE2EAdminCredentials();
+    await page.getByLabel(/email address/i).fill(email);
+    await page.getByLabel(/password/i).fill(password);
     await page.getByRole('button', { name: /sign in|login/i }).click();
 
     // Verify successful authentication and redirection to dashboard/home
     await expect(page).toHaveURL('http://localhost:3000/');
-    await expect(page.getByRole('heading', { name: /dashboard|customers directory|ramya/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /good day|dashboard|customers directory|ramya/i })).toBeVisible();
   });
 
   test('invalid login credentials display an error alert', async ({ page }) => {

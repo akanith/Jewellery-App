@@ -1,14 +1,11 @@
 import { test, expect } from '@playwright/test';
-import { generateTestMobile, generateTestName } from './helpers/test-utils';
+import { generateTestMobile, generateTestName, loginAsAdmin } from './helpers/test-utils';
 
 test.describe('AW-05: Add New Customer & Scheme Enrollment', () => {
 
   test.beforeEach(async ({ page }) => {
     // Authenticate as Admin
-    await page.goto('/login');
-    await page.getByLabel(/email address/i).fill('admin1@gmail.com');
-    await page.getByLabel(/password/i).fill('AdminPassword123!');
-    await page.getByRole('button', { name: /sign in|login/i }).click();
+    await loginAsAdmin(page);
     await expect(page).toHaveURL('http://localhost:3000/');
   });
 
@@ -22,7 +19,7 @@ test.describe('AW-05: Add New Customer & Scheme Enrollment', () => {
     await page.getByPlaceholder(/enter customer full name/i).fill(testName);
     await page.getByPlaceholder(/98765 43210/i).fill(testMobile);
     await page.getByPlaceholder(/street name, house number/i).fill('45 Gold Palace Road');
-    await page.getByPlaceholder(/dindigul/i).fill('Coimbatore');
+    await page.getByPlaceholder(/coimbatore/i).fill('Coimbatore');
 
     // Submit form
     await page.getByRole('button', { name: /save customer profile/i }).click();
@@ -37,6 +34,6 @@ test.describe('AW-05: Add New Customer & Scheme Enrollment', () => {
 
     // Verify customer passbook loads cleanly with 12 installment slots
     await expect(page.getByRole('heading', { name: testName })).toBeVisible();
-    await expect(page.getByText(/12-month savings scheme/i)).toBeVisible();
+    await expect(page.getByText(/12-month gold savings scheme/i)).toBeVisible();
   });
 });

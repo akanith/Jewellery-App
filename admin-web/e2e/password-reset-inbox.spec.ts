@@ -1,12 +1,10 @@
 import { test, expect } from '@playwright/test';
+import { loginAsAdmin } from './helpers/test-utils';
 
 test.describe('AW-10 & AW-11: Admin Password Reset Request Inbox', () => {
 
   test.beforeEach(async ({ page }) => {
-    await page.goto('/login');
-    await page.getByLabel(/email address/i).fill('admin1@gmail.com');
-    await page.getByLabel(/password/i).fill('AdminPassword123!');
-    await page.getByRole('button', { name: /sign in|login/i }).click();
+    await loginAsAdmin(page);
     await expect(page).toHaveURL('http://localhost:3000/');
   });
 
