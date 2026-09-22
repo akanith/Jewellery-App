@@ -5,7 +5,12 @@ const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://yjpbswsgtb
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'sb_publishable_bYOw6Eq1dE-7ARfmhCjc5A_YGLFalvD';
 
 export function getTestSupabaseClient() {
-  return createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  return createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+    },
+  });
 }
 
 /**
@@ -31,15 +36,39 @@ export function getE2EAdminCredentials() {
 export async function loginAsAdmin(page: Page) {
   const { email, password } = getE2EAdminCredentials();
   await page.goto('/login');
-  await page.getByLabel(/email address/i).fill(email);
-  await page.getByLabel(/password/i).fill(password);
-  await page.getByRole('button', { name: /sign in|login/i }).click();
 
-  // Wait for auth session to settle and dashboard header to render
-  await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 15000 });
+  if (!page.url().includes('/login')) {
+    await expect(
+      page.getByRole('heading', { name: /good day|dashboard|customers directory|ramya/i })
+    ).toBeVisible({ timeout: 20000 });
+    return;
+  }
+
+  const emailInput = page.getByLabel(/email address/i);
+  const passwordInput = page.getByLabel(/password/i);
+  await expect(emailInput).toBeVisible({ timeout: 15000 });
+  await emailInput.click();
+  await emailInput.fill(email);
+  if ((await emailInput.inputValue()) !== email) {
+    await emailInput.pressSequentially(email, { delay: 10 });
+  }
+
+  await expect(passwordInput).toBeVisible({ timeout: 15000 });
+  await passwordInput.click();
+  await passwordInput.fill(password);
+  if ((await passwordInput.inputValue()) !== password) {
+    await passwordInput.pressSequentially(password, { delay: 10 });
+  }
+
+  const signInBtn = page.getByRole('button', { name: /sign in|login/i });
+  await expect(signInBtn).toBeVisible({ timeout: 15000 });
+  await expect(signInBtn).toBeEnabled({ timeout: 15000 });
+  await signInBtn.click();
+
+  // Wait for authenticated dashboard shell to render
   await expect(
     page.getByRole('heading', { name: /good day|dashboard|customers directory|ramya/i })
-  ).toBeVisible({ timeout: 15000 });
+  ).toBeVisible({ timeout: 20000 });
 }
 
 /**
