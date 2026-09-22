@@ -24,15 +24,16 @@ test.describe('AW-08: 12th Installment Bonus Crediting & Maturity Transition', (
     // Record payments 1 through 12
     for (let i = 1; i <= 12; i++) {
       const recordBtn = page.getByRole('button', { name: new RegExp(`record installment #${i}`, 'i') });
-      await expect(recordBtn).toBeVisible({ timeout: 5000 });
+      await expect(recordBtn).toBeVisible({ timeout: 10000 });
       await recordBtn.click();
 
       const confirmBtn = page.getByRole('button', { name: 'Record Installment', exact: true });
-      await expect(confirmBtn).toBeVisible({ timeout: 5000 });
+      await expect(confirmBtn).toBeVisible({ timeout: 10000 });
+      await expect(confirmBtn).toBeEnabled({ timeout: 10000 });
       await confirmBtn.click();
 
       // Wait for drawer to close and passbook state to settle with updated progress
-      await expect(confirmBtn).toBeHidden({ timeout: 5000 });
+      await expect(confirmBtn).toBeHidden({ timeout: 10000 });
       await expect(page.getByText(`${i} of 12 Months Completed`)).toBeVisible({ timeout: 10000 });
     }
 

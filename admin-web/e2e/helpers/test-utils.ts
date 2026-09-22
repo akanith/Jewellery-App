@@ -34,6 +34,12 @@ export async function loginAsAdmin(page: Page) {
   await page.getByLabel(/email address/i).fill(email);
   await page.getByLabel(/password/i).fill(password);
   await page.getByRole('button', { name: /sign in|login/i }).click();
+
+  // Wait for auth session to settle and dashboard header to render
+  await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 15000 });
+  await expect(
+    page.getByRole('heading', { name: /good day|dashboard|customers directory|ramya/i })
+  ).toBeVisible({ timeout: 15000 });
 }
 
 /**

@@ -18,9 +18,7 @@ test.describe('AW-10 & AW-11: Admin Password Reset Request Inbox', () => {
     await expect(page.getByRole('button', { name: /refresh inbox/i })).toBeVisible();
 
     // Either pending requests table or clean empty state is displayed
-    const hasEmptyState = await page.getByText(/no password reset requests/i).isVisible();
-    const hasTable = await page.getByRole('table').isVisible();
-
-    expect(hasEmptyState || hasTable).toBe(true);
+    const tableOrEmpty = page.getByRole('table').or(page.getByText(/no password reset requests/i));
+    await expect(tableOrEmpty.first()).toBeVisible({ timeout: 15000 });
   });
 });

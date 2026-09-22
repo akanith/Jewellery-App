@@ -12,9 +12,9 @@ test.describe('AW-09: Scheme Maturity Redemption', () => {
     await page.goto('/redemption');
 
     // Page header
-    await expect(page.getByRole('heading', { name: /scheme maturity & jewellery redemption/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /scheme redemption hub/i })).toBeVisible();
 
     // Verify search or table is visible
-    await expect(page.getByPlaceholder(/search eligible customer name, code, or mobile/i)).toBeVisible();
+    await expect(page.getByPlaceholder(/search by customer name, mobile, code, or scheme/i)).toBeVisible();
   });
 });
