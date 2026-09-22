@@ -275,7 +275,7 @@ export default function RecordInstallmentDrawer({
   const currentMonthName = preselectedScheme?.currentMonthName || selectedCustomer?.current_month_due_date || formatDate(new Date().toISOString());
 
   // Strict Current Calendar Month Paid Status
-  const isCurrentMonthPaid = preselectedScheme?.isCurrentMonthPaid ?? selectedCustomer?.is_current_month_paid ?? (paidMonths > 0 && currentInstallmentNumber > 1);
+  const isCurrentMonthPaid = preselectedScheme?.isCurrentMonthPaid ?? selectedCustomer?.is_current_month_paid ?? false;
 
   const hasSelectedCustomer = Boolean(preselectedCustomer || selectedCustomer);
   const progressPercent = Math.round((paidMonths / totalMonths) * 100);

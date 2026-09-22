@@ -99,39 +99,19 @@ export default function CustomerDetailPage({ params }: CustomerDetailPageProps) 
       const supabase = getSupabaseBrowserClient();
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(customerId);
 
-      // 1. Fetch Customer Record & Auth Status
-      let custData: Record<string, any> | null = null;
-      let custErr: any = null;
-
-      // Primary query attempting customer_auth join
-      let primaryQuery = supabase
+      // 1. Fetch Customer Record
+      let custQuery = supabase
         .from('customers')
-        .select('*, customer_auth(password_status)');
+        .select('*');
 
-      primaryQuery = isUuid
-        ? primaryQuery.eq('id', customerId)
-        : primaryQuery.eq('customer_code', customerId);
+      custQuery = isUuid
+        ? custQuery.eq('id', customerId)
+        : custQuery.eq('customer_code', customerId);
 
-      const res = await primaryQuery.maybeSingle();
-      custData = res.data;
-      custErr = res.error;
+      const { data: custData, error: custErr } = await custQuery.maybeSingle();
 
-      // Fallback if customer_auth relation fails or causes permission/PostgREST error
       if (custErr) {
-        console.warn('[Customer Detail] Primary query with customer_auth failed, retrying base customer query:', custErr.message);
-        let fallbackQuery = supabase
-          .from('customers')
-          .select('*');
-
-        fallbackQuery = isUuid
-          ? fallbackQuery.eq('id', customerId)
-          : fallbackQuery.eq('customer_code', customerId);
-
-        const fallbackRes = await fallbackQuery.maybeSingle();
-        if (fallbackRes.error) {
-          throw fallbackRes.error;
-        }
-        custData = fallbackRes.data;
+        throw custErr;
       }
 
       if (!custData) {
@@ -140,14 +120,7 @@ export default function CustomerDetailPage({ params }: CustomerDetailPageProps) 
         return;
       }
 
-      const authRecord = Array.isArray(custData.customer_auth)
-        ? custData.customer_auth[0]
-        : custData.customer_auth;
-
-      setCustomer({
-        ...(custData as CustomerData),
-        password_status: authRecord?.password_status || 'ACTIVE',
-      });
+      setCustomer(custData as CustomerData);
 
       // 2. Fetch Customer Schemes & Installments
       const { data: schemesData, error: schemeErr } = await supabase
