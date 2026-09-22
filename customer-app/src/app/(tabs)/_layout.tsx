@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Tabs, useRouter } from 'expo-router';
+import { Tabs, useRouter, useSegments } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import {
   View,
@@ -10,13 +10,9 @@ import {
   Platform,
   LayoutChangeEvent,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { BlurView } from 'expo-blur';
-import Svg, { Path } from 'react-native-svg';
 import { getStoredCustomerSession } from '@/services/customerAuthService';
 
 import { useLanguage, TranslationKey } from '@/i18n';
-
 import { useResponsiveMetrics } from '@/constants/responsive';
 
 interface TabConfig {
@@ -55,54 +51,12 @@ const TAB_ITEMS: TabConfig[] = [
   },
 ];
 
-function getNavBgPath(width: number, height: number, radius: number, cradleWidth: number, cradleDepth: number) {
-  const cx = width / 2;
-  const halfNotch = cradleWidth / 2;
-
-  const leftStart = cx - halfNotch;
-  const rightEnd = cx + halfNotch;
-  const cpSpan = cradleWidth * 0.25;
-
-  const p1x = leftStart + cpSpan;
-  const p1y = 0;
-  const p2x = cx - cpSpan;
-  const p2y = cradleDepth;
-  const p3x = cx;
-  const p3y = cradleDepth;
-
-  const p4x = cx + cpSpan;
-  const p4y = cradleDepth;
-  const p5x = rightEnd - cpSpan;
-  const p5y = 0;
-  const p6x = rightEnd;
-  const p6y = 0;
-
-  return `
-    M ${radius},0
-    L ${leftStart},0
-    C ${p1x},${p1y} ${p2x},${p2y} ${p3x},${p3y}
-    C ${p4x},${p4y} ${p5x},${p5y} ${p6x},${p6y}
-    L ${width - radius},0
-    A ${radius},${radius} 0 0,1 ${width},${radius}
-    L ${width},${height - radius}
-    A ${radius},${radius} 0 0,1 ${width - radius},${height}
-    L ${radius},${height}
-    A ${radius},${radius} 0 0,1 0,${height - radius}
-    L 0,${radius}
-    A ${radius},${radius} 0 0,1 ${radius},0
-    Z
-  `;
-}
-
 function CustomTabBar({ state, descriptors, navigation }: any) {
-  const router = useRouter();
+  const segments = useSegments();
   const { t } = useLanguage();
   const responsive = useResponsiveMetrics();
   const [containerWidth, setContainerWidth] = useState(0);
-
-  // Active yellow pill horizontal position animation
   const [animValue] = useState(() => new Animated.Value(state.index));
-  const [qrScaleAnim] = useState(() => new Animated.Value(1));
 
   useEffect(() => {
     const isNative = Platform.OS !== 'web';
@@ -115,12 +69,17 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
     }).start();
   }, [state.index, animValue]);
 
+  // Guard condition AFTER all React hooks are unconditionally invoked
+  if (segments.length > 0 && segments[0] !== '(tabs)') {
+    return null;
+  }
+
   const handleLayout = (e: LayoutChangeEvent) => {
     setContainerWidth(e.nativeEvent.layout.width);
   };
 
   const currentNavWidth = containerWidth > 0 ? containerWidth : responsive.navWidth;
-  const slotWidth = currentNavWidth / 5;
+  const slotWidth = currentNavWidth / 4;
   const pillOffset = (slotWidth - responsive.activePillWidth) / 2;
 
   const pillTranslateX = animValue.interpolate({
@@ -128,33 +87,11 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
     outputRange: [
       pillOffset,
       slotWidth * 1 + pillOffset,
+      slotWidth * 2 + pillOffset,
       slotWidth * 3 + pillOffset,
-      slotWidth * 4 + pillOffset,
     ],
   });
 
-  const handleQrPress = () => {
-    Animated.sequence([
-      Animated.timing(qrScaleAnim, {
-        toValue: 0.92,
-        duration: 90,
-        useNativeDriver: true,
-      }),
-      Animated.spring(qrScaleAnim, {
-        toValue: 1,
-        friction: 4,
-        useNativeDriver: true,
-      }),
-    ]).start(() => {
-      router.push('/pay');
-    });
-  };
-
-  const svgPath = currentNavWidth > 0
-    ? getNavBgPath(currentNavWidth, responsive.navHeight, 28, responsive.cradleWidth, responsive.cradleDepth)
-    : '';
-
-  const qrTopPosition = -Math.round(responsive.qrDiameter * 0.45);
   const pillTopPosition = Math.round((responsive.navHeight - responsive.activePillHeight) / 2);
 
   return (
@@ -176,23 +113,7 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
         ]}
         onLayout={handleLayout}
       >
-        {/* SVG CURVED DOWNWARD CONCAVE NOTCH BACKGROUND */}
-        {currentNavWidth > 0 && (
-          <Svg
-            width={currentNavWidth}
-            height={responsive.navHeight}
-            style={styles.svgBackground}
-          >
-            <Path
-              d={svgPath}
-              fill="#FFFFFF"
-              stroke="#D4AF37"
-              strokeWidth={1.8}
-            />
-          </Svg>
-        )}
-
-        {/* SLIDING ACTIVE YELLOW ROUNDED PILL */}
+        {/* SLIDING ACTIVE CHAMPAGNE-YELLOW ROUNDED PILL */}
         {currentNavWidth > 0 && (
           <Animated.View
             style={[
@@ -207,58 +128,16 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
           />
         )}
 
-        {/* OVERLAYING HERO CENTER SCAN QR CIRCLE BUTTON SEATED IN CRADLE NOTCH */}
-        <View style={[styles.qrCenterWrapper, { top: qrTopPosition }]} pointerEvents="box-none">
-          <TouchableOpacity
-            activeOpacity={0.9}
-            onPress={handleQrPress}
-            style={styles.qrTouchable}
-          >
-            <Animated.View
-              style={[
-                styles.qrCircleOuterRing,
-                {
-                  width: responsive.qrDiameter,
-                  height: responsive.qrDiameter,
-                  borderRadius: responsive.qrDiameter / 2,
-                  transform: [{ scale: qrScaleAnim }],
-                },
-              ]}
-            >
-              <View
-                style={[
-                  styles.qrCircleInner,
-                  { borderRadius: (responsive.qrDiameter - 8) / 2 },
-                ]}
-              >
-                <Ionicons name="qr-code" size={responsive.scale(32, 28, 36)} color="#FDE047" />
-              </View>
-              {/* TOP-RIGHT GOLD ACCENT DOT */}
-              <View style={styles.qrAccentDot} />
-            </Animated.View>
-          </TouchableOpacity>
-        </View>
-
-        {/* 5-SLOT CONTENT ROW */}
-        {renderTabSlot(0, state.routes[0], 0, state, descriptors, navigation, t, responsive)}
-        {renderTabSlot(1, state.routes[1], 1, state, descriptors, navigation, t, responsive)}
-
-        {/* SLOT 2: CENTER QR LABEL SPACER */}
-        <View style={styles.centerQrLabelSlot} pointerEvents="box-none">
-          <Text style={[styles.qrLabelText, { fontSize: responsive.scaleFont(12.5, 11, 14) }]}>
-            Scan QR
-          </Text>
-        </View>
-
-        {renderTabSlot(3, state.routes[2], 2, state, descriptors, navigation, t, responsive)}
-        {renderTabSlot(4, state.routes[3], 3, state, descriptors, navigation, t, responsive)}
+        {/* 4 EQUAL TAB SLOTS */}
+        {state.routes.map((route: any, index: number) =>
+          renderTabSlot(route, index, state, descriptors, navigation, t, responsive)
+        )}
       </View>
     </View>
   );
 }
 
 function renderTabSlot(
-  slotIndex: number,
   route: any,
   tabIndex: number,
   state: any,
@@ -267,7 +146,7 @@ function renderTabSlot(
   t: (key: TranslationKey) => string,
   responsive: any
 ) {
-  if (!route) return <View key={`slot-${slotIndex}`} style={styles.tabBarItem} />;
+  if (!route) return null;
 
   const isFocused = state.index === tabIndex;
   const tabConfig = TAB_ITEMS[tabIndex] || {
@@ -379,25 +258,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     position: 'relative',
-    overflow: 'visible',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    borderWidth: 1.5,
+    borderColor: '#E6C687',
     elevation: 10,
     shadowColor: '#70001E',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.12,
     shadowRadius: 16,
-  },
-  svgBackground: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    overflow: 'visible',
-  },
-  glassBlurView: {
-    ...StyleSheet.absoluteFill,
-    borderRadius: 28,
-    overflow: 'hidden',
   },
   activePillBackground: {
     position: 'absolute',
@@ -411,71 +280,6 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
     zIndex: 1,
-  },
-  qrCenterWrapper: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 10,
-    overflow: 'visible',
-  },
-  qrTouchable: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  qrCircleOuterRing: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1.5,
-    borderColor: '#E9D9C4',
-    padding: 4,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#70001E',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.25,
-    shadowRadius: 12,
-    elevation: 12,
-  },
-  qrCircleInner: {
-    width: '100%',
-    height: '100%',
-    backgroundColor: '#70001E',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#520018',
-  },
-  qrAccentDot: {
-    position: 'absolute',
-    top: 3,
-    right: 3,
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: '#D4AF37',
-    borderWidth: 2,
-    borderColor: '#FFFFFF',
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  centerQrLabelSlot: {
-    flex: 1,
-    height: '100%',
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-    paddingBottom: 10,
-    zIndex: 2,
-  },
-  qrLabelText: {
-    fontSize: 12.5,
-    fontWeight: '700',
-    color: '#70001E',
-    textAlign: 'center',
   },
   tabBarItem: {
     flex: 1,

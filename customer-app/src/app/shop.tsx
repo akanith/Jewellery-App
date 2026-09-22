@@ -320,45 +320,6 @@ export default function ShopScreen() {
           </View>
         </View>
       </ScrollView>
-
-      {/* BOTTOM TAB BAR */}
-      <View style={styles.tabBar}>
-        <TouchableOpacity
-          style={styles.tabItem}
-          onPress={() => router.push('/(tabs)')}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="home-outline" size={18} color="#64748B" />
-          <Text style={styles.tabText}>{t('home')}</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.tabItem}
-          onPress={() => router.push('/(tabs)/passbook')}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="book-outline" size={18} color="#64748B" />
-          <Text style={styles.tabText}>{t('passbook')}</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.tabItem}
-          onPress={() => router.push('/(tabs)/notifications')}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="megaphone-outline" size={18} color="#64748B" />
-          <Text style={styles.tabText}>{t('updates')}</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.tabItem}
-          onPress={() => router.push('/(tabs)/profile')}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="person-outline" size={18} color="#64748B" />
-          <Text style={styles.tabText}>{t('profile')}</Text>
-        </TouchableOpacity>
-      </View>
     </SafeAreaView>
   );
 }
@@ -438,10 +399,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
     marginBottom: 4,
-  },
-  starsRow: {
-    flexDirection: 'row',
-    gap: 2,
   },
   ratingText: {
     fontSize: 12,
@@ -673,28 +630,5 @@ const styles = StyleSheet.create({
   footerIconsRow: {
     flexDirection: 'row',
     gap: 16,
-  },
-  tabBar: {
-    flexDirection: 'row',
-    height: 64,
-    backgroundColor: '#FFFFFF',
-    borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    justifyContent: 'space-around',
-    alignItems: 'center',
-  },
-  tabItem: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    gap: 4,
-  },
-  tabText: {
-    fontSize: 11.5,
-    fontWeight: '600',
-    color: '#64748B',
   },
 });

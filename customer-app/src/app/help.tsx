@@ -256,47 +256,7 @@ export default function HelpCenterScreen() {
             </TouchableOpacity>
           </View>
         </View>
-      </ScrollView>
-
-      {/* BOTTOM TAB BAR */}
-      <View style={styles.tabBar}>
-        <TouchableOpacity
-          style={styles.tabItem}
-          onPress={() => router.push('/(tabs)')}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="home-outline" size={18} color="#64748B" />
-          <Text style={styles.tabText}>{t('home')}</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.tabItem}
-          onPress={() => router.push('/(tabs)/passbook')}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="book-outline" size={18} color="#64748B" />
-          <Text style={styles.tabText}>{t('passbook')}</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.tabItem}
-          onPress={() => router.push('/(tabs)/notifications')}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="megaphone-outline" size={18} color="#64748B" />
-          <Text style={styles.tabText}>{t('updates')}</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.tabItem}
-          onPress={() => router.push('/(tabs)/profile')}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="person-outline" size={18} color="#64748B" />
-          <Text style={styles.tabText}>{t('profile')}</Text>
-        </TouchableOpacity>
-      </View>
-    </SafeAreaView>
+      </ScrollView>    </SafeAreaView>
   );
 }
 

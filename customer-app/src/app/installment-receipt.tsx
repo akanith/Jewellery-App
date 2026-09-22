@@ -346,45 +346,6 @@ export default function InstallmentReceiptScreen() {
           </View>
         </View>
       </ScrollView>
-
-      {/* BOTTOM TAB BAR */}
-      <View style={styles.tabBar}>
-        <TouchableOpacity
-          style={styles.tabItem}
-          onPress={() => router.push('/(tabs)')}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="home-outline" size={18} color="#64748B" />
-          <Text style={styles.tabText}>{t('home')}</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.tabItem}
-          onPress={() => router.push('/(tabs)/passbook')}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="book-outline" size={18} color="#64748B" />
-          <Text style={styles.tabText}>{t('passbook')}</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.tabItem}
-          onPress={() => router.push('/(tabs)/notifications')}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="megaphone-outline" size={18} color="#64748B" />
-          <Text style={styles.tabText}>{t('updates')}</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.tabItem}
-          onPress={() => router.push('/(tabs)/profile')}
-          activeOpacity={0.7}
-        >
-          <Ionicons name="person-outline" size={18} color="#64748B" />
-          <Text style={styles.tabText}>{t('profile')}</Text>
-        </TouchableOpacity>
-      </View>
     </SafeAreaView>
   );
 }
@@ -393,6 +354,36 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: '#FAFAFA',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    gap: 12,
+  },
+  errorTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#991B1B',
+    textAlign: 'center',
+  },
+  backHomeBtn: {
+    backgroundColor: '#70001E',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 10,
+    marginTop: 8,
+  },
+  backHomeBtnText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: 14,
   },
   headerContainer: {
     flexDirection: 'row',
@@ -789,59 +780,4 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#70001E',
   },
-  tabBar: {
-    flexDirection: 'row',
-    height: 64,
-    backgroundColor: '#FFFFFF',
-    borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    justifyContent: 'space-around',
-    alignItems: 'center',
-  },
-  tabItem: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    gap: 4,
-  },
-  tabText: {
-    fontSize: 11.5,
-    fontWeight: '600',
-    color: '#64748B',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#FAFAFA',
-  },
-  errorContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 24,
-    gap: 12,
-  },
-  errorTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#991B1B',
-    textAlign: 'center',
-  },
-  backHomeBtn: {
-    backgroundColor: '#70001E',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 8,
-    marginTop: 8,
-  },
-  backHomeBtnText: {
-    color: '#FFFFFF',
-    fontWeight: '700',
-    fontSize: 14,
-  },
 });
-

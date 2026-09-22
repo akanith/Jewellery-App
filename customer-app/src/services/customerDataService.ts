@@ -118,7 +118,11 @@ export const getCustomerReceipt = async (receiptNumber: string): Promise<Custome
 
   if (response.success && response.data) {
     const raw = response.data as any;
-    return raw.data ?? raw;
+    const result = raw.data ?? raw;
+    if (result) {
+      result.schemeName = OFFICIAL_SCHEME_NAME;
+    }
+    return result;
   }
   return null;
 };

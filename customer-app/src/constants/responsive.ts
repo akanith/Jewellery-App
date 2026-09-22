@@ -49,16 +49,12 @@ export function useResponsiveMetrics() {
   const cardPadding = scale(18, 14, 22);
 
   const navHorizontalMargin = scale(18, 14, 22);
-  const navHeight = scale(76, 70, 82);
+  const navHeight = scale(68, 62, 74);
   const navWidth = Math.min(width - navHorizontalMargin * 2, MAX_CONTENT_WIDTH);
-  const slotWidth = navWidth / 5;
+  const slotWidth = navWidth / 4;
 
-  const qrDiameter = scale(74, 68, 78);
-  const cradleWidth = scale(156, 142, 168);
-  const cradleDepth = scale(42, 36, 46);
-
-  const activePillWidth = Math.min(slotWidth - scale(10, 6, 14), 74);
-  const activePillHeight = scale(50, 44, 54);
+  const activePillWidth = Math.min(slotWidth - scale(8, 6, 12), 78);
+  const activePillHeight = scale(48, 44, 52);
 
   const bottomClearance = navHeight + Math.max(insets.bottom, 16) + scale(24, 18, 30);
 
@@ -81,9 +77,6 @@ export function useResponsiveMetrics() {
     navHeight,
     navWidth,
     slotWidth,
-    qrDiameter,
-    cradleWidth,
-    cradleDepth,
     activePillWidth,
     activePillHeight,
     bottomClearance,

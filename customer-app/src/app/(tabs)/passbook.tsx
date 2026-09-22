@@ -297,15 +297,6 @@ export default function CustomerPassbookScreen() {
               <Ionicons name="storefront-outline" size={16} color="#70001E" />
               <Text style={styles.payShowroomBtnText}>{t('payAtShowroom')}</Text>
             </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.scanQrBtn}
-              onPress={() => router.push('/pay')}
-              activeOpacity={0.8}
-            >
-              <Ionicons name="qr-code-outline" size={16} color="#E7C86E" />
-              <Text style={styles.scanQrBtnText}>{t('scanQrCode')}</Text>
-            </TouchableOpacity>
           </View>
         </View>
 
