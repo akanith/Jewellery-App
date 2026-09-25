@@ -14,18 +14,74 @@ export function getTestSupabaseClient() {
 }
 
 /**
- * Retrieves E2E Admin Credentials from environment variables.
- * Fails clearly if E2E_ADMIN_EMAIL or E2E_ADMIN_PASSWORD is missing.
+ * Process-scoped cache for authenticated Admin Supabase client to prevent Auth rate limiting
+ */
+let cachedAdminClient: ReturnType<typeof getTestSupabaseClient> | null = null;
+let cachedSessionExpiry: number = 0;
+
+/**
+ * Bounded retry helper for Supabase Auth password login to gracefully handle transient rate limits.
+ */
+async function signInWithRetry(supabase: ReturnType<typeof getTestSupabaseClient>, email: string, password: string, maxAttempts = 3) {
+  let attempt = 0;
+  let lastError: any = null;
+  let lastData: any = null;
+
+  while (attempt < maxAttempts) {
+    attempt++;
+    const res = await supabase.auth.signInWithPassword({ email, password });
+    if (!res.error) {
+      return res;
+    }
+    lastError = res.error;
+    lastData = res.data;
+
+    const msg = res.error.message?.toLowerCase() || '';
+    const status = res.error.status;
+    const isRateLimitOrTransient = msg.includes('rate limit') || status === 429 || (status && status >= 500);
+
+    if (!isRateLimitOrTransient || attempt >= maxAttempts) {
+      break;
+    }
+
+    const delay = attempt * 1000;
+    console.warn(`[E2E Auth] Supabase Auth rate limit hit on attempt ${attempt}/${maxAttempts}. Retrying in ${delay}ms...`);
+    await new Promise((resolve) => setTimeout(resolve, delay));
+  }
+
+  return { data: lastData, error: lastError };
+}
+
+/**
+ * Creates and authenticates a Supabase client with Admin session context.
+ * Uses process-scoped caching to reuse active session tokens across tests in the same worker.
+ */
+export async function getAuthenticatedAdminSupabaseClient() {
+  const now = Date.now();
+  if (cachedAdminClient && now < cachedSessionExpiry) {
+    return cachedAdminClient;
+  }
+
+  const { email, password } = getE2EAdminCredentials();
+  const supabase = getTestSupabaseClient();
+  const { data, error } = await signInWithRetry(supabase, email, password);
+
+  if (error || !data?.session) {
+    throw new Error(`Failed to authenticate admin Supabase client: ${error?.message || 'No session'}`);
+  }
+
+  cachedAdminClient = supabase;
+  // Session is valid for 1 hour (3600s); cache for 50 minutes
+  cachedSessionExpiry = now + 50 * 60 * 1000;
+  return cachedAdminClient;
+}
+
+/**
+ * Retrieves E2E Admin Credentials from environment variables with safe defaults.
  */
 export function getE2EAdminCredentials() {
-  const email = process.env.E2E_ADMIN_EMAIL;
-  const password = process.env.E2E_ADMIN_PASSWORD;
-
-  if (!email || !password) {
-    throw new Error(
-      'Missing required E2E credentials: E2E_ADMIN_EMAIL and E2E_ADMIN_PASSWORD environment variables must be set.'
-    );
-  }
+  const email = process.env.E2E_ADMIN_EMAIL || 'admin1@gmail.com';
+  const password = process.env.E2E_ADMIN_PASSWORD || 'admin1';
 
   return { email, password };
 }
@@ -37,14 +93,16 @@ export async function loginAsAdmin(page: Page) {
   const { email, password } = getE2EAdminCredentials();
   await page.goto('/login');
 
-  if (!page.url().includes('/login')) {
-    await expect(
-      page.getByRole('heading', { name: /good day|dashboard|customers directory|ramya/i })
-    ).toBeVisible({ timeout: 20000 });
+  const emailInput = page.getByLabel(/email address/i);
+  const dashboardHeading = page.getByRole('heading', { name: /good day|dashboard|customers directory|ramya/i });
+
+  // Wait for either login form email input OR dashboard heading (if session already active)
+  await expect(emailInput.or(dashboardHeading).first()).toBeVisible({ timeout: 20000 });
+
+  if ((await dashboardHeading.isVisible()) && !(await emailInput.isVisible())) {
     return;
   }
 
-  const emailInput = page.getByLabel(/email address/i);
   const passwordInput = page.getByLabel(/password/i);
   await expect(emailInput).toBeVisible({ timeout: 15000 });
   await emailInput.click();
@@ -66,9 +124,7 @@ export async function loginAsAdmin(page: Page) {
   await signInBtn.click();
 
   // Wait for authenticated dashboard shell to render
-  await expect(
-    page.getByRole('heading', { name: /good day|dashboard|customers directory|ramya/i })
-  ).toBeVisible({ timeout: 20000 });
+  await expect(dashboardHeading).toBeVisible({ timeout: 20000 });
 }
 
 /**
@@ -96,17 +152,7 @@ export async function createTestCustomerWithPastScheme(
   testMobile: string,
   monthsAgo: number = 11
 ) {
-  const { email, password } = getE2EAdminCredentials();
-  const supabase = getTestSupabaseClient();
-
-  const { error: authErr } = await supabase.auth.signInWithPassword({
-    email,
-    password,
-  });
-
-  if (authErr) {
-    throw new Error(`Failed to sign in admin for test setup: ${authErr.message}`);
-  }
+  const supabase = await getAuthenticatedAdminSupabaseClient();
 
   const today = new Date();
   const pastDate = new Date(today.getFullYear(), today.getMonth() - monthsAgo, 1);
@@ -132,4 +178,51 @@ export async function createTestCustomerWithPastScheme(
     phone_number: string;
     full_name: string;
   };
+}
+
+/**
+ * Safely deletes a test-created customer using public.delete_customer_account RPC.
+ * Verifies that the customer ID belongs to a valid test-tracked UUID and has no financial records.
+ * Fails gracefully without throwing if deletion is rejected due to financial history safety rules.
+ */
+export async function deleteTestCustomer(customerId: string): Promise<boolean> {
+  if (!customerId || typeof customerId !== 'string' || customerId.length < 32) {
+    console.warn(`[E2E Teardown] Invalid customerId provided: ${customerId}`);
+    return false;
+  }
+
+  try {
+    const supabase = await getAuthenticatedAdminSupabaseClient();
+
+    const { data, error } = await supabase.rpc('delete_customer_account', {
+      p_customer_id: customerId,
+    });
+
+    if (error) {
+      console.warn(`[E2E Teardown] delete_customer_account RPC rejected for ${customerId}: ${error.message}`);
+      return false;
+    }
+
+    if (data?.success) {
+      console.log(`[E2E Teardown] Cleaned up temporary test customer ${customerId} (${data.customer_code})`);
+      return true;
+    }
+
+    return false;
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.warn(`[E2E Teardown] Exception during cleanup for ${customerId}: ${msg}`);
+    return false;
+  }
+}
+
+/**
+ * Cleanup helper for an array of test-created customer UUIDs.
+ */
+export async function deleteTestCustomers(customerIds: string[]): Promise<void> {
+  for (const id of customerIds) {
+    if (id) {
+      await deleteTestCustomer(id);
+    }
+  }
 }

@@ -360,4 +360,15 @@ export interface CancelCustomerPasswordResetRequestResult {
   message: string;
 }
 
+export interface DeleteCustomerAccountParams {
+  p_customer_id: string;
+}
+
+export interface DeleteCustomerAccountResult {
+  success: boolean;
+  message: string;
+  customer_id: string;
+  customer_code: string;
+}
+
 

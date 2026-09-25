@@ -752,7 +752,7 @@ BEGIN
     )
     LOOP
         -- Validate item fields
-        IF v_item.item_description IS NULL OR pg_catalog.trim(v_item.item_description) = '' THEN
+        IF v_item.item_description IS NULL OR trim(v_item.item_description) = '' THEN
             RAISE EXCEPTION 'Item description cannot be empty.';
         END IF;
 
@@ -764,19 +764,19 @@ BEGIN
             RAISE EXCEPTION 'Item quantity must be strictly positive.';
         END IF;
 
-        IF pg_catalog.coalesce(v_item.product_amount, 0) < 0 OR
-           pg_catalog.coalesce(v_item.making_charges, 0) < 0 OR
-           pg_catalog.coalesce(v_item.wastage_charges, 0) < 0 OR
-           pg_catalog.coalesce(v_item.stone_charges, 0) < 0 OR
-           pg_catalog.coalesce(v_item.other_charges, 0) < 0 THEN
+        IF coalesce(v_item.product_amount, 0) < 0 OR
+           coalesce(v_item.making_charges, 0) < 0 OR
+           coalesce(v_item.wastage_charges, 0) < 0 OR
+           coalesce(v_item.stone_charges, 0) < 0 OR
+           coalesce(v_item.other_charges, 0) < 0 THEN
             RAISE EXCEPTION 'Item charges and product amounts cannot be negative.';
         END IF;
 
-        v_item_final := pg_catalog.coalesce(v_item.product_amount, 0.00) +
-                        pg_catalog.coalesce(v_item.making_charges, 0.00) +
-                        pg_catalog.coalesce(v_item.wastage_charges, 0.00) +
-                        pg_catalog.coalesce(v_item.stone_charges, 0.00) +
-                        pg_catalog.coalesce(v_item.other_charges, 0.00);
+        v_item_final := coalesce(v_item.product_amount, 0.00) +
+                        coalesce(v_item.making_charges, 0.00) +
+                        coalesce(v_item.wastage_charges, 0.00) +
+                        coalesce(v_item.stone_charges, 0.00) +
+                        coalesce(v_item.other_charges, 0.00);
 
         v_items_sum := v_items_sum + v_item_final;
     END LOOP;
@@ -801,7 +801,7 @@ BEGIN
     END IF;
 
     -- 5. Calculate total contributions paid
-    SELECT pg_catalog.coalesce(pg_catalog.sum(paid_amount), 0.00) INTO v_total_paid
+    SELECT coalesce(pg_catalog.sum(paid_amount), 0.00) INTO v_total_paid
     FROM public.scheme_installments
     WHERE scheme_id = p_scheme_id AND status = 'PAID';
 
@@ -815,7 +815,7 @@ BEGIN
     END IF;
 
     -- 7. Calculate total scheme amounts already redeemed
-    SELECT pg_catalog.coalesce(pg_catalog.sum(scheme_amount_used), 0.00) INTO v_total_redeemed
+    SELECT coalesce(pg_catalog.sum(scheme_amount_used), 0.00) INTO v_total_redeemed
     FROM public.redemptions
     WHERE scheme_id = p_scheme_id AND status = 'COMPLETED';
 
@@ -895,18 +895,18 @@ BEGIN
             v_redemption_id,
             v_item.item_description,
             v_item.category,
-            pg_catalog.coalesce(v_item.quantity, 1.000),
-            pg_catalog.coalesce(v_item.product_amount, 0.00),
-            pg_catalog.coalesce(v_item.making_charges, 0.00),
-            pg_catalog.coalesce(v_item.wastage_charges, 0.00),
-            pg_catalog.coalesce(v_item.stone_charges, 0.00),
-            pg_catalog.coalesce(v_item.other_charges, 0.00),
+            coalesce(v_item.quantity, 1.000),
+            coalesce(v_item.product_amount, 0.00),
+            coalesce(v_item.making_charges, 0.00),
+            coalesce(v_item.wastage_charges, 0.00),
+            coalesce(v_item.stone_charges, 0.00),
+            coalesce(v_item.other_charges, 0.00),
             (
-                pg_catalog.coalesce(v_item.product_amount, 0.00) +
-                pg_catalog.coalesce(v_item.making_charges, 0.00) +
-                pg_catalog.coalesce(v_item.wastage_charges, 0.00) +
-                pg_catalog.coalesce(v_item.stone_charges, 0.00) +
-                pg_catalog.coalesce(v_item.other_charges, 0.00)
+                coalesce(v_item.product_amount, 0.00) +
+                coalesce(v_item.making_charges, 0.00) +
+                coalesce(v_item.wastage_charges, 0.00) +
+                coalesce(v_item.stone_charges, 0.00) +
+                coalesce(v_item.other_charges, 0.00)
             ),
             v_now
         );
@@ -936,7 +936,7 @@ BEGIN
         v_scheme.customer_id,
         p_scheme_id,
         'Scheme Redemption Processed',
-        'Redemption of ₹' || p_scheme_amount_used || ' applied against invoice #' || pg_catalog.coalesce(p_invoice_number, 'N/A') || '. Remaining scheme balance: ₹' || v_new_balance || ' (Lifetime Validity).',
+        'Redemption of ₹' || p_scheme_amount_used || ' applied against invoice #' || coalesce(p_invoice_number, 'N/A') || '. Remaining scheme balance: ₹' || v_new_balance || ' (Lifetime Validity).',
         'REDEMPTION_UPDATE',
         v_now
     );

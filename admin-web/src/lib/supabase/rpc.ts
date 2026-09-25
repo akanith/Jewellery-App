@@ -20,6 +20,8 @@ import {
   PendingPasswordResetRequest,
   CompleteCustomerPasswordResetRequestResult,
   CancelCustomerPasswordResetRequestResult,
+  DeleteCustomerAccountParams,
+  DeleteCustomerAccountResult,
 } from '@/types/database';
 
 export interface RpcResponse<T> {
@@ -286,6 +288,30 @@ export async function cancelCustomerPasswordResetRequest(
     return { data: data as CancelCustomerPasswordResetRequestResult, error: null };
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unable to cancel password reset request.';
+    return { data: null, error: message };
+  }
+}
+
+/**
+ * Safely deletes an eligible customer account without financial history.
+ * Invokes SECURITY DEFINER procedure public.delete_customer_account(uuid).
+ */
+export async function deleteCustomerAccount(
+  params: DeleteCustomerAccountParams
+): Promise<RpcResponse<DeleteCustomerAccountResult>> {
+  try {
+    const supabase = getSupabaseBrowserClient();
+    const { data, error } = await supabase.rpc('delete_customer_account', {
+      p_customer_id: params.p_customer_id,
+    });
+
+    if (error) {
+      return { data: null, error: error.message };
+    }
+
+    return { data: data as DeleteCustomerAccountResult, error: null };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unable to delete customer account.';
     return { data: null, error: message };
   }
 }

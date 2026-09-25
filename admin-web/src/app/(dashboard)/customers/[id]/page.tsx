@@ -8,6 +8,7 @@
 
 import React, { useState, useEffect, useCallback, use } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
   CreditCard,
   Edit,
@@ -23,13 +24,15 @@ import {
   UserX,
   FileText,
   Clock,
-  KeyRound
+  KeyRound,
+  Trash2
 } from 'lucide-react';
 import { formatCurrency, formatDate, formatTime } from '@/lib/formatters';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 import RecordInstallmentDrawer from '@/components/modals/RecordInstallmentDrawer';
 import EditCustomerModal from '@/components/modals/EditCustomerModal';
 import ResetPasswordModal from '@/components/modals/ResetPasswordModal';
+import DeleteCustomerModal from '@/components/modals/DeleteCustomerModal';
 
 interface CustomerDetailPageProps {
   params: Promise<{ id: string }>;
@@ -77,6 +80,7 @@ interface SchemeData {
 }
 
 export default function CustomerDetailPage({ params }: CustomerDetailPageProps) {
+  const router = useRouter();
   const resolvedParams = use(params);
   const customerId = resolvedParams.id;
 
@@ -89,6 +93,7 @@ export default function CustomerDetailPage({ params }: CustomerDetailPageProps) 
   const [isRecordDrawerOpen, setIsRecordDrawerOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
 
   const fetchCustomerDetails = useCallback(async () => {
     setIsLoading(true);
@@ -289,10 +294,17 @@ export default function CustomerDetailPage({ params }: CustomerDetailPageProps) 
           </button>
           <button
             onClick={() => setIsEditModalOpen(true)}
-            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition shadow-xs"
+            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition shadow-xs cursor-pointer"
           >
             <Edit className="w-4 h-4 text-slate-500" />
             <span>Edit Profile</span>
+          </button>
+          <button
+            onClick={() => setIsDeleteModalOpen(true)}
+            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white border border-rose-200 text-xs font-semibold text-rose-700 hover:bg-rose-50/60 transition shadow-xs cursor-pointer"
+          >
+            <Trash2 className="w-4 h-4 text-rose-600" />
+            <span>Delete Customer</span>
           </button>
         </div>
       </div>
@@ -660,6 +672,26 @@ export default function CustomerDetailPage({ params }: CustomerDetailPageProps) 
           onSuccess={() => {
             setIsResetModalOpen(false);
             fetchCustomerDetails();
+          }}
+        />
+      )}
+
+      {/* Delete Customer Confirmation Modal */}
+      {customer && (
+        <DeleteCustomerModal
+          isOpen={isDeleteModalOpen}
+          onClose={() => setIsDeleteModalOpen(false)}
+          customer={{
+            id: customer.id,
+            customer_code: customer.customer_code,
+            full_name: customer.full_name,
+            phone_number: customer.phone_number,
+          }}
+          onSuccess={(msg) => {
+            setIsDeleteModalOpen(false);
+            sessionStorage.setItem('flash_message', msg);
+            router.push('/customers');
+            router.refresh();
           }}
         />
       )}

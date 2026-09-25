@@ -19,7 +19,8 @@ import {
   AlertCircle,
   RefreshCw,
   UserX,
-  Users
+  Users,
+  CheckCircle2
 } from 'lucide-react';
 import { formatCurrency, formatPhoneNumber } from '@/lib/formatters';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
@@ -77,6 +78,15 @@ export default function CustomersPage() {
   const [customers, setCustomers] = useState<CustomerListItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [flashMessage, setFlashMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    const flash = typeof window !== 'undefined' ? sessionStorage.getItem('flash_message') : null;
+    if (flash) {
+      setFlashMessage(flash);
+      sessionStorage.removeItem('flash_message');
+    }
+  }, []);
 
   const fetchCustomers = useCallback(async () => {
     setIsLoading(true);
@@ -338,13 +348,29 @@ export default function CustomersPage() {
 
           <Link
             href="/customers/new"
-            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl royal-button text-xs font-semibold"
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl royal-button text-xs font-semibold shadow-sm"
           >
             <PlusCircle className="w-4 h-4" />
-            <span>Add New Customer</span>
+            <span>New Customer</span>
           </Link>
         </div>
       </div>
+
+      {/* Success Flash Banner */}
+      {flashMessage && (
+        <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-between gap-3 text-xs sm:text-sm text-emerald-900 animate-in fade-in duration-200">
+          <div className="flex items-center gap-2.5 font-medium">
+            <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+            <span>{flashMessage}</span>
+          </div>
+          <button
+            onClick={() => setFlashMessage(null)}
+            className="text-emerald-700 hover:text-emerald-900 text-xs font-bold"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
 
       {/* Error Banner */}
       {errorMessage && (
