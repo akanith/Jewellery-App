@@ -6,7 +6,7 @@ test.describe('AW-05: Add New Customer & Scheme Enrollment', () => {
   test.beforeEach(async ({ page }) => {
     // Authenticate as Admin
     await loginAsAdmin(page);
-    await expect(page).toHaveURL('http://localhost:3000/');
+    await expect(page).toHaveURL(/\/$/);
   });
 
   test('admin can register a new customer and atomically enroll them into 12-month scheme', async ({ page }) => {

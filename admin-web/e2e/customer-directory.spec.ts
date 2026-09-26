@@ -5,7 +5,7 @@ test.describe('AW-03: Customer Directory Search & Filters', () => {
 
   test.beforeEach(async ({ page }) => {
     await loginAsAdmin(page);
-    await expect(page).toHaveURL('http://localhost:3000/');
+    await expect(page).toHaveURL(/\/$/);
   });
 
   test('admin can search customer directory by mobile or customer code', async ({ page }) => {

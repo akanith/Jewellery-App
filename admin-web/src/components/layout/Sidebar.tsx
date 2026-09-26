@@ -19,6 +19,7 @@ import {
   Plus,
   Gem,
   KeyRound,
+  X,
   LucideIcon
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
@@ -26,6 +27,8 @@ import { useAuth } from '@/lib/auth-context';
 interface SidebarProps {
   onAddCustomer?: () => void;
   onOpenNewScheme?: () => void;
+  isMobile?: boolean;
+  onCloseMobile?: () => void;
 }
 
 interface NavItemConfig {
@@ -44,10 +47,14 @@ const NAV_ITEMS: NavItemConfig[] = [
   { name: 'Settings', href: '/settings', icon: Settings },
 ];
 
-export default function Sidebar({ onAddCustomer, onOpenNewScheme }: SidebarProps) {
+export default function Sidebar({ onAddCustomer, onOpenNewScheme, isMobile, onCloseMobile }: SidebarProps) {
   const pathname = usePathname();
   const { user, profile, adminProfile } = useAuth();
-  const handleAction = onAddCustomer || onOpenNewScheme;
+  const handleAction = () => {
+    if (onAddCustomer) onAddCustomer();
+    else if (onOpenNewScheme) onOpenNewScheme();
+    if (isMobile && onCloseMobile) onCloseMobile();
+  };
 
   // Route matching logic
   const isRouteActive = (href: string) => {
@@ -85,12 +92,18 @@ export default function Sidebar({ onAddCustomer, onOpenNewScheme }: SidebarProps
     .toUpperCase() || 'AK';
 
   return (
-    <aside className="w-64 bg-[#f8fafc] border-r border-slate-200/80 flex flex-col justify-between shrink-0 h-full select-none z-20">
+    <aside
+      className={
+        isMobile
+          ? 'flex flex-col justify-between h-full select-none w-72 max-w-[85vw] bg-white border-r border-slate-200 z-50 shadow-2xl'
+          : 'hidden lg:flex w-64 bg-[#f8fafc] border-r border-slate-200/80 flex-col justify-between shrink-0 h-full select-none z-20'
+      }
+    >
       {/* TOP SECTION: BRAND HEADER & NAVIGATION */}
       <div className="flex flex-col flex-1 min-h-0">
         {/* Brand Header */}
-        <div className="p-6 pb-5 shrink-0">
-          <Link href="/" className="flex items-start gap-3 group">
+        <div className="p-6 pb-5 shrink-0 flex items-center justify-between">
+          <Link href="/" onClick={() => isMobile && onCloseMobile?.()} className="flex items-start gap-3 group">
             <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-700 to-blue-900 text-white flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform shrink-0">
               <Gem className="w-5 h-5 text-amber-300" />
             </div>
@@ -103,6 +116,16 @@ export default function Sidebar({ onAddCustomer, onOpenNewScheme }: SidebarProps
               </span>
             </div>
           </Link>
+          {isMobile && onCloseMobile && (
+            <button
+              type="button"
+              onClick={onCloseMobile}
+              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+              title="Close Menu"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          )}
         </div>
 
         {/* Navigation Items (Perfect Vertical Alignment) */}
@@ -115,6 +138,7 @@ export default function Sidebar({ onAddCustomer, onOpenNewScheme }: SidebarProps
               <Link
                 key={item.name}
                 href={item.href}
+                onClick={() => isMobile && onCloseMobile?.()}
                 className={`group flex items-center gap-3.5 h-11 px-3 transition-all duration-150 relative ${
                   active
                     ? 'bg-blue-50 text-blue-900 font-bold border-l-4 border-blue-600 rounded-r-xl rounded-l-none pl-2.5 shadow-2xs'
@@ -148,7 +172,7 @@ export default function Sidebar({ onAddCustomer, onOpenNewScheme }: SidebarProps
       {/* BOTTOM SECTION: ADD CUSTOMER BUTTON, LEDGER STATUS & USER PROFILE */}
       <div className="p-4 border-t border-slate-200/60 space-y-3 shrink-0 bg-[#f8fafc]">
         {/* + Add Customer Solid High-Contrast Action Button */}
-        {handleAction ? (
+        {onAddCustomer || onOpenNewScheme ? (
           <button
             type="button"
             onClick={handleAction}
@@ -160,6 +184,7 @@ export default function Sidebar({ onAddCustomer, onOpenNewScheme }: SidebarProps
         ) : (
           <Link
             href="/customers/new"
+            onClick={() => isMobile && onCloseMobile?.()}
             className="w-full h-10 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-xs font-bold shadow-xs hover:shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500/40"
           >
             <Plus className="w-4 h-4 text-white stroke-[2.5]" />
@@ -170,6 +195,7 @@ export default function Sidebar({ onAddCustomer, onOpenNewScheme }: SidebarProps
         {/* User Profile Chip at Bottom Left (Linked to Settings) */}
         <Link
           href="/settings"
+          onClick={() => isMobile && onCloseMobile?.()}
           className="flex items-center gap-3 p-1.5 -mx-1 rounded-xl hover:bg-slate-200/60 transition-colors group cursor-pointer"
         >
           <div className="w-8 h-8 rounded-lg bg-blue-600 text-white font-heading font-bold text-xs flex items-center justify-center shadow-2xs shrink-0 group-hover:scale-105 transition-transform">

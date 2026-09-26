@@ -13,11 +13,16 @@ import {
   Calendar,
   LogOut,
   User,
-  Shield
+  Shield,
+  Menu
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 
-export default function Header() {
+interface HeaderProps {
+  onToggleMobileMenu?: () => void;
+}
+
+export default function Header({ onToggleMobileMenu }: HeaderProps) {
   const { user, profile, adminProfile, signOut } = useAuth();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -45,9 +50,21 @@ export default function Header() {
     .toUpperCase() || 'AD';
 
   return (
-    <header className="h-16 bg-white border-b border-slate-200/80 px-6 flex items-center justify-between sticky top-0 z-30">
+    <header className="h-16 bg-white border-b border-slate-200/80 px-3 sm:px-6 flex items-center justify-between sticky top-0 z-30 min-w-0 w-full">
+      {/* Mobile Menu Toggle Button */}
+      {onToggleMobileMenu && (
+        <button
+          type="button"
+          onClick={onToggleMobileMenu}
+          className="p-2 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors mr-2 lg:hidden shrink-0 cursor-pointer"
+          title="Open Navigation Menu"
+        >
+          <Menu className="w-5 h-5" />
+        </button>
+      )}
+
       {/* Omni-search bar */}
-      <div className="flex-1 max-w-lg">
+      <div className="flex-1 max-w-xs sm:max-w-lg min-w-0">
         <div className="relative">
           <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
           <input
@@ -55,7 +72,7 @@ export default function Header() {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search customers, schemes..."
-            className="w-full pl-10 pr-4 py-2 text-xs rounded-xl border border-slate-200 bg-slate-50/70 focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-royal-blue-500/20 focus:border-royal-blue-500 transition-all text-slate-900 placeholder:text-slate-400"
+            className="w-full pl-9 sm:pl-10 pr-3 sm:pr-4 py-2 text-xs rounded-xl border border-slate-200 bg-slate-50/70 focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-royal-blue-500/20 focus:border-royal-blue-500 transition-all text-slate-900 placeholder:text-slate-400"
           />
         </div>
       </div>

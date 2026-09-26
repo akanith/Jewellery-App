@@ -39,7 +39,7 @@ test.describe('AW-01: Admin Authentication & Route Protection', () => {
 
     // Verify successful authentication and redirection to dashboard/home
     await expect(page).not.toHaveURL(/\/login/, { timeout: 20000 });
-    await expect(page).toHaveURL('http://localhost:3000/');
+    await expect(page).toHaveURL(/\/$/);
     await expect(page.getByRole('heading', { name: /good day|dashboard|customers directory|ramya/i })).toBeVisible({ timeout: 20000 });
   });
 

@@ -80,7 +80,7 @@ export default function LoginPage() {
           </p>
 
           {/* Luxury Jewellery Hero Image */}
-          <div className="relative w-full max-w-lg aspect-[4/5] rounded-3xl overflow-hidden shadow-2xl border border-slate-200/80 bg-slate-900">
+          <div className="hidden sm:block relative w-full max-w-lg aspect-[4/5] rounded-3xl overflow-hidden shadow-2xl border border-slate-200/80 bg-slate-900">
             <Image
               src="/necklace-hero.jpg"
               alt="Ramyas Jeweller - Heritage Gold and Diamond Jewellery Showcase"

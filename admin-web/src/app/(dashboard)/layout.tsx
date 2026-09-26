@@ -19,6 +19,7 @@ export default function DashboardLayout({
 }) {
   const router = useRouter();
   const { user, isLoading } = useAuth();
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
 
   useEffect(() => {
     if (!isLoading && !user) {
@@ -49,13 +50,28 @@ export default function DashboardLayout({
 
   return (
     <div className="h-screen w-full flex overflow-hidden bg-[#f8fafc]">
-      {/* Sidebar Navigation (Fixed Height & Stable Shell) */}
+      {/* Sidebar Navigation (Permanent on Desktop) */}
       <Sidebar />
+
+      {/* Mobile Slide-Over Navigation Drawer */}
+      {isMobileMenuOpen && (
+        <div className="fixed inset-0 z-50 flex lg:hidden">
+          {/* Backdrop Overlay */}
+          <div
+            className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs transition-opacity"
+            onClick={() => setIsMobileMenuOpen(false)}
+          />
+          {/* Drawer Sidebar */}
+          <div className="relative z-50 h-full">
+            <Sidebar isMobile onCloseMobile={() => setIsMobileMenuOpen(false)} />
+          </div>
+        </div>
+      )}
 
       {/* Main Content Area (Scrolls independently) */}
       <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
-        <Header />
-        <main className="flex-1 overflow-y-auto p-6 sm:p-8 lg:p-10">
+        <Header onToggleMobileMenu={() => setIsMobileMenuOpen(true)} />
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-10 min-w-0 w-full">
           <div className="max-w-7xl w-full mx-auto">
             {children}
           </div>

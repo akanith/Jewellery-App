@@ -5,7 +5,7 @@ test.describe('AW-08: 12th Installment Bonus Crediting & Maturity Transition', (
 
   test.beforeEach(async ({ page }) => {
     await loginAsAdmin(page);
-    await expect(page).toHaveURL('http://localhost:3000/');
+    await expect(page).toHaveURL(/\/$/);
   });
 
   test('completing 12th installment automatically credits ₹1,000 bonus and transitions scheme to MATURED', async ({ page }) => {

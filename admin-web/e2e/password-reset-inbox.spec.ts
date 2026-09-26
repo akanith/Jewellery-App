@@ -5,7 +5,7 @@ test.describe('AW-10 & AW-11: Admin Password Reset Request Inbox', () => {
 
   test.beforeEach(async ({ page }) => {
     await loginAsAdmin(page);
-    await expect(page).toHaveURL('http://localhost:3000/');
+    await expect(page).toHaveURL(/\/$/);
   });
 
   test('admin can navigate to password reset requests inbox and view request list / empty state', async ({ page }) => {

@@ -5,7 +5,7 @@ test.describe('AW-06: Record Monthly Installment Payment', () => {
 
   test.beforeEach(async ({ page }) => {
     await loginAsAdmin(page);
-    await expect(page).toHaveURL('http://localhost:3000/');
+    await expect(page).toHaveURL(/\/$/);
   });
 
   test('admin can record a ₹1,000 monthly installment payment for a customer', async ({ page }) => {

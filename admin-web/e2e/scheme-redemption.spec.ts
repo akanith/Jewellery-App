@@ -5,7 +5,7 @@ test.describe('AW-09: Scheme Maturity Redemption', () => {
 
   test.beforeEach(async ({ page }) => {
     await loginAsAdmin(page);
-    await expect(page).toHaveURL('http://localhost:3000/');
+    await expect(page).toHaveURL(/\/$/);
   });
 
   test('admin can access redemption page and view eligible customer schemes', async ({ page }) => {
