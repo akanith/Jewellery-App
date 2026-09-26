@@ -42,6 +42,8 @@ Thumbs.db
 # Playwright
 admin-web/playwright-report/
 admin-web/test-results/
+.playwright-mcp/
+
 
 # Vercel
 .vercel/
