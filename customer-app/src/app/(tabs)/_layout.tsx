@@ -37,11 +37,10 @@ const TAB_ITEMS: TabConfig[] = [
     inactiveIcon: 'book-outline',
   },
   {
-    name: 'notifications',
-    key: 'updates',
-    activeIcon: 'megaphone',
-    inactiveIcon: 'megaphone-outline',
-    hasBadge: true,
+    name: 'reward',
+    key: 'reward',
+    activeIcon: 'gift',
+    inactiveIcon: 'gift-outline',
   },
   {
     name: 'profile',
@@ -238,8 +237,9 @@ export default function TabsLayout() {
     >
       <Tabs.Screen name="index" options={{ title: 'Home' }} />
       <Tabs.Screen name="passbook" options={{ title: 'Passbook' }} />
-      <Tabs.Screen name="notifications" options={{ title: 'Updates' }} />
+      <Tabs.Screen name="reward" options={{ title: 'Reward' }} />
       <Tabs.Screen name="profile" options={{ title: 'Profile' }} />
+      <Tabs.Screen name="notifications" options={{ href: null, title: 'Notifications' }} />
     </Tabs>
   );
 }

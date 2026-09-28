@@ -5,6 +5,7 @@ export const translations = {
     // Navigation & Common
     home: 'Home',
     passbook: 'Passbook',
+    reward: 'Reward',
     updates: 'Updates',
     profile: 'Profile',
     back: 'Back',
@@ -291,6 +292,7 @@ export const translations = {
     // Navigation & Common
     home: 'முகப்பு',
     passbook: 'பாஸ்புக்',
+    reward: 'பரிசு',
     updates: 'செய்திகள்',
     profile: 'சுயவிவரம்',
     back: 'பின்செல்',
