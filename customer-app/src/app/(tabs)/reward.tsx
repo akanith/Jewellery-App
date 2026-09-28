@@ -130,16 +130,13 @@ export default function RewardScreen() {
 
           {/* Eyebrow */}
           <View style={styles.eyebrowRow}>
-            <Ionicons name="star" size={11} color="#D4AF37" />
-            <Text style={styles.certEyebrow}>HEIRLOOM TREASURY CERTIFICATE</Text>
-            <Ionicons name="star" size={11} color="#D4AF37" />
+            <Ionicons name="star" size={12} color="#8C6B1B" />
+            <Text style={styles.certEyebrow}>RAMYAS JEWELLER REWARD</Text>
+            <Ionicons name="star" size={12} color="#8C6B1B" />
           </View>
 
           {/* Main Title */}
-          <Text style={styles.certTitle}>Certificate of Scheme{'\n'}Completion</Text>
-
-          {/* Subtitle */}
-          <Text style={styles.certSubhead}>Your Completion Gift</Text>
+          <Text style={styles.certTitle}>Your Completion{'\n'}Gift</Text>
 
           {/* Description */}
           <Text style={styles.certDescription}>
@@ -155,50 +152,7 @@ export default function RewardScreen() {
           </View>
         </View>
 
-        {/* 2. MILESTONE PROGRESS CARD */}
-        <View style={styles.sectionContainer}>
-          <View style={styles.milestoneHeaderRow}>
-            <View style={styles.milestoneTitleGroup}>
-              <Ionicons name="ribbon-outline" size={20} color="#70001E" style={styles.milestoneIcon} />
-              <View style={styles.milestoneTextCol}>
-                <Text style={styles.cardHeaderTitle}>Milestone</Text>
-                <Text style={styles.cardHeaderTitle}>Progress</Text>
-              </View>
-            </View>
-
-            <View style={styles.completedBadge}>
-              <Text style={styles.completedBadgeText}>12 / 12 Months</Text>
-              <Text style={styles.completedBadgeSubtext}>Completed</Text>
-            </View>
-          </View>
-
-          {/* Full Progress Bar */}
-          <View style={styles.progressTrack}>
-            <View style={[styles.progressFill, { width: '100%' }]} />
-          </View>
-
-          {/* 12 Checkpoints Grid/Row */}
-          <View style={styles.checkpointsRow}>
-            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((monthNum) => (
-              <View key={monthNum} style={styles.checkpointCol}>
-                <View style={styles.checkpointCheckCircle}>
-                  <Ionicons name="checkmark" size={10} color="#FFFFFF" />
-                </View>
-                <Text style={styles.checkpointNum}>{monthNum}</Text>
-              </View>
-            ))}
-          </View>
-
-          {/* Congratulations Note */}
-          <View style={styles.congratsRow}>
-            <Ionicons name="sparkles" size={18} color="#D4AF37" style={{ marginRight: 8 }} />
-            <Text style={styles.congratsText}>
-              Congratulations! Your scheme has been successfully completed.
-            </Text>
-          </View>
-        </View>
-
-        {/* 3. SPECIAL GIFTS SECTION */}
+        {/* 2. SPECIAL GIFTS SECTION */}
         <View style={styles.sectionContainer}>
           <View style={styles.giftsHeaderRow}>
             <View style={styles.giftsTitleGroup}>
@@ -268,7 +222,7 @@ export default function RewardScreen() {
           </View>
         </View>
 
-        {/* 4. SCHEME BENEFITS */}
+        {/* 3. SCHEME BENEFITS */}
         <View style={styles.benefitsSectionContainer}>
           <View style={styles.benefitsSectionHeader}>
             <Ionicons name="cash-outline" size={20} color="#70001E" style={{ marginRight: 6 }} />
@@ -301,7 +255,7 @@ export default function RewardScreen() {
           </View>
         </View>
 
-        {/* 5. GIFT ELIGIBILITY INFO CARD */}
+        {/* 4. GIFT ELIGIBILITY INFO CARD */}
         <View style={styles.eligibilityCard}>
           <Ionicons name="information-circle-outline" size={22} color="#666666" style={{ marginRight: 10, marginTop: 2 }} />
           <Text style={styles.eligibilityText}>
@@ -382,7 +336,7 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: '#F3E5C8',
     paddingHorizontal: 20,
-    paddingVertical: 24,
+    paddingVertical: 26,
     alignItems: 'center',
     position: 'relative',
     overflow: 'hidden',
@@ -396,55 +350,49 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: -30,
     right: -30,
-    width: 120,
-    height: 120,
-    borderRadius: 60,
+    width: 130,
+    height: 130,
+    borderRadius: 65,
     backgroundColor: '#FFE98A',
-    opacity: 0.35,
+    opacity: 0.4,
   },
   certGlowBottomLeft: {
     position: 'absolute',
     bottom: -30,
     left: -30,
-    width: 120,
-    height: 120,
-    borderRadius: 60,
+    width: 130,
+    height: 130,
+    borderRadius: 65,
     backgroundColor: '#FAD4D8',
-    opacity: 0.35,
+    opacity: 0.4,
   },
   eyebrowRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginBottom: 10,
+    marginBottom: 12,
   },
   certEyebrow: {
-    fontSize: 10.5,
+    fontSize: 11,
     fontWeight: '800',
     color: '#8C6B1B',
-    letterSpacing: 1.2,
+    letterSpacing: 1.0,
   },
   certTitle: {
-    fontSize: 22,
+    fontSize: 28,
     fontWeight: '900',
     color: '#70001E',
     textAlign: 'center',
-    lineHeight: 28,
-    marginBottom: 4,
-  },
-  certSubhead: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#A01E40',
-    marginBottom: 12,
+    lineHeight: 34,
+    marginBottom: 14,
   },
   certDescription: {
-    fontSize: 13,
+    fontSize: 13.5,
     color: '#5D5759',
     textAlign: 'center',
-    lineHeight: 18,
-    maxWidth: 280,
-    marginBottom: 18,
+    lineHeight: 19,
+    maxWidth: 290,
+    marginBottom: 20,
   },
   stampedBadge: {
     flexDirection: 'row',
@@ -453,8 +401,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E8D7A8',
     borderRadius: 20,
-    paddingHorizontal: 14,
-    paddingVertical: 7,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
     gap: 8,
   },
   stampedIconCircle: {
@@ -484,102 +432,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.04,
     shadowRadius: 6,
     elevation: 2,
-  },
-
-  /* MILESTONE PROGRESS */
-  milestoneHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 14,
-  },
-  milestoneTitleGroup: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  milestoneIcon: {
-    marginRight: 8,
-  },
-  milestoneTextCol: {
-    justifyContent: 'center',
-  },
-  cardHeaderTitle: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#1C1B1F',
-    lineHeight: 18,
-  },
-  completedBadge: {
-    backgroundColor: '#FDF3D6',
-    borderWidth: 1,
-    borderColor: '#E8D7A8',
-    borderRadius: 16,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    alignItems: 'center',
-  },
-  completedBadgeText: {
-    fontSize: 11.5,
-    fontWeight: '800',
-    color: '#70001E',
-  },
-  completedBadgeSubtext: {
-    fontSize: 9.5,
-    fontWeight: '600',
-    color: '#8C6B1B',
-  },
-  progressTrack: {
-    height: 8,
-    backgroundColor: '#F3EBE1',
-    borderRadius: 4,
-    overflow: 'hidden',
-    marginBottom: 16,
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: '#F4B41A',
-    borderRadius: 4,
-  },
-  checkpointsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-    paddingHorizontal: 2,
-  },
-  checkpointCol: {
-    alignItems: 'center',
-    gap: 4,
-  },
-  checkpointCheckCircle: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    backgroundColor: '#70001E',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  checkpointNum: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#555555',
-  },
-  congratsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#FFFDF5',
-    padding: 10,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#F3E5C8',
-  },
-  congratsText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#333333',
-    textAlign: 'center',
-    flexShrink: 1,
   },
 
   /* SPECIAL GIFTS */
