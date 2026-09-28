@@ -66,13 +66,25 @@ function jsonResponse(data: unknown, status = 200): Response {
 
 function getSupabaseAdminClient() {
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
-  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  const rawSecretKeys = Deno.env.get("SUPABASE_SECRET_KEYS");
 
-  if (!supabaseUrl || !serviceRoleKey) {
+  let secretKey: string | undefined;
+  if (rawSecretKeys) {
+    try {
+      const parsed = JSON.parse(rawSecretKeys);
+      if (parsed && typeof parsed === "object" && parsed.default) {
+        secretKey = parsed.default;
+      }
+    } catch {
+      // Fallback ignored
+    }
+  }
+
+  if (!supabaseUrl || !secretKey) {
     throw new Error("Missing required Supabase environment configuration.");
   }
 
-  return createClient(supabaseUrl, serviceRoleKey, {
+  return createClient(supabaseUrl, secretKey, {
     auth: {
       persistSession: false,
       autoRefreshToken: false,

@@ -34,7 +34,7 @@ test.describe('Phase 6 — Supabase & BFF Security Audit Tests', () => {
 
   test('SEC-05: Secret leakage audit in client code', async () => {
     // Verify client bundle does not contain service_role keys or db secrets
-    const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'sb_publishable_bYOw6Eq1dE-7ARfmhCjc5A_YGLFalvD';
-    expect(anonKey).not.toContain('service_role');
+    const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_bYOw6Eq1dE-7ARfmhCjc5A_YGLFalvD';
+    expect(publishableKey).not.toContain('service_role');
   });
 });

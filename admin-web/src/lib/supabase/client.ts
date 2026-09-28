@@ -22,9 +22,7 @@ export function getSupabaseEnvConfig() {
     process.env.NEXT_PUBLIC_SUPABASE_URL ||
     process.env.NEXT_PUBLIC_SUPABASE_PROJECT_URL;
 
-  const supabaseAnonKey =
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+  const supabasePublishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
   if (!supabaseUrl) {
     throw new Error(
@@ -32,15 +30,15 @@ export function getSupabaseEnvConfig() {
     );
   }
 
-  if (!supabaseAnonKey) {
+  if (!supabasePublishableKey) {
     throw new Error(
-      'Missing NEXT_PUBLIC_SUPABASE_ANON_KEY environment variable. Please configure .env.local'
+      'Missing NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY environment variable. Please configure .env.local'
     );
   }
 
   return {
     supabaseUrl,
-    supabaseAnonKey,
+    supabaseAnonKey: supabasePublishableKey,
   };
 }
 
