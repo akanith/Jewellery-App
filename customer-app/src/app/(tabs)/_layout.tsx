@@ -191,7 +191,7 @@ function renderTabSlot(
           <Ionicons
             name={(isFocused ? tabConfig.activeIcon : tabConfig.inactiveIcon) as any}
             size={responsive ? responsive.scale(22, 19, 25) : 22}
-            color={isFocused ? '#70001E' : '#746F72'}
+            color={isFocused ? '#70001E' : '#655E60'}
           />
           {tabConfig.hasBadge && (
             <View style={styles.updatesBadgeDot} />
@@ -259,26 +259,25 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     position: 'relative',
     backgroundColor: '#FFFFFF',
-    borderRadius: 24,
+    borderRadius: 32,
     borderWidth: 1.5,
-    borderColor: '#E6C687',
-    elevation: 10,
+    borderColor: '#9E2A4B',
+    elevation: 8,
     shadowColor: '#70001E',
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.12,
-    shadowRadius: 16,
+    shadowOpacity: 0.14,
+    shadowRadius: 12,
   },
   activePillBackground: {
     position: 'absolute',
-    borderRadius: 16,
-    backgroundColor: '#FFE98A',
-    borderWidth: 1,
-    borderColor: '#E7C86E',
-    shadowColor: '#D4AF37',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.18,
-    shadowRadius: 4,
-    elevation: 3,
+    borderRadius: 18,
+    backgroundColor: '#FFE975',
+    borderWidth: 0,
+    shadowColor: '#C9A000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.28,
+    shadowRadius: 5,
+    elevation: 4,
     zIndex: 1,
   },
   tabBarItem: {
@@ -312,16 +311,16 @@ const styles = StyleSheet.create({
     backgroundColor: '#70001E',
   },
   tabText: {
-    fontSize: 12.5,
+    fontSize: 12,
     textAlign: 'center',
     marginTop: 2,
   },
   tabTextInactive: {
-    color: '#746F72',
+    color: '#655E60',
     fontWeight: '600',
   },
   tabTextActive: {
     color: '#70001E',
-    fontWeight: '700',
+    fontWeight: '800',
   },
 });
