@@ -21,7 +21,7 @@ jobs:
           cache: 'npm'
 
       - name: Install Admin Web Dependencies
-        run: npm ci --include=optional
+        run: npm install
         working-directory: admin-web
 
       - name: Install Tailwind Oxide Linux Native Binding
@@ -66,7 +66,7 @@ jobs:
           cache: 'npm'
 
       - name: Install Dependencies
-        run: npm ci --include=optional
+        run: npm install
         working-directory: admin-web
 
       - name: Install Tailwind Oxide Linux Native Binding
