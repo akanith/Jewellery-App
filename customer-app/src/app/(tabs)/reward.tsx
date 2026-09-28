@@ -136,7 +136,7 @@ export default function RewardScreen() {
           </View>
 
           {/* Main Title */}
-          <Text style={styles.certTitle}>Your Completion{'\n'}Gift</Text>
+          <Text style={styles.certTitle} numberOfLines={1}>Your Completion Gift</Text>
 
           {/* Description */}
           <Text style={styles.certDescription}>
@@ -157,10 +157,9 @@ export default function RewardScreen() {
           <View style={styles.giftsHeaderRow}>
             <View style={styles.giftsTitleGroup}>
               <Ionicons name="gift-outline" size={22} color="#70001E" style={{ marginRight: 8 }} />
-              <View>
-                <Text style={styles.specialGiftsTitle}>Special Gifts for</Text>
-                <Text style={styles.specialGiftsTitle}>You</Text>
-              </View>
+              <Text style={styles.specialGiftsTitle} numberOfLines={1}>
+                Special Gifts for You
+              </Text>
             </View>
 
             <View style={styles.handcraftedPill}>
@@ -379,12 +378,11 @@ const styles = StyleSheet.create({
     letterSpacing: 1.0,
   },
   certTitle: {
-    fontSize: 28,
+    fontSize: 23,
     fontWeight: '900',
     color: '#70001E',
     textAlign: 'center',
-    lineHeight: 34,
-    marginBottom: 14,
+    marginBottom: 12,
   },
   certDescription: {
     fontSize: 13.5,
@@ -444,12 +442,14 @@ const styles = StyleSheet.create({
   giftsTitleGroup: {
     flexDirection: 'row',
     alignItems: 'center',
+    flex: 1,
+    marginRight: 8,
   },
   specialGiftsTitle: {
-    fontSize: 18,
+    fontSize: 16.5,
     fontWeight: '900',
     color: '#70001E',
-    lineHeight: 22,
+    flexShrink: 1,
   },
   handcraftedPill: {
     backgroundColor: '#FDF3D6',
