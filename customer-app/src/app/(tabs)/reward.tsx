@@ -515,7 +515,17 @@ const styles = StyleSheet.create({
 
   /* BENEFITS SECTION */
   benefitsSectionContainer: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#EAE2D9',
+    padding: 16,
     gap: 12,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    elevation: 2,
   },
   benefitsSectionHeader: {
     flexDirection: 'row',
