@@ -39,6 +39,9 @@ jobs:
       - name: Build Admin Web
         run: npx next build
         working-directory: admin-web
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
 
       - name: Install Customer App Dependencies
         run: npm ci --include=optional

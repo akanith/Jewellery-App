@@ -12,6 +12,8 @@
 
 # testing
 /coverage
+test_*.js
+test_inbox_full_flow.js
 
 # next.js
 /.next/
