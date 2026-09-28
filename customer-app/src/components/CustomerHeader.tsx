@@ -38,7 +38,7 @@ export const CustomerHeader: React.FC<CustomerHeaderProps> = ({
     if (onNotificationPress) {
       onNotificationPress();
     } else {
-      router.push('/(tabs)/notifications' as any);
+      router.push('/notifications' as any);
     }
   };
 

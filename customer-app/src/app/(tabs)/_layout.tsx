@@ -55,18 +55,30 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
   const { t } = useLanguage();
   const responsive = useResponsiveMetrics();
   const [containerWidth, setContainerWidth] = useState(0);
-  const [animValue] = useState(() => new Animated.Value(state.index));
+
+  // Filter routes to ONLY those configured in TAB_ITEMS (exactly 4: Home, Passbook, Reward, Profile)
+  const activeRoutes = state.routes.filter((r: any) =>
+    TAB_ITEMS.some((tConfig) => tConfig.name === r.name)
+  );
+
+  const currentFocusedRouteName = state.routes[state.index]?.name;
+  const currentFocusedIndex = Math.max(
+    0,
+    activeRoutes.findIndex((r: any) => r.name === currentFocusedRouteName)
+  );
+
+  const [animValue] = useState(() => new Animated.Value(currentFocusedIndex));
 
   useEffect(() => {
     const isNative = Platform.OS !== 'web';
     Animated.spring(animValue, {
-      toValue: state.index,
+      toValue: currentFocusedIndex,
       damping: 22,
       stiffness: 220,
       mass: 0.7,
       useNativeDriver: isNative,
     }).start();
-  }, [state.index, animValue]);
+  }, [currentFocusedIndex, animValue]);
 
   // Guard condition AFTER all React hooks are unconditionally invoked
   if (segments.length > 0 && segments[0] !== '(tabs)') {
@@ -78,7 +90,8 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
   };
 
   const currentNavWidth = containerWidth > 0 ? containerWidth : responsive.navWidth;
-  const slotWidth = currentNavWidth / 4;
+  const slotCount = Math.max(1, activeRoutes.length);
+  const slotWidth = currentNavWidth / slotCount;
   const pillOffset = (slotWidth - responsive.activePillWidth) / 2;
 
   const pillTranslateX = animValue.interpolate({
@@ -128,8 +141,8 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
         )}
 
         {/* 4 EQUAL TAB SLOTS */}
-        {state.routes.map((route: any, index: number) =>
-          renderTabSlot(route, index, state, descriptors, navigation, t, responsive)
+        {activeRoutes.map((route: any, index: number) =>
+          renderTabSlot(route, index, currentFocusedIndex, descriptors, navigation, t, responsive)
         )}
       </View>
     </View>
@@ -139,7 +152,7 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
 function renderTabSlot(
   route: any,
   tabIndex: number,
-  state: any,
+  focusedIndex: number,
   descriptors: any,
   navigation: any,
   t: (key: TranslationKey) => string,
@@ -147,8 +160,8 @@ function renderTabSlot(
 ) {
   if (!route) return null;
 
-  const isFocused = state.index === tabIndex;
-  const tabConfig = TAB_ITEMS[tabIndex] || {
+  const isFocused = focusedIndex === tabIndex;
+  const tabConfig = TAB_ITEMS.find((item) => item.name === route.name) || {
     key: 'home' as TranslationKey,
     activeIcon: 'square',
     inactiveIcon: 'square-outline',
@@ -191,11 +204,8 @@ function renderTabSlot(
           <Ionicons
             name={(isFocused ? tabConfig.activeIcon : tabConfig.inactiveIcon) as any}
             size={responsive ? responsive.scale(22, 19, 25) : 22}
-            color={isFocused ? '#70001E' : '#655E60'}
+            color={isFocused ? '#70001E' : '#746F72'}
           />
-          {tabConfig.hasBadge && (
-            <View style={styles.updatesBadgeDot} />
-          )}
         </View>
 
         <Text
@@ -239,7 +249,6 @@ export default function TabsLayout() {
       <Tabs.Screen name="passbook" options={{ title: 'Passbook' }} />
       <Tabs.Screen name="reward" options={{ title: 'Reward' }} />
       <Tabs.Screen name="profile" options={{ title: 'Profile' }} />
-      <Tabs.Screen name="notifications" options={{ href: null, title: 'Notifications' }} />
     </Tabs>
   );
 }
@@ -259,25 +268,26 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     position: 'relative',
     backgroundColor: '#FFFFFF',
-    borderRadius: 32,
+    borderRadius: 24,
     borderWidth: 1.5,
-    borderColor: '#9E2A4B',
-    elevation: 8,
+    borderColor: '#E6C687',
+    elevation: 10,
     shadowColor: '#70001E',
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.14,
-    shadowRadius: 12,
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
   },
   activePillBackground: {
     position: 'absolute',
-    borderRadius: 18,
-    backgroundColor: '#FFE975',
-    borderWidth: 0,
-    shadowColor: '#C9A000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.28,
-    shadowRadius: 5,
-    elevation: 4,
+    borderRadius: 16,
+    backgroundColor: '#FFE98A',
+    borderWidth: 1,
+    borderColor: '#E7C86E',
+    shadowColor: '#D4AF37',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.18,
+    shadowRadius: 4,
+    elevation: 3,
     zIndex: 1,
   },
   tabBarItem: {
@@ -311,16 +321,16 @@ const styles = StyleSheet.create({
     backgroundColor: '#70001E',
   },
   tabText: {
-    fontSize: 12,
+    fontSize: 12.5,
     textAlign: 'center',
     marginTop: 2,
   },
   tabTextInactive: {
-    color: '#655E60',
+    color: '#746F72',
     fontWeight: '600',
   },
   tabTextActive: {
     color: '#70001E',
-    fontWeight: '800',
+    fontWeight: '700',
   },
 });
