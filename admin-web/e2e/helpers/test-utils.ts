@@ -1,11 +1,17 @@
 import { createClient } from '@supabase/supabase-js';
 import { Page, expect } from '@playwright/test';
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://yjpbswsgtbmgageburmy.supabase.co';
-const SUPABASE_PUBLISHABLE_KEY = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_bYOw6Eq1dE-7ARfmhCjc5A_YGLFalvD';
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const SUPABASE_PUBLISHABLE_KEY = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+
+if (!SUPABASE_URL || SUPABASE_URL.includes('yjpbswsgtbmgageburmy.supabase.co')) {
+  throw new Error(
+    '[FATAL SAFETY GUARD] Playwright E2E tests are configured against the PRODUCTION Supabase instance (yjpbswsgtbmgageburmy.supabase.co) or NEXT_PUBLIC_SUPABASE_URL is missing. E2E tests MUST run against an isolated local/staging environment.'
+  );
+}
 
 export function getTestSupabaseClient() {
-  return createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+  return createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY!, {
     auth: {
       persistSession: false,
       autoRefreshToken: false,
@@ -181,38 +187,44 @@ export async function createTestCustomerWithPastScheme(
 }
 
 /**
- * Safely deletes a test-created customer using public.delete_customer_account RPC.
- * Verifies that the customer ID belongs to a valid test-tracked UUID and has no financial records.
- * Fails gracefully without throwing if deletion is rejected due to financial history safety rules.
+ * Safely deletes a test-created customer in the isolated test database.
+ * Cleans up child records (payments, installments, redemptions, schemes, auth, audit logs)
+ * and deletes the customer/profile records. Throws an error if cleanup fails.
  */
 export async function deleteTestCustomer(customerId: string): Promise<boolean> {
   if (!customerId || typeof customerId !== 'string' || customerId.length < 32) {
-    console.warn(`[E2E Teardown] Invalid customerId provided: ${customerId}`);
-    return false;
+    throw new Error(`[E2E Teardown Error] Invalid customerId provided for teardown: ${customerId}`);
   }
 
   try {
     const supabase = await getAuthenticatedAdminSupabaseClient();
 
-    const { data, error } = await supabase.rpc('delete_customer_account', {
-      p_customer_id: customerId,
-    });
+    // Clean up child financial/scheme records first to ensure clean deletion in isolated test DB
+    await supabase.from('redemption_items').delete().eq('customer_id', customerId);
+    await supabase.from('redemptions').delete().eq('customer_id', customerId);
+    await supabase.from('payments').delete().eq('customer_id', customerId);
+    await supabase.from('scheme_installments').delete().eq('customer_id', customerId);
+    await supabase.from('bonuses').delete().eq('customer_id', customerId);
+    await supabase.from('schemes').delete().eq('customer_id', customerId);
+    await supabase.from('customer_auth').delete().eq('customer_id', customerId);
+    await supabase.from('audit_logs').delete().eq('entity_id', customerId);
 
-    if (error) {
-      console.warn(`[E2E Teardown] delete_customer_account RPC rejected for ${customerId}: ${error.message}`);
-      return false;
+    const { error: custErr } = await supabase.from('customers').delete().eq('id', customerId);
+    if (custErr) {
+      throw new Error(`Failed to delete customer record ${customerId}: ${custErr.message}`);
     }
 
-    if (data?.success) {
-      console.log(`[E2E Teardown] Cleaned up temporary test customer ${customerId} (${data.customer_code})`);
-      return true;
+    const { error: profErr } = await supabase.from('profiles').delete().eq('id', customerId);
+    if (profErr) {
+      throw new Error(`Failed to delete profile record ${customerId}: ${profErr.message}`);
     }
 
-    return false;
+    console.log(`[E2E Teardown] Cleaned up temporary test customer ${customerId}`);
+    return true;
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
-    console.warn(`[E2E Teardown] Exception during cleanup for ${customerId}: ${msg}`);
-    return false;
+    console.error(`[E2E Teardown Error] Teardown failed for customer ${customerId}: ${msg}`);
+    throw new Error(`[E2E Teardown Failure] ${msg}`);
   }
 }
 
@@ -220,9 +232,18 @@ export async function deleteTestCustomer(customerId: string): Promise<boolean> {
  * Cleanup helper for an array of test-created customer UUIDs.
  */
 export async function deleteTestCustomers(customerIds: string[]): Promise<void> {
+  const errors: string[] = [];
   for (const id of customerIds) {
     if (id) {
-      await deleteTestCustomer(id);
+      try {
+        await deleteTestCustomer(id);
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        errors.push(msg);
+      }
     }
+  }
+  if (errors.length > 0) {
+    throw new Error(`[E2E Teardown Failure] Failed to clean up ${errors.length} test customer(s):\n${errors.join('\n')}`);
   }
 }

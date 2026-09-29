@@ -1,7 +1,14 @@
 import { defineConfig, devices } from '@playwright/test';
 
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+if (supabaseUrl.includes('yjpbswsgtbmgageburmy.supabase.co')) {
+  throw new Error(
+    '[FATAL SAFETY GUARD] Playwright E2E configuration resolved to PRODUCTION Supabase URL (yjpbswsgtbmgageburmy.supabase.co). Playwright E2E execution aborted to prevent production database corruption.'
+  );
+}
+
 /**
- * RAMYAS JEWELLER - Admin Web Production Playwright E2E Configuration
+ * RAMYAS JEWELLER - Admin Web Isolated Playwright E2E Configuration
  */
 export default defineConfig({
   testDir: './e2e',
