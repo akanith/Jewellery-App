@@ -11,7 +11,7 @@ if (!SUPABASE_URL || SUPABASE_URL.includes('yjpbswsgtbmgageburmy.supabase.co')) 
 }
 
 export function getTestSupabaseClient() {
-  return createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY!, {
+  return createClient(SUPABASE_URL!, SUPABASE_PUBLISHABLE_KEY!, {
     auth: {
       persistSession: false,
       autoRefreshToken: false,
