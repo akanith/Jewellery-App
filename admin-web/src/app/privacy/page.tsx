@@ -134,6 +134,8 @@ export default function PrivacyPolicyPage() {
             <div className="mt-4 p-4 bg-slate-50 border border-slate-200 rounded-lg">
               <p className="font-semibold text-slate-900">RAMYA&apos;S JEWELLER — Customer Service</p>
               <p className="text-sm text-slate-700">91, Main Road, Begambur, Dindigul, Tamil Nadu - 624001, India</p>
+              <p className="text-sm text-slate-700 mt-1">Phone: +91 98421 43307</p>
+              <p className="text-sm text-slate-700">Email: contact@ramyasjeweller.com</p>
             </div>
             <p className="mt-3 text-xs text-slate-500">
               Note: In accordance with local statutory and financial regulations, transaction and scheme payment history records must be retained for audit compliance purposes.
@@ -156,6 +158,8 @@ export default function PrivacyPolicyPage() {
               <p className="font-bold">RAMYA&apos;S JEWELLER</p>
               <p>91, Main Road, Begambur,</p>
               <p>Dindigul, Tamil Nadu - 624001, India</p>
+              <p className="pt-1">Phone: +91 98421 43307</p>
+              <p>Email: contact@ramyasjeweller.com</p>
             </div>
           </section>
 
