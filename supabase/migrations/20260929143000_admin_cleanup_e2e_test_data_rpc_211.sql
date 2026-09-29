@@ -313,7 +313,7 @@ BEGIN
         v_admin_id,
         'E2E_TEST_DATA_PURGED',
         'customers',
-        NULL,
+        COALESCE(v_admin_id, '00000000-0000-0000-0000-000000000000'::uuid),
         pg_catalog.json_build_object(
             'purged_candidate_customers', v_deleted_customers,
             'purged_payments_count', v_deleted_payments,
