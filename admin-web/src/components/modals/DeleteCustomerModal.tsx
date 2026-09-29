@@ -119,11 +119,11 @@ export default function DeleteCustomerModal({
             </div>
           )}
 
-          {/* Safety Notice */}
-          <div className="flex items-start gap-2 text-xs text-slate-500 bg-amber-50/60 border border-amber-200/80 p-3 rounded-xl">
-            <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-            <span>
-              Customers with financial transaction history (payments, redemptions, credited bonuses) cannot be deleted.
+          {/* Destructive Warning Notice */}
+          <div className="flex items-start gap-2.5 text-xs text-rose-800 bg-rose-50 border border-rose-200/80 p-3 rounded-xl">
+            <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+            <span className="font-medium">
+              This permanently deletes the customer and all associated scheme, payment, installment, bonus, redemption, and account data. This action cannot be undone.
             </span>
           </div>
 

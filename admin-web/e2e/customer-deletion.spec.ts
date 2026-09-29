@@ -24,7 +24,7 @@ test.describe('AW-09: Safe Delete Customer Account', () => {
     expect(error?.message).toMatch(/unauthorized|permission denied/i);
   });
 
-  test('AW-09.2: Customer with financial history cannot be deleted', async ({ page }) => {
+  test('AW-09.2: Customer with financial history can be permanently deleted by admin', async ({ page }) => {
     const testName = generateTestName();
     const testMobile = generateTestMobile();
     let customerId: string | null = null;
@@ -56,7 +56,7 @@ test.describe('AW-09: Safe Delete Customer Account', () => {
       // Modal dialog should open
       await expect(page.getByRole('heading', { name: /delete customer/i })).toBeVisible();
       await expect(
-        page.getByText(/this permanently removes the customer account and cannot be undone/i)
+        page.getByText(/this permanently deletes the customer and all associated scheme, payment, installment, bonus, redemption, and account data/i)
       ).toBeVisible();
 
       // Click Confirm Delete
@@ -64,17 +64,9 @@ test.describe('AW-09: Safe Delete Customer Account', () => {
       await expect(confirmDeleteBtn).toBeVisible();
       await confirmDeleteBtn.click();
 
-      // Expect safety block error message
-      await expect(
-        page.getByText(/customer cannot be deleted because financial records are associated with this account/i)
-      ).toBeVisible();
-
-      // Close modal
-      await page.getByRole('button', { name: /cancel/i }).click();
-
-      // Customer page remains open and accessible
-      await expect(page).toHaveURL(new RegExp(`/customers/${customerId}`));
-      await expect(page.getByRole('heading', { name: testName })).toBeVisible();
+      // Expect successful deletion redirect to Customer Directory
+      await expect(page).toHaveURL(/http:\/\/localhost:3000\/customers\/?$/);
+      await expect(page.getByText(/customer account and all associated data permanently deleted/i)).toBeVisible();
     } finally {
       if (customerId) {
         await deleteTestCustomer(customerId);
