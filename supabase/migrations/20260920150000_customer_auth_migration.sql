@@ -5,6 +5,20 @@
 --              and lock protection to public.customer_auth table.
 -- =============================================================================
 
+-- 0. Ensure public.customer_auth table exists for reproducible fresh migrations
+CREATE TABLE IF NOT EXISTS public.customer_auth (
+    customer_id UUID NOT NULL PRIMARY KEY REFERENCES public.customers(id) ON DELETE CASCADE,
+    password_hash TEXT,
+    password_status VARCHAR(20) NOT NULL DEFAULT 'RESET_REQUIRED',
+    password_changed_at TIMESTAMPTZ,
+    failed_login_attempts INTEGER NOT NULL DEFAULT 0,
+    locked_until TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
+    CONSTRAINT chk_customer_auth_failed_attempts CHECK (failed_login_attempts >= 0),
+    CONSTRAINT chk_customer_auth_password_status CHECK (password_status IN ('RESET_REQUIRED', 'ACTIVE', 'LOCKED'))
+);
+
 -- 1. Backfill customer_auth records for existing customers if missing
 DO $$
 DECLARE
