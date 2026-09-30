@@ -22,7 +22,7 @@ BEGIN
       email_change, email_change_token_new, recovery_token
     ) VALUES (
       v_admin_id,
-      '00000000-0000-0000-0000-000000000001',
+      '00000000-0000-0000-0000-000000000000',
       'authenticated',
       'authenticated',
       'admin1@gmail.com',
