@@ -10,7 +10,7 @@ import {
   Platform,
   Alert,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { OFFICIAL_SHOP_INFO, OFFICIAL_SCHEME_NAME } from '@/constants/shopData';
@@ -114,7 +114,6 @@ const termsSections: TermsSectionItem[] = [
 export default function TermsAndConditionsScreen() {
   const router = useRouter();
   const { t } = useLanguage();
-  const insets = useSafeAreaInsets();
   const responsive = useResponsiveMetrics();
 
   const handleCallShop = () => {

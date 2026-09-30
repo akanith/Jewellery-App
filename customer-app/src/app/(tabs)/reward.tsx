@@ -12,7 +12,6 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useLanguage } from '@/i18n';
 import { getStoredCustomerSession } from '@/services/customerAuthService';
 import { getCustomerPassbook } from '@/services/customerDataService';
 import { useResponsiveMetrics } from '@/constants/responsive';
@@ -20,11 +19,9 @@ import { useResponsiveMetrics } from '@/constants/responsive';
 export default function RewardScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { t } = useLanguage();
   const responsive = useResponsiveMetrics();
 
   const [isLoading, setIsLoading] = useState(true);
-  const [customerName, setCustomerName] = useState('Anith Kumar');
 
   useEffect(() => {
     let isMounted = true;
@@ -39,17 +36,8 @@ export default function RewardScreen() {
         return;
       }
 
-      if (isMounted) {
-        if (session.fullName) {
-          setCustomerName(session.fullName);
-        }
-      }
-
       try {
-        const passbookData = await getCustomerPassbook();
-        if (isMounted && passbookData?.customerName) {
-          setCustomerName(passbookData.customerName);
-        }
+        await getCustomerPassbook();
       } catch (err) {
         console.warn('Failed to load passbook in reward screen:', err);
       } finally {

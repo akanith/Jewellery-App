@@ -78,15 +78,16 @@ export default function CustomersPage() {
   const [customers, setCustomers] = useState<CustomerListItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [flashMessage, setFlashMessage] = useState<string | null>(null);
-
-  useEffect(() => {
-    const flash = typeof window !== 'undefined' ? sessionStorage.getItem('flash_message') : null;
-    if (flash) {
-      setFlashMessage(flash);
-      sessionStorage.removeItem('flash_message');
+  const [flashMessage, setFlashMessage] = useState<string | null>(() => {
+    if (typeof window !== 'undefined') {
+      const flash = sessionStorage.getItem('flash_message');
+      if (flash) {
+        sessionStorage.removeItem('flash_message');
+        return flash;
+      }
     }
-  }, []);
+    return null;
+  });
 
   const fetchCustomers = useCallback(async () => {
     setIsLoading(true);

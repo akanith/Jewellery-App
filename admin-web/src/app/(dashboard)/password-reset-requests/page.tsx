@@ -74,13 +74,24 @@ export default function PasswordResetRequestsPage() {
 
   useEffect(() => {
     let isMounted = true;
-    fetchRequests().then(() => {
+    getPendingCustomerPasswordResetRequests().then(({ data, error }) => {
       if (!isMounted) return;
+      if (error) {
+        setErrorMessage(error);
+      } else {
+        setRequests(data || []);
+      }
+      setIsLoading(false);
+    }).catch((err: unknown) => {
+      if (!isMounted) return;
+      const message = err instanceof Error ? err.message : 'Failed to fetch password reset requests.';
+      setErrorMessage(message);
+      setIsLoading(false);
     });
     return () => {
       isMounted = false;
     };
-  }, [fetchRequests]);
+  }, []);
 
   // Handle Complete Reset
   const handleConfirmReset = async () => {

@@ -3,7 +3,7 @@ import { getTestSupabaseClient } from './helpers/test-utils';
 
 test.describe('Phase 6 — Supabase & BFF Security Audit Tests', () => {
   const supabase = getTestSupabaseClient();
-  const SUPABASE_URL = 'https://yjpbswsgtbmgageburmy.supabase.co';
+  const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'http://127.0.0.1:54321';
 
   test('SEC-02: Anonymous direct RLS lockdown on customer data', async ({ request }) => {
     // Attempt direct REST query to protected customers table using anon key

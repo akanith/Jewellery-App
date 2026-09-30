@@ -3,7 +3,8 @@ import { getTestSupabaseClient, generateTestMobile, generateTestName } from './h
 
 test.describe('Phase 5 — Customer Authentication & Password API Tests', () => {
   const supabase = getTestSupabaseClient();
-  const BFF_URL = 'https://yjpbswsgtbmgageburmy.supabase.co/functions/v1/customer-bff';
+  const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'http://127.0.0.1:54321';
+  const BFF_URL = process.env.NEXT_PUBLIC_BFF_BASE_URL || `${SUPABASE_URL}/functions/v1/customer-bff`;
 
   test('CA-07 & CA-08: Forgot password request returns generic anti-enumeration response', async ({ request }) => {
     // Registered mobile test

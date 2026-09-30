@@ -10,7 +10,7 @@ import {
   Platform,
   ActivityIndicator,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useLanguage } from '@/i18n';
@@ -19,6 +19,7 @@ import { logoutCustomer, getStoredCustomerSession } from '@/services/customerAut
 import { getCustomerProfile } from '@/services/customerDataService';
 import LogoutModal from '@/components/LogoutModal';
 import { OFFICIAL_SCHEME_NAME } from '@/constants/shopData';
+import { useResponsiveMetrics } from '@/constants/responsive';
 
 const initialProfileViewModel: CustomerProfileViewModel = {
   profile: {
@@ -43,12 +44,9 @@ const initialProfileViewModel: CustomerProfileViewModel = {
   },
 };
 
-import { useResponsiveMetrics } from '@/constants/responsive';
-
 export default function CustomerProfileScreen() {
   const router = useRouter();
   const { t } = useLanguage();
-  const insets = useSafeAreaInsets();
   const responsive = useResponsiveMetrics();
   const [profileData, setProfileData] = useState<CustomerProfileViewModel>(initialProfileViewModel);
   const [isLoggingOut, setIsLoggingOut] = useState(false);

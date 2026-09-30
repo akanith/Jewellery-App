@@ -9,7 +9,7 @@ import {
   Image,
   ActivityIndicator,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useLanguage } from '@/i18n';
@@ -23,6 +23,7 @@ import {
 } from '@/services/customerDataService';
 import { getStoredCustomerSession } from '@/services/customerAuthService';
 import { OFFICIAL_SCHEME_NAME } from '@/constants/shopData';
+import { useResponsiveMetrics } from '@/constants/responsive';
 
 const initialNotificationsData: CustomerNotificationsData = {
   unreadCount: 0,
@@ -33,8 +34,6 @@ const initialNotificationsData: CustomerNotificationsData = {
   },
   notifications: [],
 };
-
-import { useResponsiveMetrics } from '@/constants/responsive';
 
 export default function NotificationsScreen() {
   const router = useRouter();

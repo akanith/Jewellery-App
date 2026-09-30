@@ -10,7 +10,7 @@ import {
   Platform,
   Alert,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { OFFICIAL_SHOP_INFO, OFFICIAL_SCHEME_NAME } from '@/constants/shopData';
@@ -22,7 +22,6 @@ const WEB_PRIVACY_URL = 'https://ramyas-jewellery-app.vercel.app/privacy';
 export default function PrivacyPolicyScreen() {
   const router = useRouter();
   const { t } = useLanguage();
-  const insets = useSafeAreaInsets();
   const responsive = useResponsiveMetrics();
 
   const handleOpenWebPrivacy = () => {
@@ -282,7 +281,7 @@ export default function PrivacyPolicyScreen() {
             <View style={styles.iconCircle}>
               <Ionicons name="people-outline" size={20} color="#70001E" />
             </View>
-            <Text style={styles.cardTitle}>11. Children's Privacy</Text>
+            <Text style={styles.cardTitle}>11. Children&apos;s Privacy</Text>
           </View>
           <Text style={styles.cardDescription}>
             The application is intended for adult customers participating in the jewellery savings scheme. We do not knowingly collect personal data directly from minors under the age of 18.

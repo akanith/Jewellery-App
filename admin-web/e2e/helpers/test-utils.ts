@@ -30,8 +30,9 @@ let cachedSessionExpiry: number = 0;
  */
 async function signInWithRetry(supabase: ReturnType<typeof getTestSupabaseClient>, email: string, password: string, maxAttempts = 3) {
   let attempt = 0;
-  let lastError: any = null;
-  let lastData: any = null;
+  type SignInResult = Awaited<ReturnType<typeof supabase.auth.signInWithPassword>>;
+  let lastError: SignInResult['error'] = null;
+  let lastData: SignInResult['data'] = { user: null, session: null };
 
   while (attempt < maxAttempts) {
     attempt++;

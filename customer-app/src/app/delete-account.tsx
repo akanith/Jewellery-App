@@ -10,7 +10,7 @@ import {
   Platform,
   Alert,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { OFFICIAL_SHOP_INFO } from '@/constants/shopData';
@@ -20,7 +20,6 @@ import { useResponsiveMetrics } from '@/constants/responsive';
 export default function DeleteAccountScreen() {
   const router = useRouter();
   const { t } = useLanguage();
-  const insets = useSafeAreaInsets();
   const responsive = useResponsiveMetrics();
 
   const handleCallShop = () => {

@@ -10,7 +10,7 @@ import {
   Platform,
   ActivityIndicator,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Circle } from 'react-native-svg';
@@ -89,7 +89,6 @@ const getMaturityMonthStr = (installments: PassbookInstallment[]): string => {
 export default function CustomerPassbookScreen() {
   const router = useRouter();
   const { t } = useLanguage();
-  const insets = useSafeAreaInsets();
   const responsive = useResponsiveMetrics();
   const [data, setData] = useState<CustomerPassbookData>(initialPassbookData);
   const [isLoading, setIsLoading] = useState(true);
