@@ -315,5 +315,3 @@ export async function deleteCustomerAccount(
     return { data: null, error: message };
   }
 }
-
-

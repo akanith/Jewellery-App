@@ -13,108 +13,33 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { OFFICIAL_SHOP_INFO } from '@/constants/shopData';
-import { PrivacyPolicyContent } from '@/types/privacy';
+import { OFFICIAL_SHOP_INFO, OFFICIAL_SCHEME_NAME } from '@/constants/shopData';
 import { useLanguage } from '@/i18n';
+import { useResponsiveMetrics } from '@/constants/responsive';
 
-const privacyPolicyData: PrivacyPolicyContent = {
-  title: 'Privacy Policy',
-  commitmentText:
-    "At Ramya's Jeweller, we cherish the trust you place in us as much as the gold you purchase. Your privacy is not just a policy; it is our promise to protect your personal and financial information with the highest level of integrity and care.",
-  lastUpdatedDate: '18 September 2026',
-  contactPhone: OFFICIAL_SHOP_INFO.phone,
-  contactEmail: OFFICIAL_SHOP_INFO.email,
-  sections: [
-    {
-      id: 'data_we_collect',
-      title: 'Data We Collect',
-      iconName: 'server-outline',
-      description:
-        'To provide a seamless jewellery shopping and savings experience, we collect only the essential information required for managing your account:',
-      items: [
-        {
-          id: '1',
-          title: 'Full Name',
-          description: 'Used to identify your savings account and for scheme record keeping.',
-        },
-        {
-          id: '2',
-          title: 'Mobile Number',
-          description:
-            'Primary contact for account login, transaction alerts, installment reminders, and customer support.',
-        },
-        {
-          id: '3',
-          title: 'Address & Location',
-          description: 'Used for showroom record keeping and scheme enrollment verification.',
-        },
-        {
-          id: '4',
-          title: 'Nominee Information',
-          description:
-            'Nominee name and relationship stored as shop records for scheme documentation.',
-        },
-        {
-          id: '5',
-          title: 'Scheme & Payment Records',
-          description:
-            'Monthly installment payment history, bonus eligibility, and passbook statements.',
-        },
-        {
-          id: '6',
-          title: 'App Preferences',
-          description: 'Selected language preference for localized application experience.',
-        },
-      ],
-    },
-    {
-      id: 'information_protection',
-      title: 'Information Protection',
-      iconName: 'shield-checkmark-outline',
-      description:
-        'Your data is secured through strict access controls and administrative protocols. We ensure that your personal information is accessible only to authorized showroom personnel for processing transactions and updating passbook records.',
-      highlightText: 'Your data is never sold or shared with third parties for marketing purposes.',
-    },
-    {
-      id: 'data_usage',
-      title: 'How We Use Your Data',
-      iconName: 'document-text-outline',
-      description: 'The information collected is strictly utilized for the following purposes:',
-      items: [
-        {
-          id: 'u1',
-          title: 'Savings Scheme Management',
-          description: 'Enrolling, tracking, and maintaining your gold savings plan.',
-        },
-        {
-          id: 'u2',
-          title: 'Installment & Passbook Records',
-          description: 'Recording monthly payments and providing digital passbook statements.',
-        },
-        {
-          id: 'u3',
-          title: 'Notifications & Communications',
-          description: 'Sending payment reminders, gold rate updates, and shop announcements.',
-        },
-        {
-          id: 'u4',
-          title: 'Showroom & Customer Support',
-          description: 'Assisting with inquiries, gold redemption, and scheme maturity benefits.',
-        },
-      ],
-    },
-  ],
-};
+const WEB_PRIVACY_URL = 'https://ramyas-jewellery-app.vercel.app/privacy';
 
 export default function PrivacyPolicyScreen() {
   const router = useRouter();
   const { t } = useLanguage();
   const insets = useSafeAreaInsets();
+  const responsive = useResponsiveMetrics();
+
+  const handleOpenWebPrivacy = () => {
+    Linking.openURL(WEB_PRIVACY_URL).catch(() => {
+      const msg = `Please visit ${WEB_PRIVACY_URL} in your browser.`;
+      if (Platform.OS === 'web') {
+        window.alert(msg);
+      } else {
+        Alert.alert('Web Privacy Policy', msg);
+      }
+    });
+  };
 
   const handleCallSupport = () => {
-    const cleanNumber = privacyPolicyData.contactPhone.replace(/[^0-9+]/g, '');
+    const cleanNumber = OFFICIAL_SHOP_INFO.phone.replace(/[^0-9+]/g, '');
     Linking.openURL(`tel:${cleanNumber}`).catch(() => {
-      const msg = `Please call support at ${privacyPolicyData.contactPhone}`;
+      const msg = `Please call support at ${OFFICIAL_SHOP_INFO.phone}`;
       if (Platform.OS === 'web') {
         window.alert(msg);
       } else {
@@ -124,8 +49,8 @@ export default function PrivacyPolicyScreen() {
   };
 
   const handleEmailSupport = () => {
-    Linking.openURL(`mailto:${privacyPolicyData.contactEmail}`).catch(() => {
-      const msg = `Please email support at ${privacyPolicyData.contactEmail}`;
+    Linking.openURL(`mailto:${OFFICIAL_SHOP_INFO.email}`).catch(() => {
+      const msg = `Please email support at ${OFFICIAL_SHOP_INFO.email}`;
       if (Platform.OS === 'web') {
         window.alert(msg);
       } else {
@@ -144,7 +69,7 @@ export default function PrivacyPolicyScreen() {
           onPress={() => router.back()}
           style={styles.backButton}
           activeOpacity={0.7}
-          accessibilityLabel="Back"
+          accessibilityLabel={t('back')}
         >
           <Ionicons name="arrow-back" size={24} color="#70001E" />
         </TouchableOpacity>
@@ -157,7 +82,10 @@ export default function PrivacyPolicyScreen() {
         style={{ flex: 1 }}
         contentContainerStyle={[
           styles.scrollContent,
-          { paddingBottom: 24 + Math.max(insets.bottom, 12) },
+          {
+            paddingHorizontal: responsive.pageHorizontalPadding,
+            paddingBottom: responsive.bottomClearance + 24,
+          },
         ]}
         showsVerticalScrollIndicator={false}
       >
@@ -167,146 +95,256 @@ export default function PrivacyPolicyScreen() {
           <Text style={styles.commitmentText}>{t('commitmentText')}</Text>
         </View>
 
-        {/* DATA WE COLLECT CARD */}
-        {privacyPolicyData.sections
-          .filter((s) => s.id === 'data_we_collect')
-          .map((section) => (
-            <View key={section.id} style={styles.card}>
-              <View style={styles.cardHeaderRow}>
-                <View style={styles.iconCircle}>
-                  <Ionicons name={section.iconName as never} size={20} color="#70001E" />
-                </View>
-                <Text style={styles.cardTitle}>{section.title}</Text>
-              </View>
+        {/* WEB PRIVACY POLICY BUTTON */}
+        <TouchableOpacity
+          style={styles.webPolicyButton}
+          onPress={handleOpenWebPrivacy}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="globe-outline" size={20} color="#70001E" />
+          <Text style={styles.webPolicyButtonText}>{t('viewFullPrivacyPolicy')}</Text>
+          <Ionicons name="open-outline" size={16} color="#70001E" />
+        </TouchableOpacity>
 
-              {section.description && (
-                <Text style={styles.cardDescription}>{section.description}</Text>
-              )}
-
-              {section.items && (
-                <View style={styles.itemList}>
-                  {section.items.map((item) => (
-                    <View key={item.id} style={styles.itemRow}>
-                      <Ionicons
-                        name="checkmark-circle-outline"
-                        size={18}
-                        color="#70001E"
-                        style={styles.itemIcon}
-                      />
-                      <View style={styles.itemTextCol}>
-                        <Text style={styles.itemTitle}>{item.title}</Text>
-                        <Text style={styles.itemDescription}>{item.description}</Text>
-                      </View>
-                    </View>
-                  ))}
-                </View>
-              )}
+        {/* SECTION 1: PRIVACY POLICY STATEMENT */}
+        <View style={styles.card}>
+          <View style={styles.cardHeaderRow}>
+            <View style={styles.iconCircle}>
+              <Ionicons name="shield-checkmark-outline" size={20} color="#70001E" />
             </View>
-          ))}
+            <Text style={styles.cardTitle}>1. Privacy Policy Overview</Text>
+          </View>
+          <Text style={styles.cardDescription}>
+            This Privacy Policy governs the collection, storage, and processing of customer personal data by {OFFICIAL_SHOP_INFO.name} for the {OFFICIAL_SCHEME_NAME}. We are committed to maintaining data confidentiality and transparency.
+          </Text>
+        </View>
 
-        {/* INFORMATION PROTECTION CARD */}
-        {privacyPolicyData.sections
-          .filter((s) => s.id === 'information_protection')
-          .map((section) => (
-            <View key={section.id} style={styles.card}>
-              <View style={styles.cardHeaderRow}>
-                <View style={styles.iconCircle}>
-                  <Ionicons name={section.iconName as never} size={20} color="#70001E" />
-                </View>
-                <Text style={styles.cardTitle}>{section.title}</Text>
-              </View>
-
-              {section.description && (
-                <Text style={styles.cardDescription}>{section.description}</Text>
-              )}
-
-              {section.highlightText && (
-                <View style={styles.highlightBox}>
-                  <Ionicons name="shield-checkmark" size={20} color="#854D0E" />
-                  <Text style={styles.highlightText}>{section.highlightText}</Text>
-                </View>
-              )}
+        {/* SECTION 2: INFORMATION WE COLLECT */}
+        <View style={styles.card}>
+          <View style={styles.cardHeaderRow}>
+            <View style={styles.iconCircle}>
+              <Ionicons name="server-outline" size={20} color="#70001E" />
             </View>
-          ))}
-
-        {/* DATA USAGE CARD */}
-        {privacyPolicyData.sections
-          .filter((s) => s.id === 'data_usage')
-          .map((section) => (
-            <View key={section.id} style={styles.card}>
-              <View style={styles.cardHeaderRow}>
-                <View style={styles.iconCircle}>
-                  <Ionicons name={section.iconName as never} size={20} color="#70001E" />
-                </View>
-                <Text style={styles.cardTitle}>{section.title}</Text>
+            <Text style={styles.cardTitle}>2. Information We Collect</Text>
+          </View>
+          <Text style={styles.cardDescription}>
+            We collect essential customer identification and contact details required to maintain your savings passbook:
+          </Text>
+          <View style={styles.itemList}>
+            <View style={styles.itemRow}>
+              <Ionicons name="checkmark-circle-outline" size={18} color="#70001E" style={styles.itemIcon} />
+              <View style={styles.itemTextCol}>
+                <Text style={styles.itemTitle}>Full Name &amp; Mobile Number</Text>
+                <Text style={styles.itemDescription}>Used for account identification, secure login authentication, and scheme notifications.</Text>
               </View>
-
-              {section.description && (
-                <Text style={styles.cardDescription}>{section.description}</Text>
-              )}
-
-              {section.items && (
-                <View style={styles.itemList}>
-                  {section.items.map((item) => (
-                    <View key={item.id} style={styles.itemRow}>
-                      <Ionicons
-                        name="ellipse"
-                        size={8}
-                        color="#70001E"
-                        style={{ marginTop: 6, marginRight: 8 }}
-                      />
-                      <View style={styles.itemTextCol}>
-                        <Text style={styles.itemTitle}>{item.title}</Text>
-                        <Text style={styles.itemDescription}>{item.description}</Text>
-                      </View>
-                    </View>
-                  ))}
-                </View>
-              )}
             </View>
-          ))}
+            <View style={styles.itemRow}>
+              <Ionicons name="checkmark-circle-outline" size={18} color="#70001E" style={styles.itemIcon} />
+              <View style={styles.itemTextCol}>
+                <Text style={styles.itemTitle}>Address &amp; Nominee Details</Text>
+                <Text style={styles.itemDescription}>Stored for showroom documentation, scheme enrollment records, and family nominee reference.</Text>
+              </View>
+            </View>
+          </View>
+        </View>
 
-        {/* PRIVACY CONCERNS / CONTACT CARD */}
+        {/* SECTION 3: SCHEME SPECIFIC INFORMATION */}
+        <View style={styles.card}>
+          <View style={styles.cardHeaderRow}>
+            <View style={styles.iconCircle}>
+              <Ionicons name="ribbon-outline" size={20} color="#70001E" />
+            </View>
+            <Text style={styles.cardTitle}>3. Information Used for Savings Scheme</Text>
+          </View>
+          <Text style={styles.cardDescription}>
+            Information collected is strictly associated with your {OFFICIAL_SCHEME_NAME} account, including passbook numbers, monthly installment ledger entries, and maturity bonus eligibility records.
+          </Text>
+        </View>
+
+        {/* SECTION 4: HOW WE USE INFORMATION */}
+        <View style={styles.card}>
+          <View style={styles.cardHeaderRow}>
+            <View style={styles.iconCircle}>
+              <Ionicons name="document-text-outline" size={20} color="#70001E" />
+            </View>
+            <Text style={styles.cardTitle}>4. How We Use Information</Text>
+          </View>
+          <View style={styles.itemList}>
+            <View style={styles.itemRow}>
+              <Ionicons name="ellipse" size={8} color="#70001E" style={{ marginTop: 6, marginRight: 8 }} />
+              <View style={styles.itemTextCol}>
+                <Text style={styles.itemTitle}>Scheme Administration</Text>
+                <Text style={styles.itemDescription}>Enrolling accounts, recording monthly installment payments, and tracking completion bonuses.</Text>
+              </View>
+            </View>
+            <View style={styles.itemRow}>
+              <Ionicons name="ellipse" size={8} color="#70001E" style={{ marginTop: 6, marginRight: 8 }} />
+              <View style={styles.itemTextCol}>
+                <Text style={styles.itemTitle}>Customer Support &amp; Service</Text>
+                <Text style={styles.itemDescription}>Assisting with passbook inquiries, gold rate updates, showroom redemption, and account support.</Text>
+              </View>
+            </View>
+          </View>
+        </View>
+
+        {/* SECTION 5: AUTHENTICATION AND SECURITY */}
+        <View style={styles.card}>
+          <View style={styles.cardHeaderRow}>
+            <View style={styles.iconCircle}>
+              <Ionicons name="lock-closed-outline" size={20} color="#70001E" />
+            </View>
+            <Text style={styles.cardTitle}>5. Authentication &amp; Account Security</Text>
+          </View>
+          <Text style={styles.cardDescription}>
+            Authentication is secured via encrypted session bearer tokens issued by our Backend-For-Frontend (BFF) architecture. Passwords are set securely by customers, and account access is restricted to verified customer sessions.
+          </Text>
+        </View>
+
+        {/* SECTION 6: PAYMENT & TRANSACTION INFORMATION */}
+        <View style={styles.card}>
+          <View style={styles.cardHeaderRow}>
+            <View style={styles.iconCircle}>
+              <Ionicons name="cash-outline" size={20} color="#70001E" />
+            </View>
+            <Text style={styles.cardTitle}>6. Payment &amp; Transaction Information</Text>
+          </View>
+          <Text style={styles.cardDescription}>
+            Payments are made at the showroom and recorded manually by authorized staff into digital passbooks. The app does not collect credit card numbers, net banking credentials, or bank account passwords.
+          </Text>
+        </View>
+
+        {/* SECTION 7: DATA STORAGE AND PROCESSING */}
+        <View style={styles.card}>
+          <View style={styles.cardHeaderRow}>
+            <View style={styles.iconCircle}>
+              <Ionicons name="cloud-outline" size={20} color="#70001E" />
+            </View>
+            <Text style={styles.cardTitle}>7. Data Storage &amp; Processing</Text>
+          </View>
+          <Text style={styles.cardDescription}>
+            Customer data is stored securely in encrypted cloud database infrastructure with strict row-level security (RLS) policies and role-based access controls to prevent unauthorized access.
+          </Text>
+        </View>
+
+        {/* SECTION 8: DATA SHARING */}
+        <View style={styles.card}>
+          <View style={styles.cardHeaderRow}>
+            <View style={styles.iconCircle}>
+              <Ionicons name="share-social-outline" size={20} color="#70001E" />
+            </View>
+            <Text style={styles.cardTitle}>8. Data Sharing</Text>
+          </View>
+          <Text style={styles.cardDescription}>
+            We DO NOT sell, rent, trade, or commercialize customer personal data with any third-party marketing companies. Data is shared only with authorized showroom management and systems necessary for scheme operations.
+          </Text>
+          <View style={styles.highlightBox}>
+            <Ionicons name="shield-checkmark" size={20} color="#854D0E" />
+            <Text style={styles.highlightText}>Your data is never sold or shared with third parties for marketing purposes.</Text>
+          </View>
+        </View>
+
+        {/* SECTION 9: DATA RETENTION */}
+        <View style={styles.card}>
+          <View style={styles.cardHeaderRow}>
+            <View style={styles.iconCircle}>
+              <Ionicons name="time-outline" size={20} color="#70001E" />
+            </View>
+            <Text style={styles.cardTitle}>9. Data Retention</Text>
+          </View>
+          <Text style={styles.cardDescription}>
+            Customer profile records and scheme ledger transactions are retained for the duration of the active savings scheme and subsequently retained as required for legal, tax, accounting, and audit compliance.
+          </Text>
+        </View>
+
+        {/* SECTION 10: ACCOUNT DELETION REQUESTS */}
+        <View style={styles.card}>
+          <View style={styles.cardHeaderRow}>
+            <View style={styles.iconCircle}>
+              <Ionicons name="trash-outline" size={20} color="#70001E" />
+            </View>
+            <Text style={styles.cardTitle}>10. Account Deletion Requests</Text>
+          </View>
+          <Text style={styles.cardDescription}>
+            Customers may request deletion of their Ramyas Jeweller Customer App account by contacting Ramyas Jeweller via phone, WhatsApp, or visiting our showroom. Showroom staff will verify customer identity before processing the request. Certain financial ledgers and transaction records are retained where legitimately required for business, accounting, tax, or statutory compliance.
+          </Text>
+          <TouchableOpacity
+            style={styles.inlineLinkButton}
+            onPress={() => router.push('/delete-account' as any)}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.inlineLinkText}>Account Deletion Information  →</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* SECTION 11: CHILDREN'S PRIVACY */}
+        <View style={styles.card}>
+          <View style={styles.cardHeaderRow}>
+            <View style={styles.iconCircle}>
+              <Ionicons name="people-outline" size={20} color="#70001E" />
+            </View>
+            <Text style={styles.cardTitle}>11. Children's Privacy</Text>
+          </View>
+          <Text style={styles.cardDescription}>
+            The application is intended for adult customers participating in the jewellery savings scheme. We do not knowingly collect personal data directly from minors under the age of 18.
+          </Text>
+        </View>
+
+        {/* SECTION 12: SECURITY */}
+        <View style={styles.card}>
+          <View style={styles.cardHeaderRow}>
+            <View style={styles.iconCircle}>
+              <Ionicons name="key-outline" size={20} color="#70001E" />
+            </View>
+            <Text style={styles.cardTitle}>12. Security Measures</Text>
+          </View>
+          <Text style={styles.cardDescription}>
+            We employ industry-standard encryption protocols (HTTPS/TLS), rate-limiting safeguards, account locking after failed login attempts, and strict session isolation to safeguard customer data.
+          </Text>
+        </View>
+
+        {/* SECTION 13: CHANGES TO THIS PRIVACY POLICY */}
+        <View style={styles.card}>
+          <View style={styles.cardHeaderRow}>
+            <View style={styles.iconCircle}>
+              <Ionicons name="create-outline" size={20} color="#70001E" />
+            </View>
+            <Text style={styles.cardTitle}>13. Changes to This Policy</Text>
+          </View>
+          <Text style={styles.cardDescription}>
+            {OFFICIAL_SHOP_INFO.name} reserves the right to update this Privacy Policy. Any updates will be reflected in the app with the revised date statement.
+          </Text>
+        </View>
+
+        {/* SECTION 14: CONTACT INFORMATION */}
         <View style={styles.card}>
           <View style={styles.cardHeaderRow}>
             <View style={styles.iconCircle}>
               <Ionicons name="help-circle-outline" size={20} color="#70001E" />
             </View>
-            <Text style={styles.cardTitle}>{t('privacyConcerns')}</Text>
+            <Text style={styles.cardTitle}>14. Contact Information</Text>
           </View>
-
           <Text style={styles.cardDescription}>
             {t('privacyConcernsSub')}
           </Text>
 
           <View style={styles.contactList}>
-            {/* CALL SUPPORT */}
-            <TouchableOpacity
-              style={styles.contactRow}
-              onPress={handleCallSupport}
-              activeOpacity={0.7}
-            >
+            <TouchableOpacity style={styles.contactRow} onPress={handleCallSupport} activeOpacity={0.7}>
               <View style={styles.contactIconCircle}>
                 <Ionicons name="call-outline" size={18} color="#70001E" />
               </View>
               <View style={styles.contactTextCol}>
                 <Text style={styles.contactLabel}>{t('callUs')}</Text>
-                <Text style={styles.contactValue}>{privacyPolicyData.contactPhone}</Text>
+                <Text style={styles.contactValue}>{OFFICIAL_SHOP_INFO.phone}</Text>
               </View>
             </TouchableOpacity>
 
-            {/* EMAIL SUPPORT */}
-            <TouchableOpacity
-              style={styles.contactRow}
-              onPress={handleEmailSupport}
-              activeOpacity={0.7}
-            >
+            <TouchableOpacity style={styles.contactRow} onPress={handleEmailSupport} activeOpacity={0.7}>
               <View style={styles.contactIconCircle}>
                 <Ionicons name="mail-outline" size={18} color="#70001E" />
               </View>
               <View style={styles.contactTextCol}>
                 <Text style={styles.contactLabel}>{t('emailUs')}</Text>
-                <Text style={styles.contactValue}>{privacyPolicyData.contactEmail}</Text>
+                <Text style={styles.contactValue}>{OFFICIAL_SHOP_INFO.email}</Text>
               </View>
             </TouchableOpacity>
           </View>
@@ -314,9 +352,10 @@ export default function PrivacyPolicyScreen() {
 
         {/* LAST UPDATED */}
         <Text style={styles.lastUpdatedText}>
-          {t('lastUpdated')}: {privacyPolicyData.lastUpdatedDate}
+          {t('lastUpdated')}: 18 September 2026
         </Text>
-      </ScrollView>    </SafeAreaView>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
@@ -347,14 +386,9 @@ const styles = StyleSheet.create({
   headerRightSpacer: {
     width: 28,
   },
-  scrollView: {
-    flex: 1,
-  },
   scrollContent: {
-    paddingHorizontal: 16,
     paddingTop: 16,
-    paddingBottom: 32,
-    gap: 16,
+    gap: 14,
   },
   commitmentContainer: {
     marginBottom: 4,
@@ -370,6 +404,23 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     color: '#475569',
     fontWeight: '400',
+  },
+  webPolicyButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FDF2F8',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#FCE7F3',
+    gap: 8,
+  },
+  webPolicyButtonText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#70001E',
   },
   card: {
     backgroundColor: '#FFFFFF',
@@ -398,7 +449,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   cardTitle: {
-    fontSize: 18,
+    flex: 1,
+    fontSize: 16,
     fontWeight: '800',
     color: '#0F172A',
   },
@@ -406,10 +458,11 @@ const styles = StyleSheet.create({
     fontSize: 13.5,
     lineHeight: 20,
     color: '#64748B',
-    marginBottom: 14,
+    marginBottom: 8,
   },
   itemList: {
-    gap: 12,
+    gap: 10,
+    marginTop: 4,
   },
   itemRow: {
     flexDirection: 'row',
@@ -442,7 +495,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#FDE68A',
     gap: 10,
-    marginTop: 4,
+    marginTop: 8,
   },
   highlightText: {
     flex: 1,
@@ -451,9 +504,18 @@ const styles = StyleSheet.create({
     color: '#854D0E',
     lineHeight: 18,
   },
+  inlineLinkButton: {
+    marginTop: 8,
+    alignSelf: 'flex-start',
+  },
+  inlineLinkText: {
+    fontSize: 13.5,
+    fontWeight: '700',
+    color: '#70001E',
+  },
   contactList: {
-    gap: 12,
-    marginTop: 4,
+    gap: 10,
+    marginTop: 8,
   },
   contactRow: {
     flexDirection: 'row',
@@ -492,28 +554,5 @@ const styles = StyleSheet.create({
     color: '#94A3B8',
     fontWeight: '500',
     marginTop: 8,
-  },
-  tabBar: {
-    flexDirection: 'row',
-    height: 64,
-    backgroundColor: '#FFFFFF',
-    borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    justifyContent: 'space-around',
-    alignItems: 'center',
-  },
-  tabItem: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    gap: 4,
-  },
-  tabText: {
-    fontSize: 11.5,
-    fontWeight: '600',
-    color: '#64748B',
   },
 });

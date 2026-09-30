@@ -126,20 +126,28 @@ export default function PrivacyPolicyPage() {
           <section>
             <h2 className="text-xl font-bold text-slate-900 mb-3">6. Account &amp; Data Deletion</h2>
             <p>
-              Customers have the right to request the deletion of their account and associated non-financial digital records.
+              Customers can request deletion of their Ramyas Jeweller Customer App account by contacting Ramyas Jeweller through our showroom customer support channels:
             </p>
+            <ul className="list-disc pl-5 mt-3 space-y-2 text-slate-600">
+              <li>
+                <strong className="text-slate-900">Phone / Call:</strong> Call our showroom support directly at <strong>+91 98421 43307</strong> during business hours (9:30 AM – 10:00 PM).
+              </li>
+              <li>
+                <strong className="text-slate-900">WhatsApp:</strong> Send an account deletion request via WhatsApp to <strong>+91 98421 43307</strong>.
+              </li>
+              <li>
+                <strong className="text-slate-900">In-Person Showroom Visit:</strong> Visit our showroom located at 91, Main Road, Begambur, Dindigul, Tamil Nadu - 624001.
+              </li>
+            </ul>
             <p className="mt-3">
-              To request account or data deletion, you may visit our showroom in person or contact showroom administration:
+              For customer security and fraud prevention, Ramyas Jeweller showroom staff will verify customer identity before processing any account deletion request.
             </p>
-            <div className="mt-4 p-4 bg-slate-50 border border-slate-200 rounded-lg">
-              <p className="font-semibold text-slate-900">RAMYA&apos;S JEWELLER — Customer Service</p>
-              <p className="text-sm text-slate-700">91, Main Road, Begambur, Dindigul, Tamil Nadu - 624001, India</p>
-              <p className="text-sm text-slate-700 mt-1">Phone: +91 98421 43307</p>
-              <p className="text-sm text-slate-700">Email: contact@ramyasjeweller.com</p>
+            <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-lg text-amber-900 text-xs sm:text-sm space-y-1">
+              <p className="font-bold text-slate-900">Important Data Retention Notice:</p>
+              <p>
+                Account deletion is handled manually by authorized showroom personnel and is not automatic. Certain customer transaction records, passbook ledgers, and financial receipt logs may be retained where legitimately required for business, accounting, tax, security, audit, or statutory compliance under applicable Indian financial regulations.
+              </p>
             </div>
-            <p className="mt-3 text-xs text-slate-500">
-              Note: In accordance with local statutory and financial regulations, transaction and scheme payment history records must be retained for audit compliance purposes.
-            </p>
           </section>
 
           {/* Section 7 */}

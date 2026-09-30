@@ -929,6 +929,8 @@ async function handleReceipt(req: Request): Promise<Response> {
   }
 }
 
+
+
 /**
  * Main HTTP Server Request Dispatcher
  */
@@ -971,6 +973,7 @@ Deno.serve(async (req: Request) => {
     }
     return await handleForgotPassword(req);
   }
+
 
   // Protected Route: GET /dashboard
   if (path.endsWith("/dashboard")) {

@@ -131,6 +131,18 @@ export default function CustomerProfileScreen() {
     router.push('/language' as any);
   };
 
+  const handlePrivacyPolicy = () => {
+    router.push('/privacy' as any);
+  };
+
+  const handleTermsAndConditions = () => {
+    router.push('/terms' as any);
+  };
+
+  const handleDeleteAccount = () => {
+    router.push('/delete-account' as any);
+  };
+
   const handleConfirmLogout = async () => {
     setIsLoggingOut(true);
     try {
@@ -370,6 +382,56 @@ export default function CustomerProfileScreen() {
                 <Ionicons name="key-outline" size={18} color="#70001E" />
               </View>
               <Text style={styles.actionLabel}>{t('changePassword')}</Text>
+              <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* LEGAL & PRIVACY */}
+        <View style={styles.sectionCard}>
+          <Text style={styles.sectionHeaderTitle}>{t('legalAndPrivacy')}</Text>
+
+          <View style={styles.actionList}>
+            {/* PRIVACY POLICY */}
+            <TouchableOpacity
+              style={styles.actionRow}
+              onPress={handlePrivacyPolicy}
+              activeOpacity={0.7}
+            >
+              <View style={styles.actionIconCircle}>
+                <Ionicons name="shield-checkmark-outline" size={18} color="#70001E" />
+              </View>
+              <Text style={styles.actionLabel}>{t('privacyPolicy')}</Text>
+              <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+            </TouchableOpacity>
+
+            <View style={styles.actionDivider} />
+
+            {/* TERMS & CONDITIONS */}
+            <TouchableOpacity
+              style={styles.actionRow}
+              onPress={handleTermsAndConditions}
+              activeOpacity={0.7}
+            >
+              <View style={styles.actionIconCircle}>
+                <Ionicons name="document-text-outline" size={18} color="#70001E" />
+              </View>
+              <Text style={styles.actionLabel}>{t('termsAndConditions')}</Text>
+              <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+            </TouchableOpacity>
+
+            <View style={styles.actionDivider} />
+
+            {/* DELETE ACCOUNT */}
+            <TouchableOpacity
+              style={styles.actionRow}
+              onPress={handleDeleteAccount}
+              activeOpacity={0.7}
+            >
+              <View style={styles.actionIconCircle}>
+                <Ionicons name="trash-outline" size={18} color="#70001E" />
+              </View>
+              <Text style={styles.actionLabel}>{t('deleteAccount')}</Text>
               <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
             </TouchableOpacity>
           </View>
