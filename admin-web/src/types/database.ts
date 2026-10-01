@@ -373,4 +373,21 @@ export interface DeleteCustomerAccountResult {
   customer_code: string;
 }
 
+export interface UpdateCustomerProfileParams {
+  p_customer_id: string;
+  p_full_name: string;
+  p_phone_number: string;
+  p_address?: string | null;
+  p_city?: string | null;
+  p_pincode?: string | null;
+  p_nominee_name?: string | null;
+  p_nominee_relationship?: string | null;
+  p_notes?: string | null;
+}
 
+export interface UpdateCustomerProfileResult {
+  success: boolean;
+  customer_id: string;
+  full_name: string;
+  phone_number: string;
+}

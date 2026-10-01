@@ -22,6 +22,8 @@ import {
   CancelCustomerPasswordResetRequestResult,
   DeleteCustomerAccountParams,
   DeleteCustomerAccountResult,
+  UpdateCustomerProfileParams,
+  UpdateCustomerProfileResult,
 } from '@/types/database';
 
 export interface RpcResponse<T> {
@@ -312,6 +314,38 @@ export async function deleteCustomerAccount(
     return { data: data as DeleteCustomerAccountResult, error: null };
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unable to delete customer account.';
+    return { data: null, error: message };
+  }
+}
+
+/**
+ * Updates a customer profile atomically across public.profiles and public.customers.
+ * Invokes SECURITY DEFINER procedure public.update_customer_profile(...).
+ */
+export async function updateCustomerProfile(
+  params: UpdateCustomerProfileParams
+): Promise<RpcResponse<UpdateCustomerProfileResult>> {
+  try {
+    const supabase = getSupabaseBrowserClient();
+    const { data, error } = await supabase.rpc('update_customer_profile', {
+      p_customer_id: params.p_customer_id,
+      p_full_name: params.p_full_name,
+      p_phone_number: params.p_phone_number,
+      p_address: params.p_address || null,
+      p_city: params.p_city || 'Coimbatore',
+      p_pincode: params.p_pincode || null,
+      p_nominee_name: params.p_nominee_name || null,
+      p_nominee_relationship: params.p_nominee_relationship || null,
+      p_notes: params.p_notes || null,
+    });
+
+    if (error) {
+      return { data: null, error: error.message };
+    }
+
+    return { data: data as UpdateCustomerProfileResult, error: null };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unable to update customer details.';
     return { data: null, error: message };
   }
 }

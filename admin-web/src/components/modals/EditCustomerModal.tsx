@@ -7,7 +7,7 @@
 
 import React, { useState } from 'react';
 import { X, CheckCircle2, AlertCircle, Loader2, User } from 'lucide-react';
-import { getSupabaseBrowserClient } from '@/lib/supabase/client';
+import { updateCustomerProfile } from '@/lib/supabase/rpc';
 
 interface EditCustomerModalProps {
   isOpen: boolean;
@@ -68,42 +68,41 @@ export default function EditCustomerModal({
     setIsSubmitting(true);
 
     try {
-      const supabase = getSupabaseBrowserClient();
+      const res = await updateCustomerProfile({
+        p_customer_id: customer.id,
+        p_full_name: fullName.trim(),
+        p_phone_number: cleanPhone,
+        p_address: address.trim() || null,
+        p_city: city.trim() || 'Coimbatore',
+        p_pincode: pincode.trim() || null,
+        p_nominee_name: nomineeName.trim() || null,
+        p_nominee_relationship: nomineeRelationship || null,
+        p_notes: notes.trim() || null,
+      });
 
-      // Update profiles row
-      const { error: profErr } = await supabase
-        .from('profiles')
-        .update({
-          full_name: fullName.trim(),
-          phone_number: cleanPhone,
-        })
-        .eq('id', customer.id);
-
-      if (profErr) throw profErr;
-
-      // Update customers row
-      const { error: custErr } = await supabase
-        .from('customers')
-        .update({
-          full_name: fullName.trim(),
-          phone_number: cleanPhone,
-          address: address.trim() || null,
-          city: city.trim() || 'Coimbatore',
-          pincode: pincode.trim() || null,
-          nominee_name: nomineeName.trim() || null,
-          nominee_relationship: nomineeRelationship || null,
-          notes: notes.trim() || null,
-        })
-        .eq('id', customer.id);
-
-      if (custErr) throw custErr;
+      if (res.error) {
+        console.error('[EditCustomerModal Error]', res.error);
+        const errLower = res.error.toLowerCase();
+        if (
+          errLower.includes('already exists') ||
+          errLower.includes('duplicate key') ||
+          errLower.includes('uq_customers_phone_number') ||
+          errLower.includes('profiles_phone_number_key')
+        ) {
+          setErrorMessage('A customer with this mobile number already exists.');
+        } else {
+          setErrorMessage(res.error);
+        }
+        return;
+      }
 
       setSuccessMessage('Customer profile updated successfully!');
       setTimeout(() => {
         onSuccess();
-      }, 1000);
+      }, 800);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to update customer details.';
+      console.error('[EditCustomerModal Exception]', err);
       setErrorMessage(msg);
     } finally {
       setIsSubmitting(false);
