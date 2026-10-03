@@ -183,6 +183,25 @@ jobs:
               console.log(`Created E2E admin Auth user: ${email}`);
             }
 
+            const { error: profileError } = await supabase
+              .from('profiles')
+              .upsert(
+                {
+                  id: userId,
+                  role: 'ADMIN',
+                  phone_number: '9000000001',
+                  full_name: 'E2E Admin',
+                  is_active: true
+                },
+                { onConflict: 'id' }
+              );
+
+            if (profileError) {
+              throw new Error(
+                `Failed to provision profiles record: ${profileError.message}`
+              );
+            }
+
             const { error: adminError } = await supabase
               .from('admin_users')
               .upsert(
