@@ -188,6 +188,7 @@ jobs:
               .upsert(
                 {
                   id: userId,
+                  employee_code: 'E2E-ADMIN-001',
                   is_super_admin: true,
                   role_title: 'Store Owner'
                 },
