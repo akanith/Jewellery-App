@@ -49,10 +49,6 @@ for x in range(1024):
 mono_canvas.save(os.path.join(ASSETS_IMG_DIR, 'android-icon-monochrome.png'), 'PNG')
 print("Saved assets/images/android-icon-monochrome.png")
 
-# 5. Splash Screen Icon (512x512)
-splash_img = master_img.resize((512, 512), Image.Resampling.LANCZOS)
-splash_img.save(os.path.join(ASSETS_IMG_DIR, 'splash-icon.png'), 'PNG')
-print("Saved assets/images/splash-icon.png")
 
 # 5. Generate Native Android Mipmap Resources
 MIPMAP_DENSITIES = {

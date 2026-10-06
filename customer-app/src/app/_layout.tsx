@@ -1,12 +1,12 @@
 import React from 'react';
 import { DarkTheme, DefaultTheme, ThemeProvider, Stack } from 'expo-router';
-import * as SplashScreen from 'expo-splash-screen';
-import { useColorScheme } from 'react-native';
+import { useColorScheme, View, StyleSheet } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { AnimatedSplashOverlay } from '@/components/animated-icon';
+import * as SplashScreen from 'expo-splash-screen';
 import { LanguageProvider } from '@/i18n';
+import { AnimatedSplashOverlay } from '@/components/animated-icon';
 
-SplashScreen.preventAutoHideAsync();
+SplashScreen.preventAutoHideAsync().catch(() => {});
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
@@ -15,23 +15,31 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <LanguageProvider>
         <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-          <AnimatedSplashOverlay />
-          <Stack screenOptions={{ headerShown: false }}>
-            <Stack.Screen name="index" />
-            <Stack.Screen name="language" />
-            <Stack.Screen name="login" />
-            <Stack.Screen name="forgot-password" />
-            <Stack.Screen name="(tabs)" />
-            <Stack.Screen name="notifications" />
-            <Stack.Screen name="shop" />
-            <Stack.Screen name="privacy" />
-            <Stack.Screen name="help" />
-            <Stack.Screen name="error" />
-            <Stack.Screen name="offline" />
-            <Stack.Screen name="installment-receipt" />
-          </Stack>
+          <View style={styles.container}>
+            <Stack screenOptions={{ headerShown: false }}>
+              <Stack.Screen name="index" />
+              <Stack.Screen name="language" />
+              <Stack.Screen name="login" />
+              <Stack.Screen name="forgot-password" />
+              <Stack.Screen name="(tabs)" />
+              <Stack.Screen name="notifications" />
+              <Stack.Screen name="shop" />
+              <Stack.Screen name="privacy" />
+              <Stack.Screen name="help" />
+              <Stack.Screen name="error" />
+              <Stack.Screen name="offline" />
+              <Stack.Screen name="installment-receipt" />
+            </Stack>
+            <AnimatedSplashOverlay />
+          </View>
         </ThemeProvider>
       </LanguageProvider>
     </SafeAreaProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+});

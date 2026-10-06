@@ -1,108 +1,80 @@
-import { Image } from 'expo-image';
+import React, { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import Animated, { Keyframe, Easing } from 'react-native-reanimated';
-
-import classes from './animated-icon.module.css';
-const DURATION = 300;
+import { Image } from 'expo-image';
+import * as SplashScreen from 'expo-splash-screen';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  withSequence,
+  runOnJS,
+  Easing,
+} from 'react-native-reanimated';
 
 export function AnimatedSplashOverlay() {
-  return null;
-}
+  const [visible, setVisible] = useState(true);
+  const opacity = useSharedValue(0);
+  const scale = useSharedValue(1.04);
 
-const keyframe = new Keyframe({
-  0: {
-    transform: [{ scale: 0 }],
-  },
-  60: {
-    transform: [{ scale: 1.2 }],
-    easing: Easing.elastic(1.2),
-  },
-  100: {
-    transform: [{ scale: 1 }],
-    easing: Easing.elastic(1.2),
-  },
-});
+  useEffect(() => {
+    SplashScreen.hideAsync().catch(() => {});
 
-const logoKeyframe = new Keyframe({
-  0: {
-    opacity: 0,
-  },
-  60: {
-    transform: [{ scale: 1.2 }],
-    opacity: 0,
-    easing: Easing.elastic(1.2),
-  },
-  100: {
-    transform: [{ scale: 1 }],
-    opacity: 1,
-    easing: Easing.elastic(1.2),
-  },
-});
+    opacity.value = withSequence(
+      withTiming(1, { duration: 600, easing: Easing.out(Easing.quad) }),
+      withTiming(1, { duration: 1900 }),
+      withTiming(0, { duration: 500, easing: Easing.out(Easing.quad) }, (finished) => {
+        if (finished) {
+          runOnJS(setVisible)(false);
+        }
+      })
+    );
 
-const glowKeyframe = new Keyframe({
-  0: {
-    transform: [{ rotateZ: '-180deg' }, { scale: 0.8 }],
-    opacity: 0,
-  },
-  [DURATION / 1000]: {
-    transform: [{ rotateZ: '0deg' }, { scale: 1 }],
-    opacity: 1,
-    easing: Easing.elastic(0.7),
-  },
-  100: {
-    transform: [{ rotateZ: '7200deg' }],
-  },
-});
+    scale.value = withSequence(
+      withTiming(1.00, { duration: 600, easing: Easing.out(Easing.quad) }),
+      withTiming(1.015, { duration: 600, easing: Easing.inOut(Easing.quad) }),
+      withTiming(1.00, { duration: 600, easing: Easing.inOut(Easing.quad) }),
+      withTiming(1.00, { duration: 1200 })
+    );
+  }, [opacity, scale]);
 
-export function AnimatedIcon() {
+  const animatedStyle = useAnimatedStyle(() => ({
+    opacity: opacity.value,
+    transform: [{ scale: scale.value }],
+  }));
+
+  if (!visible) return null;
+
   return (
-    <View style={styles.iconContainer}>
-      <Animated.View entering={glowKeyframe.duration(60 * 1000 * 4)} style={styles.glow}>
-        <Image style={styles.glow} source={require('@/assets/images/logo-glow.png')} />
-      </Animated.View>
-
-      <Animated.View style={styles.background} entering={keyframe.duration(DURATION)}>
-        <div className={classes.expoLogoBackground} />
-      </Animated.View>
-
-      <Animated.View style={styles.imageContainer} entering={logoKeyframe.duration(DURATION)}>
-        <Image style={styles.image} source={require('@/assets/images/expo-logo.png')} />
+    <View style={styles.container} pointerEvents="none">
+      <Animated.View style={[styles.imageWrapper, animatedStyle]}>
+        <Image
+          source={require('@/assets/images/splash-screen.png')}
+          style={styles.splashImage}
+          contentFit="cover"
+          priority="high"
+        />
       </Animated.View>
     </View>
   );
 }
 
+export function AnimatedIcon() {
+  return null;
+}
+
 const styles = StyleSheet.create({
   container: {
-    alignItems: 'center',
+    ...StyleSheet.absoluteFill,
+    backgroundColor: '#FAF3EC',
+    zIndex: 999999,
+  },
+  imageWrapper: {
     width: '100%',
-    zIndex: 1000,
-    position: 'absolute',
-    top: 128 / 2 + 138,
+    height: '100%',
   },
-  imageContainer: {
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  glow: {
-    width: 201,
-    height: 201,
-    position: 'absolute',
-  },
-  iconContainer: {
-    justifyContent: 'center',
-    alignItems: 'center',
-    width: 128,
-    height: 128,
-  },
-  image: {
-    position: 'absolute',
-    width: 76,
-    height: 71,
-  },
-  background: {
-    width: 128,
-    height: 128,
-    position: 'absolute',
+  splashImage: {
+    width: '100%',
+    height: '100%',
   },
 });
+
