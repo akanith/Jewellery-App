@@ -37,4 +37,26 @@ test.describe('Phase 6 — Supabase & BFF Security Audit Tests', () => {
     const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_bYOw6Eq1dE-7ARfmhCjc5A_YGLFalvD';
     expect(publishableKey).not.toContain('service_role');
   });
+
+  test('SEC-06: Customer authentication RPCs are not directly executable with the public client', async () => {
+    const unauthorizedCalls = await Promise.all([
+      supabase.rpc('customer_password_login', {
+        p_phone_number: '9009990000',
+        p_password: 'InvalidPassword123',
+      }),
+      supabase.rpc('customer_change_password', {
+        p_customer_id: '00000000-0000-0000-0000-000000000001',
+        p_old_password: 'irrelevant',
+        p_new_password: 'SecurePass123',
+      }),
+      supabase.rpc('request_customer_password_reset', {
+        p_mobile_number: '9009990000',
+      }),
+    ]);
+
+    for (const result of unauthorizedCalls) {
+      expect(result.data).toBeNull();
+      expect(result.error).not.toBeNull();
+    }
+  });
 });
