@@ -1,6 +1,6 @@
 -- =============================================================================
 -- RAMYAS JEWELLER - Customer Authentication RPC Access Hardening
--- Version: 20261014170000
+-- Version: 20261014162853
 -- Purpose:
 --   1. Make customer authentication/password operations callable only by the
 --      server-side Customer BFF service role, not the public PostgREST roles.
