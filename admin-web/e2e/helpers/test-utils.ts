@@ -4,7 +4,7 @@ import { Page, expect } from '@playwright/test';
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
 const SUPABASE_PUBLISHABLE_KEY = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY?.trim();
 
-export function assertNotProductionSupabase(url?: string): void {
+export function assertNotProductionSupabase(url?: string): asserts url is string {
   if (!url || url.trim() === '') {
     throw new Error(
       '[FATAL SAFETY GUARD] NEXT_PUBLIC_SUPABASE_URL is missing. E2E tests MUST run against an isolated local/staging environment.'
@@ -206,22 +206,17 @@ export async function createTestCustomerWithPastScheme(
  * NEVER expose this or the service-role key to browser/client code.
  */
 export function getTestServiceRoleClient() {
-  assertNotProductionSupabase(SUPABASE_URL);
+  const targetUrl = SUPABASE_URL;
+  assertNotProductionSupabase(targetUrl);
 
-  const isLocalEnv = SUPABASE_URL.includes('127.0.0.1') || SUPABASE_URL.includes('localhost');
-  const serviceKey =
-    process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    (isLocalEnv
-      ? 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU'
-      : undefined);
-
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
   if (!serviceKey) {
     throw new Error(
-      '[E2E Test Fixture Error] SUPABASE_SERVICE_ROLE_KEY environment variable is missing. Test fixture operations require service-role access in the isolated test environment.'
+      '[E2E Test Fixture Error] SUPABASE_SERVICE_ROLE_KEY environment variable is missing. Set it explicitly for the isolated local/CI test environment.'
     );
   }
 
-  return createClient(SUPABASE_URL, serviceKey, {
+  return createClient(targetUrl, serviceKey, {
     auth: {
       persistSession: false,
       autoRefreshToken: false,
