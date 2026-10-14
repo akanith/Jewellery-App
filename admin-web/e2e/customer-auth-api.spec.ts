@@ -1,8 +1,7 @@
 import { test, expect } from '@playwright/test';
-import { getTestSupabaseClient, generateTestMobile, generateTestName } from './helpers/test-utils';
+import { getTestServiceRoleClient } from './helpers/test-utils';
 
 test.describe('Phase 5 — Customer Authentication & Password API Tests', () => {
-  const supabase = getTestSupabaseClient();
   const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'http://127.0.0.1:54321';
   const BFF_URL = process.env.NEXT_PUBLIC_BFF_BASE_URL || `${SUPABASE_URL}/functions/v1/customer-bff`;
 
@@ -28,7 +27,10 @@ test.describe('Phase 5 — Customer Authentication & Password API Tests', () => 
 
   test('CA-01 & CA-02: Customer password login validation', async () => {
     // Valid mobile with invalid password
-    const { data, error } = await supabase.rpc('customer_password_login', {
+    // Direct customer-auth RPCs are restricted to the server-side BFF service role.
+    // Use service role only within this isolated local E2E runner.
+    const testServiceClient = getTestServiceRoleClient();
+    const { data, error } = await testServiceClient.rpc('customer_password_login', {
       p_phone_number: '8778173682',
       p_password: 'WrongPassword999!',
     });
