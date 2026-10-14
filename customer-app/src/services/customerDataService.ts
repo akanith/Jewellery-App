@@ -25,13 +25,25 @@ export const getCustomerDashboard = async (): Promise<CustomerHomeData | null> =
       raw.activeScheme.schemeName = OFFICIAL_SCHEME_NAME;
       raw.activeScheme.schemeType = OFFICIAL_SCHEME_NAME;
     }
+    if (raw?.scheme) {
+      raw.scheme.schemeName = OFFICIAL_SCHEME_NAME;
+    }
+    if (Array.isArray(raw?.schemes)) {
+      raw.schemes.forEach((s: any) => {
+        s.schemeName = OFFICIAL_SCHEME_NAME;
+      });
+    }
     return raw;
   }
   return null;
 };
 
-export const getCustomerPassbook = async (): Promise<CustomerPassbookData | null> => {
-  const response = await apiCall<{ success: boolean; data: CustomerPassbookData }>('/customer-bff/passbook', {
+export const getCustomerPassbook = async (schemeId?: string): Promise<CustomerPassbookData | null> => {
+  const path = schemeId
+    ? `/customer-bff/passbook?schemeId=${encodeURIComponent(schemeId)}`
+    : '/customer-bff/passbook';
+
+  const response = await apiCall<{ success: boolean; data: CustomerPassbookData }>(path, {
     method: 'GET',
     requiresAuth: true,
   });

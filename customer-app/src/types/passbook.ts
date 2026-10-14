@@ -1,5 +1,14 @@
 export type PassbookInstallmentStatus = 'PAID' | 'PENDING' | 'FUTURE';
 
+export type PassbookSchemeStatus =
+  | 'ACTIVE'
+  | 'COMPLETED'
+  | 'MATURED'
+  | 'PARTIALLY_REDEEMED'
+  | 'FULLY_REDEEMED'
+  | 'EMERGENCY_REFUNDED'
+  | 'CANCELLED';
+
 export interface PassbookInstallment {
   installmentNumber: number;
   installmentLabel: string;
@@ -9,9 +18,12 @@ export interface PassbookInstallment {
   status: PassbookInstallmentStatus;
   paidDateFormatted?: string;
   dueDateFormatted?: string;
+  receiptNumber?: string;
 }
 
 export interface CustomerPassbookData {
+  schemeId?: string | null;
+  slotNumber?: number | null;
   customerName: string;
   customerCode: string;
   schemeName: string;
@@ -22,7 +34,7 @@ export interface CustomerPassbookData {
   totalContribution: number;
   paidInstallments: number;
   totalInstallments: number;
-  status: 'ACTIVE' | 'MATURED' | 'CANCELLED';
+  status: PassbookSchemeStatus;
   progressPercentage: number;
   unreadNotificationsCount?: number;
   avatarUri?: string | null;

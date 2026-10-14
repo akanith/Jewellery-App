@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { buildBffUrl } from './urlConfig';
 
 export interface CustomerSession {
   token: string;
@@ -16,11 +17,13 @@ export interface CustomerAuthResult {
   session?: CustomerSession;
 }
 
-const CUSTOMER_SESSION_KEY = '@ramyas_customer_session';
+export interface PasswordResetResult {
+  success: boolean;
+  message: string;
+  isNetworkError?: boolean;
+}
 
-const BFF_BASE_URL =
-  process.env.EXPO_PUBLIC_BFF_BASE_URL ||
-  'https://yjpbswsgtbmgageburmy.supabase.co/functions/v1';
+const CUSTOMER_SESSION_KEY = '@ramyas_customer_session';
 
 /**
  * Sanitizes mobile number input.
@@ -90,7 +93,8 @@ export const loginWithMobile = async (mobileNumber: string, password?: string): 
   const cleanedNumber = sanitizeMobileNumber(mobileNumber);
 
   try {
-    const response = await fetch(`${BFF_BASE_URL}/customer-bff/auth/login`, {
+    const url = buildBffUrl('/auth/login');
+    const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -161,7 +165,8 @@ export const changePassword = async (
       return { success: false, message: 'Session expired. Please log in again.' };
     }
 
-    const response = await fetch(`${BFF_BASE_URL}/customer-bff/auth/change-password`, {
+    const url = buildBffUrl('/auth/change-password');
+    const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -202,7 +207,7 @@ export const changePassword = async (
  */
 export const requestPasswordReset = async (
   mobileNumber: string
-): Promise<{ success: boolean; message: string }> => {
+): Promise<PasswordResetResult> => {
   const validation = validateMobileNumber(mobileNumber);
   if (!validation.isValid) {
     return {
@@ -214,7 +219,8 @@ export const requestPasswordReset = async (
   const cleanedNumber = sanitizeMobileNumber(mobileNumber);
 
   try {
-    const response = await fetch(`${BFF_BASE_URL}/customer-bff/auth/forgot-password`, {
+    const url = buildBffUrl('/auth/forgot-password');
+    const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -224,21 +230,29 @@ export const requestPasswordReset = async (
 
     const json = await response.json().catch(() => null);
 
-    if (json?.message) {
+    if (!response.ok) {
       return {
-        success: true,
-        message: json.message,
+        success: false,
+        message:
+          json?.error ||
+          'Unable to submit the password reset request right now. Please contact Ramyas Jeweller.',
       };
     }
 
+    const safeMessage =
+      json?.message ||
+      'If the mobile number is registered, a password reset request has been submitted. Please contact Ramyas Jeweller.';
+
     return {
       success: true,
-      message: 'If the mobile number is registered, a password reset request has been submitted.',
+      message: safeMessage,
     };
   } catch {
     return {
       success: false,
-      message: 'Unable to submit the request right now. Please check your connection and try again.',
+      isNetworkError: true,
+      message:
+        'Unable to connect to service. Please check your network connection and try again.',
     };
   }
 };
@@ -272,7 +286,8 @@ export const logoutCustomer = async (callServer = true): Promise<void> => {
       if (sessionStr) {
         const session: CustomerSession = JSON.parse(sessionStr);
         if (session?.token) {
-          await fetch(`${BFF_BASE_URL}/customer-bff/auth/logout`, {
+          const url = buildBffUrl('/auth/logout');
+          await fetch(url, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',

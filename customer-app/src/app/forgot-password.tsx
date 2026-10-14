@@ -8,6 +8,7 @@ import {
   ScrollView,
   StatusBar,
   ActivityIndicator,
+  Linking,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -28,6 +29,8 @@ export default function ForgotPasswordScreen() {
   const [mobileNumber, setMobileNumber] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [submittedMessage, setSubmittedMessage] = useState<string | null>(null);
+  const [isNetworkError, setIsNetworkError] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const isMobileValid = /^[6-9]\d{9}$/.test(mobileNumber);
@@ -35,7 +38,15 @@ export default function ForgotPasswordScreen() {
   const handleMobileChange = (text: string) => {
     const cleaned = sanitizeMobileNumber(text);
     setMobileNumber(cleaned);
-    if (errorMessage) setErrorMessage(null);
+    if (errorMessage) {
+      setErrorMessage(null);
+      setIsNetworkError(false);
+    }
+  };
+
+  const handleCallShop = () => {
+    const cleanNumber = OFFICIAL_SHOP_INFO.phone.replace(/[^0-9+]/g, '');
+    Linking.openURL(`tel:${cleanNumber}`).catch(() => {});
   };
 
   const handleSubmit = async () => {
@@ -47,15 +58,19 @@ export default function ForgotPasswordScreen() {
 
     setIsLoading(true);
     setErrorMessage(null);
+    setIsNetworkError(false);
 
     try {
       const result = await requestPasswordReset(mobileNumber);
       if (result.success) {
+        setSubmittedMessage(result.message);
         setIsSubmitted(true);
       } else {
+        setIsNetworkError(Boolean(result.isNetworkError));
         setErrorMessage(result.message || t('resetRequestError'));
       }
     } catch {
+      setIsNetworkError(true);
       setErrorMessage(t('resetRequestError'));
     } finally {
       setIsLoading(false);
@@ -104,7 +119,7 @@ export default function ForgotPasswordScreen() {
 
               <Text style={styles.cardTitle}>{t('resetRequestSubmittedTitle')}</Text>
               <Text style={styles.cardSubtitle}>
-                {t('resetRequestSubmittedMessage')}
+                {submittedMessage || t('resetRequestSubmittedMessage')}
               </Text>
 
               <Text style={styles.detailText}>
@@ -147,7 +162,20 @@ export default function ForgotPasswordScreen() {
               {errorMessage && (
                 <View style={styles.errorContainer}>
                   <Ionicons name="alert-circle" size={18} color="#991B1B" />
-                  <Text style={styles.errorText}>{errorMessage}</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.errorText}>{errorMessage}</Text>
+                    {isNetworkError && (
+                      <TouchableOpacity
+                        onPress={handleCallShop}
+                        style={{ marginTop: 6 }}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      >
+                        <Text style={styles.callShopLinkText}>
+                          {t('callShop')}: {OFFICIAL_SHOP_INFO.phone}
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
                 </View>
               )}
 
@@ -306,6 +334,12 @@ const styles = StyleSheet.create({
     color: '#991B1B',
     fontWeight: '600',
     flex: 1,
+  },
+  callShopLinkText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#70001E',
+    textDecorationLine: 'underline',
   },
   inputGroup: {
     marginBottom: 24,

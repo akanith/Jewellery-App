@@ -1,9 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { CustomerSession, logoutCustomer } from './customerAuthService';
-
-const BFF_BASE_URL =
-  process.env.EXPO_PUBLIC_BFF_BASE_URL ||
-  'https://yjpbswsgtbmgageburmy.supabase.co/functions/v1';
+import { buildBffUrl } from './urlConfig';
 
 export interface ApiRequestOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'DELETE';
@@ -49,8 +46,7 @@ export async function apiCall<T = unknown>(
     }
   }
 
-  const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
-  const url = `${BFF_BASE_URL}${cleanEndpoint}`;
+  const url = buildBffUrl(endpoint);
 
   try {
     const res = await fetch(url, {

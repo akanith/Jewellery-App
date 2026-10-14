@@ -26,7 +26,7 @@ export default function ResetPasswordScreen() {
   const { t } = useLanguage();
   const insets = useSafeAreaInsets();
 
-  const [currentPassword, setCurrentPassword] = useState('');
+  const [currentPassword] = useState('');
 
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');

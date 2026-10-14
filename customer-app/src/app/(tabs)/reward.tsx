@@ -13,7 +13,9 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { getStoredCustomerSession } from '@/services/customerAuthService';
-import { getCustomerPassbook } from '@/services/customerDataService';
+import { getCustomerDashboard } from '@/services/customerDataService';
+import { SchemeSummary } from '@/types/dashboard';
+import { formatCurrency } from '@/lib/formatters';
 import { useResponsiveMetrics } from '@/constants/responsive';
 
 export default function RewardScreen() {
@@ -21,6 +23,8 @@ export default function RewardScreen() {
   const insets = useSafeAreaInsets();
   const responsive = useResponsiveMetrics();
 
+  const [schemes, setSchemes] = useState<SchemeSummary[]>([]);
+  const [selectedSchemeId, setSelectedSchemeId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -37,9 +41,13 @@ export default function RewardScreen() {
       }
 
       try {
-        await getCustomerPassbook();
+        const dash = await getCustomerDashboard();
+        if (isMounted && dash?.schemes && dash.schemes.length > 0) {
+          setSchemes(dash.schemes);
+          setSelectedSchemeId(dash.schemes[0].schemeId || dash.schemes[0].id || '');
+        }
       } catch (err) {
-        console.warn('Failed to load passbook in reward screen:', err);
+        console.warn('Failed to load dashboard schemes in reward screen:', err);
       } finally {
         if (isMounted) {
           setIsLoading(false);
@@ -64,6 +72,21 @@ export default function RewardScreen() {
   const handleProfilePress = () => {
     router.push('/(tabs)/profile' as any);
   };
+
+  const selectedScheme = schemes.find((s) => (s.schemeId || s.id) === selectedSchemeId) || schemes[0] || null;
+  const monthlyAmount = selectedScheme?.monthlyInstallmentAmount || selectedScheme?.monthlyInstallment || 1000;
+  const paidCount = selectedScheme?.paidInstallments ?? 12;
+  const totalCount = selectedScheme?.totalInstallments ?? 12;
+  const isCompleted =
+    schemes.length === 0
+      ? true
+      : paidCount >= totalCount ||
+        selectedScheme?.status === 'COMPLETED' ||
+        selectedScheme?.status === 'MATURED' ||
+        selectedScheme?.status === 'PARTIALLY_REDEEMED' ||
+        selectedScheme?.status === 'FULLY_REDEEMED';
+  const bonusAmount = formatCurrency(monthlyAmount);
+  const maturityValue = formatCurrency(monthlyAmount * totalCount + monthlyAmount);
 
   if (isLoading) {
     return (
@@ -110,6 +133,58 @@ export default function RewardScreen() {
         ]}
         showsVerticalScrollIndicator={false}
       >
+        {/* MULTI-SCHEME SELECTOR BAR (shown when customer has multiple schemes) */}
+        {schemes.length > 1 ? (
+          <View style={styles.schemeSwitcherContainer}>
+            <Text style={styles.schemeSwitcherHeaderLabel}>SELECT SCHEME FOR REWARDS</Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.schemeSwitcherScroll}
+            >
+              {schemes.map((s, idx) => {
+                const sId = s.schemeId || s.id || '';
+                const isSelected = (selectedScheme?.schemeId || selectedScheme?.id) === sId;
+                const slotNum = s.slotNumber ?? (idx + 1);
+                return (
+                  <TouchableOpacity
+                    key={sId || idx}
+                    style={[
+                      styles.schemeSwitchPill,
+                      isSelected && styles.schemeSwitchPillActive,
+                    ]}
+                    onPress={() => setSelectedSchemeId(sId)}
+                    activeOpacity={0.8}
+                  >
+                    <View style={[styles.schemeSwitchSlotBadge, isSelected && styles.schemeSwitchSlotBadgeActive]}>
+                      <Text style={[styles.schemeSwitchSlotText, isSelected && styles.schemeSwitchSlotTextActive]}>
+                        Slot #{slotNum}
+                      </Text>
+                    </View>
+                    <Text
+                      style={[
+                        styles.schemeSwitchTitle,
+                        isSelected && styles.schemeSwitchTitleActive,
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {s.schemeName || 'Gold Scheme'}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.schemeSwitchMeta,
+                        isSelected && styles.schemeSwitchMetaActive,
+                      ]}
+                    >
+                      ₹{s.monthlyInstallmentAmount || 1000}/mo • {s.paidInstallments ?? 0}/{s.totalInstallments ?? 12}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+        ) : null}
+
         {/* 1. HERO CERTIFICATE CARD */}
         <View style={styles.certificateCard}>
           {/* Decorative Corner Glow Accent */}
@@ -124,19 +199,35 @@ export default function RewardScreen() {
           </View>
 
           {/* Main Title */}
-          <Text style={styles.certTitle} numberOfLines={1}>Your Completion Gift</Text>
+          <Text style={styles.certTitle} numberOfLines={1}>
+            {selectedScheme ? (selectedScheme.schemeName || 'Your Completion Gift') : 'Your Completion Gift'}
+          </Text>
+
+          {selectedScheme ? (
+            <Text style={styles.certSlotSubtitle}>
+              Slot #{selectedScheme.slotNumber ?? 1} • {formatCurrency(monthlyAmount)}/month
+            </Text>
+          ) : null}
 
           {/* Description */}
           <Text style={styles.certDescription}>
-            Thank you for completing all 12 months of your savings journey with Ramyas Jeweller.
+            {isCompleted
+              ? 'Thank you for completing all 12 months of your savings journey with Ramyas Jeweller.'
+              : `Complete all 12 monthly installments for this scheme to unlock your full rewards and bonus.`}
           </Text>
 
           {/* Stamped Badge */}
-          <View style={styles.stampedBadge}>
-            <View style={styles.stampedIconCircle}>
-              <Ionicons name="checkmark-sharp" size={14} color="#70001E" />
+          <View style={[styles.stampedBadge, !isCompleted && styles.stampedBadgePending]}>
+            <View style={[styles.stampedIconCircle, !isCompleted && styles.stampedIconCirclePending]}>
+              <Ionicons
+                name={isCompleted ? 'checkmark-sharp' : 'time-outline'}
+                size={14}
+                color={isCompleted ? '#70001E' : '#6F6870'}
+              />
             </View>
-            <Text style={styles.stampedText}>12/12 STAMPED & VERIFIED</Text>
+            <Text style={[styles.stampedText, !isCompleted && styles.stampedTextPending]}>
+              {isCompleted ? `${totalCount}/${totalCount} STAMPED & VERIFIED` : `${paidCount}/${totalCount} IN PROGRESS`}
+            </Text>
           </View>
         </View>
 
@@ -220,13 +311,13 @@ export default function RewardScreen() {
           <View style={styles.financialCardsRow}>
             <View style={styles.financialCard}>
               <Text style={styles.financialLabel}>Completion Bonus</Text>
-              <Text style={styles.financialValue}>₹1,000</Text>
+              <Text style={styles.financialValue}>{bonusAmount}</Text>
               <Text style={styles.financialSubtext}>Credited to plan</Text>
             </View>
 
             <View style={styles.financialCard}>
               <Text style={styles.financialLabel}>Maturity Value</Text>
-              <Text style={styles.financialValue}>₹13,000</Text>
+              <Text style={styles.financialValue}>{maturityValue}</Text>
               <Text style={styles.financialSubtext}>Jewellery purchase</Text>
             </View>
           </View>
@@ -600,5 +691,89 @@ const styles = StyleSheet.create({
   eligibilityBold: {
     fontWeight: '800',
     color: '#333333',
+  },
+
+  /* MULTI-SCHEME SWITCHER */
+  schemeSwitcherContainer: {
+    marginBottom: 4,
+  },
+  schemeSwitcherHeaderLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#70001E',
+    letterSpacing: 1,
+    marginBottom: 8,
+  },
+  schemeSwitcherScroll: {
+    gap: 10,
+  },
+  schemeSwitchPill: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#EAE2D9',
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    minWidth: 140,
+  },
+  schemeSwitchPillActive: {
+    borderColor: '#70001E',
+    backgroundColor: '#FFF7D6',
+  },
+  schemeSwitchSlotBadge: {
+    backgroundColor: '#F3F0ED',
+    alignSelf: 'flex-start',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    marginBottom: 4,
+  },
+  schemeSwitchSlotBadgeActive: {
+    backgroundColor: '#70001E',
+  },
+  schemeSwitchSlotText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#6F6870',
+  },
+  schemeSwitchSlotTextActive: {
+    color: '#FFFFFF',
+  },
+  schemeSwitchTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#25232A',
+  },
+  schemeSwitchTitleActive: {
+    fontWeight: '800',
+    color: '#70001E',
+  },
+  schemeSwitchMeta: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#6F6870',
+    marginTop: 2,
+  },
+  schemeSwitchMetaActive: {
+    color: '#70001E',
+    fontWeight: '700',
+  },
+
+  certSlotSubtitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#8C6B1B',
+    marginTop: -8,
+    marginBottom: 10,
+  },
+  stampedBadgePending: {
+    backgroundColor: '#F3F0ED',
+    borderColor: '#E8DED8',
+  },
+  stampedIconCirclePending: {
+    backgroundColor: '#E5DEDC',
+  },
+  stampedTextPending: {
+    color: '#6F6870',
   },
 });

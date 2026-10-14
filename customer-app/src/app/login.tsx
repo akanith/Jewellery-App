@@ -10,7 +10,6 @@ import {
   StatusBar,
   Linking,
   ActivityIndicator,
-  Modal,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -33,7 +32,6 @@ export default function LoginScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'login' | 'support' | 'locate'>('login');
-  const [showForgotModal, setShowForgotModal] = useState(false);
 
   const isMobileValid = /^[6-9]\d{9}$/.test(mobileNumber);
   const isFormValid = isMobileValid && password.trim().length > 0;
@@ -262,51 +260,6 @@ export default function LoginScreen() {
           </View>
         </View>
       </ScrollView>
-
-      {/* FORGOT PASSWORD MODAL */}
-      <Modal
-        visible={showForgotModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowForgotModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <View style={styles.modalHeader}>
-              <Ionicons name="key-outline" size={24} color="#70001E" />
-              <Text style={styles.modalTitle}>{t('forgotPasswordModalTitle')}</Text>
-            </View>
-            <Text style={styles.modalText}>
-              {t('forgotPasswordModalText')}
-            </Text>
-
-            <View style={styles.showroomBox}>
-              <Text style={styles.showroomTitle}>{OFFICIAL_SHOP_INFO.name}</Text>
-              <Text style={styles.showroomPhone}>{t('showroomContact')}: {OFFICIAL_SHOP_INFO.phone}</Text>
-            </View>
-
-            <View style={styles.modalActions}>
-              <TouchableOpacity
-                style={styles.modalCallButton}
-                onPress={() => {
-                  setShowForgotModal(false);
-                  handleCallShop();
-                }}
-              >
-                <Ionicons name="call" size={16} color="#FFFFFF" />
-                <Text style={styles.modalCallText}>{t('callShop')}</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.modalCloseButton}
-                onPress={() => setShowForgotModal(false)}
-              >
-                <Text style={styles.modalCloseText}>{t('close')}</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
 
       {/* BOTTOM NAVIGATION BAR */}
       <View style={styles.bottomNavBar}>
@@ -628,94 +581,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
     color: '#70001E',
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(15, 23, 42, 0.6)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
-  },
-  modalCard: {
-    width: '100%',
-    maxWidth: 380,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 24,
-    padding: 24,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.2,
-    shadowRadius: 20,
-    elevation: 10,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginBottom: 12,
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#1E293B',
-    flex: 1,
-  },
-  modalText: {
-    fontSize: 14,
-    color: '#475569',
-    lineHeight: 20,
-    marginBottom: 16,
-  },
-  showroomBox: {
-    backgroundColor: '#FFFDF8',
-    borderWidth: 1,
-    borderColor: '#FDE047',
-    borderRadius: 14,
-    padding: 14,
-    marginBottom: 20,
-  },
-  showroomTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#70001E',
-    marginBottom: 4,
-  },
-  showroomPhone: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#1E293B',
-  },
-  modalActions: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  modalCallButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#70001E',
-    borderRadius: 14,
-    height: 46,
-    gap: 6,
-  },
-  modalCallText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  modalCloseButton: {
-    paddingHorizontal: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#F1F5F9',
-    borderRadius: 14,
-    height: 46,
-  },
-  modalCloseText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#475569',
   },
   bottomNavBar: {
     flexDirection: 'row',

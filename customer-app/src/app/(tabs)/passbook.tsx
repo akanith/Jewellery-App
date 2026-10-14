@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -11,48 +11,34 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Circle } from 'react-native-svg';
 import { useLanguage } from '@/i18n';
 import { CustomerHeader } from '@/components/CustomerHeader';
 import { CustomerPassbookData, PassbookInstallment } from '@/types/passbook';
+import { SchemeSummary } from '@/types/dashboard';
 import { formatCurrency } from '@/lib/formatters';
-import { getCustomerPassbook } from '@/services/customerDataService';
+import { getCustomerPassbook, getCustomerDashboard } from '@/services/customerDataService';
 import { getStoredCustomerSession } from '@/services/customerAuthService';
 import { OFFICIAL_SCHEME_NAME } from '@/constants/shopData';
 import { useResponsiveMetrics } from '@/constants/responsive';
 
-// Default 12 calendar-month installment fixture list (Month + Year format, no specific days)
-const defaultInstallments: PassbookInstallment[] = [
-  { installmentNumber: 1, installmentLabel: '#01', calendarMonth: 'March 2026', installmentAmount: 1000, paidAmount: 1000, status: 'PAID', paidDateFormatted: 'March 2026' },
-  { installmentNumber: 2, installmentLabel: '#02', calendarMonth: 'April 2026', installmentAmount: 1000, paidAmount: 1000, status: 'PAID', paidDateFormatted: 'April 2026' },
-  { installmentNumber: 3, installmentLabel: '#03', calendarMonth: 'May 2026', installmentAmount: 1000, paidAmount: 1000, status: 'PAID', paidDateFormatted: 'May 2026' },
-  { installmentNumber: 4, installmentLabel: '#04', calendarMonth: 'June 2026', installmentAmount: 1000, paidAmount: 1000, status: 'PAID', paidDateFormatted: 'June 2026' },
-  { installmentNumber: 5, installmentLabel: '#05', calendarMonth: 'July 2026', installmentAmount: 1000, paidAmount: 1000, status: 'PAID', paidDateFormatted: 'July 2026' },
-  { installmentNumber: 6, installmentLabel: '#06', calendarMonth: 'August 2026', installmentAmount: 1000, paidAmount: 1000, status: 'PAID', paidDateFormatted: 'August 2026' },
-  { installmentNumber: 7, installmentLabel: '#07', calendarMonth: 'September 2026', installmentAmount: 1000, paidAmount: 1000, status: 'PAID', paidDateFormatted: 'September 2026' },
-  { installmentNumber: 8, installmentLabel: '#08', calendarMonth: 'October 2026', installmentAmount: 1000, paidAmount: 1000, status: 'PAID', paidDateFormatted: 'October 2026' },
-  { installmentNumber: 9, installmentLabel: '#09', calendarMonth: 'November 2026', installmentAmount: 1000, paidAmount: 0, status: 'PENDING', dueDateFormatted: 'November 2026' },
-  { installmentNumber: 10, installmentLabel: '#10', calendarMonth: 'December 2026', installmentAmount: 1000, paidAmount: 0, status: 'FUTURE' },
-  { installmentNumber: 11, installmentLabel: '#11', calendarMonth: 'January 2027', installmentAmount: 1000, paidAmount: 0, status: 'FUTURE' },
-  { installmentNumber: 12, installmentLabel: '#12', calendarMonth: 'February 2027', installmentAmount: 1000, paidAmount: 0, status: 'FUTURE' },
-];
 
 const initialPassbookData: CustomerPassbookData = {
-  customerName: 'Anith Kumar',
-  customerCode: 'RJ-88234',
+  customerName: '',
+  customerCode: '',
   schemeName: OFFICIAL_SCHEME_NAME,
-  schemeCode: 'DSS-12M',
-  financialYear: 'FY 2026-27',
+  schemeCode: '',
+  financialYear: '',
   monthlyInstallment: 1000,
-  paidAmount: 8000,
+  paidAmount: 0,
   totalContribution: 12000,
-  paidInstallments: 8,
+  paidInstallments: 0,
   totalInstallments: 12,
   status: 'ACTIVE',
-  progressPercentage: 66,
-  installments: defaultInstallments,
+  progressPercentage: 0,
+  installments: [],
 };
 
 /**
@@ -88,40 +74,98 @@ const getMaturityMonthStr = (installments: PassbookInstallment[]): string => {
 
 export default function CustomerPassbookScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ schemeId?: string }>();
   const { t } = useLanguage();
   const responsive = useResponsiveMetrics();
   const [data, setData] = useState<CustomerPassbookData>(initialPassbookData);
+  const [selectedSchemeId, setSelectedSchemeId] = useState<string | null>(params.schemeId || null);
+  const [customerSchemes, setCustomerSchemes] = useState<SchemeSummary[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [retryKey, setRetryKey] = useState(0);
+
+  const customerSchemesRef = useRef<SchemeSummary[]>([]);
+  const currentRequestIdRef = useRef(0);
+  const prevParamSchemeIdRef = useRef<string | undefined>(params.schemeId);
+
+  // Synchronize route parameter changes (e.g., navigated from Dashboard scheme card) via effect
+  useEffect(() => {
+    if (params.schemeId && params.schemeId !== prevParamSchemeIdRef.current) {
+      prevParamSchemeIdRef.current = params.schemeId;
+      setSelectedSchemeId(params.schemeId);
+      setErrorMessage(null);
+      setData(initialPassbookData);
+      setIsLoading(true);
+    }
+  }, [params.schemeId]);
 
   useEffect(() => {
     let isMounted = true;
+    const requestId = ++currentRequestIdRef.current;
+
     const loadPassbook = async () => {
       setIsLoading(true);
-      const session = await getStoredCustomerSession();
-      if (!session) {
-        if (isMounted) {
-          setIsLoading(false);
-          router.replace('/login');
-        }
-        return;
-      }
+      setErrorMessage(null);
 
-      const realData = await getCustomerPassbook();
-      if (isMounted) {
+      try {
+        const session = await getStoredCustomerSession();
+        if (!session) {
+          if (isMounted) {
+            setIsLoading(false);
+            router.replace('/login');
+          }
+          return;
+        }
+
+        // Discover customer schemes for multi-scheme switcher only once (avoid redundant roundtrips)
+        if (customerSchemesRef.current.length === 0) {
+          try {
+            const dashboardData = await getCustomerDashboard();
+            if (isMounted && dashboardData?.schemes && dashboardData.schemes.length > 0) {
+              customerSchemesRef.current = dashboardData.schemes;
+              setCustomerSchemes(dashboardData.schemes);
+            }
+          } catch (dashErr) {
+            console.warn('Non-blocking dashboard fetch error in passbook:', dashErr);
+          }
+        }
+
+        const targetSchemeId = selectedSchemeId || params.schemeId;
+        const realData = await getCustomerPassbook(targetSchemeId || undefined);
+
+        // Guard against unmount or superseding requests (race conditions from rapid switching)
+        if (!isMounted || requestId !== currentRequestIdRef.current) {
+          return;
+        }
+
         if (realData) {
           const mergedData: CustomerPassbookData = {
             ...initialPassbookData,
             ...realData,
-            customerName: realData.customerName || session.fullName || 'Anith Kumar',
-            customerCode: realData.customerCode || session.customerCode || 'RJ-88234',
-            installments:
-              realData.installments && realData.installments.length > 0
-                ? realData.installments
-                : defaultInstallments,
+            customerName: realData.customerName || session.fullName || '',
+            customerCode: realData.customerCode || session.customerCode || '',
+            installments: Array.isArray(realData.installments)
+              ? realData.installments
+              : [],
           };
           setData(mergedData);
+          if (!selectedSchemeId && realData.schemeId) {
+            setSelectedSchemeId(realData.schemeId);
+          }
+        } else {
+          setData(initialPassbookData);
+          setErrorMessage('Unable to load passbook records. Please check your connection and try again.');
         }
-        setIsLoading(false);
+      } catch (err) {
+        console.error('Passbook loading error:', err);
+        if (isMounted && requestId === currentRequestIdRef.current) {
+          setData(initialPassbookData);
+          setErrorMessage('Unable to connect to service. Please check your network connection and try again.');
+        }
+      } finally {
+        if (isMounted && requestId === currentRequestIdRef.current) {
+          setIsLoading(false);
+        }
       }
     };
 
@@ -129,9 +173,36 @@ export default function CustomerPassbookScreen() {
     return () => {
       isMounted = false;
     };
-  }, [router]);
+  }, [router, selectedSchemeId, params.schemeId, retryKey]);
 
-  if (isLoading) {
+  const handleSchemeSelect = (sId: string) => {
+    if (sId !== selectedSchemeId) {
+      prevParamSchemeIdRef.current = sId;
+      setSelectedSchemeId(sId);
+      setErrorMessage(null);
+      setData(initialPassbookData);
+      setIsLoading(true);
+      try {
+        router.setParams({ schemeId: sId });
+      } catch {
+        // Safe fallback for test environments
+      }
+    }
+  };
+
+  const handleRetry = () => {
+    setErrorMessage(null);
+    setRetryKey((k) => k + 1);
+  };
+
+  // Prevent displaying previous scheme's financial data while loading a newly selected scheme
+  const isDataStale = Boolean(
+    selectedSchemeId &&
+    data.schemeId &&
+    data.schemeId !== selectedSchemeId
+  );
+
+  if (isLoading || isDataStale) {
     return (
       <SafeAreaView style={styles.safeArea}>
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
@@ -157,21 +228,26 @@ export default function CustomerPassbookScreen() {
   const center = ringSize / 2;
   const radius = center - strokeWidth / 2; // 36.25px
   const circumference = 2 * Math.PI * radius;
-  const paidCount = Math.min(
-    data.totalInstallments || 12,
-    Math.max(0, data.paidInstallments || 0)
-  );
+  // Paid count derived authoritatively from installment records when available
+  const actualPaidCount = Array.isArray(data.installments) && data.installments.length > 0
+    ? data.installments.filter((i) => i.status === 'PAID').length
+    : (data.paidInstallments || 0);
   const totalCount = data.totalInstallments || 12;
+  const paidCount = Math.min(totalCount, Math.max(0, actualPaidCount));
   const progressRatio = paidCount / totalCount;
   const strokeDashoffset = circumference - circumference * progressRatio;
 
-  // Active / Due installment info
-  const dueInstallment =
-    data.installments.find((i) => i.status === 'PENDING') || data.installments[8];
+  // Derive due installment from authoritative installment status and installment number:
+  // Never infer payment or due state from array position or paid counts.
+  // Earliest unpaid installment (status !== 'PAID') is the current due installment.
+  const unpaidInstallments = (data.installments || [])
+    .filter((inst) => inst.status !== 'PAID')
+    .sort((a, b) => a.installmentNumber - b.installmentNumber);
+  const dueInstallment = unpaidInstallments.length > 0 ? unpaidInstallments[0] : null;
   const dueInstallmentNum = dueInstallment
     ? String(dueInstallment.installmentNumber).padStart(2, '0')
-    : '09';
-  const dueInstallmentMonth = dueInstallment?.calendarMonth || 'November 2026';
+    : '01';
+  const dueInstallmentMonth = dueInstallment?.calendarMonth || '—';
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -195,15 +271,96 @@ export default function CustomerPassbookScreen() {
         ]}
         showsVerticalScrollIndicator={false}
       >
-        {/* HERO / CUSTOMER SUMMARY CARD */}
-        <View style={styles.vaultCard}>
+        {/* MULTI-SCHEME SWITCHER BAR (shown when customer has multiple schemes) */}
+        {customerSchemes.length > 1 ? (
+          <View style={styles.schemeSwitcherContainer}>
+            <Text style={styles.schemeSwitcherHeaderLabel}>SELECT ACTIVE SCHEME</Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.schemeSwitcherScroll}
+            >
+              {customerSchemes.map((s, idx) => {
+                const sId = s.schemeId || s.id || '';
+                const isSelected = selectedSchemeId ? sId === selectedSchemeId : (data.schemeId ? sId === data.schemeId : idx === 0);
+                const slotNum = s.slotNumber ?? (idx + 1);
+                return (
+                  <TouchableOpacity
+                    key={sId || idx}
+                    style={[
+                      styles.schemeSwitchPill,
+                      isSelected && styles.schemeSwitchPillActive,
+                    ]}
+                    onPress={() => handleSchemeSelect(sId)}
+                    activeOpacity={0.8}
+                  >
+                    <View style={[styles.schemeSwitchSlotBadge, isSelected && styles.schemeSwitchSlotBadgeActive]}>
+                      <Text style={[styles.schemeSwitchSlotText, isSelected && styles.schemeSwitchSlotTextActive]}>
+                        Slot #{slotNum}
+                      </Text>
+                    </View>
+                    <Text
+                      style={[
+                        styles.schemeSwitchTitle,
+                        isSelected && styles.schemeSwitchTitleActive,
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {s.schemeName || OFFICIAL_SCHEME_NAME}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.schemeSwitchMeta,
+                        isSelected && styles.schemeSwitchMetaActive,
+                      ]}
+                    >
+                      ₹{s.monthlyInstallmentAmount || s.monthlyInstallment || 1000}/mo
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+        ) : null}
+
+        {errorMessage ? (
+          <View style={styles.errorContainer}>
+            <View style={styles.errorIconWrapper}>
+              <Ionicons name="alert-circle-outline" size={36} color="#70001E" />
+            </View>
+            <Text style={styles.errorTitle}>Unable to Load Passbook</Text>
+            <Text style={styles.errorSubtext}>{errorMessage}</Text>
+            <TouchableOpacity
+              style={styles.retryButton}
+              onPress={handleRetry}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="refresh-outline" size={16} color="#FFFFFF" />
+              <Text style={styles.retryButtonText}>{t('retry') || 'Retry'}</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <>
+            {/* HERO / CUSTOMER SUMMARY CARD */}
+            <View style={styles.vaultCard}>
+              {customerSchemes.length > 1 ? (
+                <View style={styles.vaultCardTopRow}>
+                  <View style={styles.schemeBadge}>
+                    <Text style={styles.schemeBadgeText}>
+                      {data.slotNumber ? `SLOT #${data.slotNumber} • ` : ''}{data.schemeName || OFFICIAL_SCHEME_NAME}
+                    </Text>
+                  </View>
+                  <Text style={styles.vaultSchemeCodeText}>{data.schemeCode || 'DSS-12M'}</Text>
+                </View>
+              ) : null}
+
           {/* Middle Flex Row: Customer Info + 80x80 Progress Ring */}
           <View style={styles.vaultMiddleRow}>
             {/* Left Column: Customer Details & Monthly Deposit */}
             <View style={styles.vaultMainInfoCol}>
-              <Text style={styles.vaultCustomerName}>{data.customerName}</Text>
+              <Text style={styles.vaultCustomerName}>{data.customerName || '—'}</Text>
               <Text style={styles.vaultCustomerId}>
-                ID: #{data.customerCode}
+                ID: #{data.customerCode || '—'}
               </Text>
 
               <View style={styles.vaultDepositSection}>
@@ -258,7 +415,8 @@ export default function CustomerPassbookScreen() {
         </View>
 
         {/* DUE INSTALLMENT ALERT CARD */}
-        <View style={styles.dueAlertCard}>
+        {dueInstallment ? (
+          <View style={styles.dueAlertCard}>
           <View style={styles.dueAlertTopRow}>
             {/* Clock Icon Circle */}
             <View style={styles.clockIconCircle}>
@@ -282,7 +440,7 @@ export default function CustomerPassbookScreen() {
 
             {/* Amount */}
             <Text style={styles.dueAlertAmount}>
-              {formatCurrency(data.monthlyInstallment)}
+              {formatCurrency(dueInstallment?.installmentAmount || data.monthlyInstallment)}
             </Text>
           </View>
 
@@ -298,6 +456,7 @@ export default function CustomerPassbookScreen() {
             </TouchableOpacity>
           </View>
         </View>
+      ) : null}
 
         {/* 12-MONTH INSTALLMENT LEDGER GRID (READ-ONLY RECORD) */}
         <View style={styles.ledgerSection}>
@@ -314,10 +473,21 @@ export default function CustomerPassbookScreen() {
           {/* Outer Grid Container Card */}
           <View style={styles.ledgerGridOuterCard}>
             <View style={styles.ledgerGridContainer}>
-              {data.installments.map((inst, index) => {
-                const isPaid = inst.status === 'PAID' || index < paidCount;
-                const isDue = !isPaid && index === paidCount;
-                const instNumFormatted = `#${String(inst.installmentNumber).padStart(2, '0')}`;
+              {data.installments.length === 0 ? (
+                <View style={styles.emptyInstallmentsBox}>
+                  <Ionicons name="calendar-outline" size={32} color="#70001E" />
+                  <Text style={styles.emptyInstallmentsText}>
+                    No installment records found for this scheme.
+                  </Text>
+                </View>
+              ) : (
+                data.installments.map((inst) => {
+                  const isPaid = inst.status === 'PAID';
+                  const isDue =
+                    !isPaid &&
+                    dueInstallment !== null &&
+                    inst.installmentNumber === dueInstallment.installmentNumber;
+                  const instNumFormatted = `#${String(inst.installmentNumber).padStart(2, '0')}`;
 
                 if (isPaid) {
                   return (
@@ -340,6 +510,14 @@ export default function CustomerPassbookScreen() {
                         </Text>
                         <Text style={styles.paidDoneText}>✓ PAID</Text>
                       </View>
+                      {inst.receiptNumber ? (
+                        <View style={styles.receiptTagRow}>
+                          <Ionicons name="receipt-outline" size={10} color="#70001E" />
+                          <Text style={styles.receiptTagText} numberOfLines={1}>
+                            RCP #{inst.receiptNumber}
+                          </Text>
+                        </View>
+                      ) : null}
                     </View>
                   );
                 }
@@ -376,7 +554,9 @@ export default function CustomerPassbookScreen() {
                     <View style={styles.gridCardTopRow}>
                       <Text style={styles.futureInstNum}>{instNumFormatted}</Text>
                       <View style={styles.pendingPillBadge}>
-                        <Text style={styles.pendingPillBadgeText}>PENDING</Text>
+                        <Text style={styles.pendingPillBadgeText}>
+                          {inst.status === 'FUTURE' ? 'FUTURE' : 'PENDING'}
+                        </Text>
                       </View>
                     </View>
                     <Text style={styles.futureCardAmount}>
@@ -385,7 +565,8 @@ export default function CustomerPassbookScreen() {
                     <Text style={styles.futureCardMonth}>{inst.calendarMonth}</Text>
                   </View>
                 );
-              })}
+              })
+            )}
 
               {/* MATURITY BONUS CARD */}
               <View style={styles.bonusGridCard}>
@@ -411,15 +592,17 @@ export default function CustomerPassbookScreen() {
           </View>
         </View>
 
-        {/* DOWNLOAD PASSBOOK CTA BUTTON */}
-        <TouchableOpacity
-          style={styles.downloadButton}
-          onPress={handleDownloadPassbook}
-          activeOpacity={0.88}
-        >
-          <Ionicons name="download-outline" size={20} color="#FFFFFF" />
-          <Text style={styles.downloadButtonText}>{t('downloadPassbook')}</Text>
-        </TouchableOpacity>
+            {/* DOWNLOAD PASSBOOK CTA BUTTON */}
+            <TouchableOpacity
+              style={styles.downloadButton}
+              onPress={handleDownloadPassbook}
+              activeOpacity={0.88}
+            >
+              <Ionicons name="download-outline" size={20} color="#FFFFFF" />
+              <Text style={styles.downloadButtonText}>{t('downloadPassbook')}</Text>
+            </TouchableOpacity>
+          </>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -919,5 +1102,168 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '800',
+  },
+
+  /* MULTI-SCHEME SWITCHER */
+  schemeSwitcherContainer: {
+    marginBottom: 4,
+  },
+  schemeSwitcherHeaderLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#70001E',
+    letterSpacing: 1,
+    marginBottom: 8,
+  },
+  schemeSwitcherScroll: {
+    gap: 10,
+  },
+  schemeSwitchPill: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#E9D9C4',
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    minWidth: 140,
+  },
+  schemeSwitchPillActive: {
+    borderColor: '#70001E',
+    backgroundColor: '#FFF7D6',
+  },
+  schemeSwitchSlotBadge: {
+    backgroundColor: '#F3F0ED',
+    alignSelf: 'flex-start',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    marginBottom: 4,
+  },
+  schemeSwitchSlotBadgeActive: {
+    backgroundColor: '#70001E',
+  },
+  schemeSwitchSlotText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#6F6870',
+  },
+  schemeSwitchSlotTextActive: {
+    color: '#FFFFFF',
+  },
+  schemeSwitchTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#25232A',
+  },
+  schemeSwitchTitleActive: {
+    fontWeight: '800',
+    color: '#70001E',
+  },
+  schemeSwitchMeta: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#6F6870',
+    marginTop: 2,
+  },
+  schemeSwitchMetaActive: {
+    color: '#70001E',
+    fontWeight: '700',
+  },
+  vaultSchemeCodeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#E7C86E',
+  },
+  receiptTagRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#FFF7D6',
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 6,
+    marginTop: 6,
+    borderWidth: 0.5,
+    borderColor: '#E7C86E',
+  },
+  receiptTagText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#70001E',
+  },
+
+  /* ERROR & EMPTY STATES */
+  errorContainer: {
+    padding: 24,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#E8DED8',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginVertical: 12,
+    shadowColor: '#70001E',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 10,
+    elevation: 3,
+  },
+  errorIconWrapper: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#FDECEF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+  },
+  errorTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: '#25232A',
+    marginBottom: 6,
+    textAlign: 'center',
+  },
+  errorSubtext: {
+    fontSize: 13,
+    color: '#6F6870',
+    textAlign: 'center',
+    lineHeight: 18,
+    marginBottom: 18,
+    paddingHorizontal: 8,
+  },
+  retryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#70001E',
+    paddingVertical: 12,
+    paddingHorizontal: 22,
+    borderRadius: 12,
+    shadowColor: '#70001E',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  retryButtonText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: 0.5,
+  },
+  emptyInstallmentsBox: {
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 32,
+    paddingHorizontal: 16,
+    gap: 10,
+  },
+  emptyInstallmentsText: {
+    fontSize: 13,
+    color: '#6F6870',
+    fontWeight: '600',
+    textAlign: 'center',
   },
 });
