@@ -263,6 +263,7 @@ export interface EnrollCustomerSchemeResult {
   success: boolean;
   scheme_id: string;
   scheme_code: string;
+  slot_number?: number;
   start_month: string;
   end_month: string;
 }

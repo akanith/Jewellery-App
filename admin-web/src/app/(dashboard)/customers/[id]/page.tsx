@@ -25,14 +25,16 @@ import {
   FileText,
   Clock,
   KeyRound,
-  Trash2
+  Trash2,
+  PlusCircle,
 } from 'lucide-react';
-import { formatCurrency, formatDate, formatTime } from '@/lib/formatters';
+import { formatCurrency, formatDate } from '@/lib/formatters';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 import RecordInstallmentDrawer from '@/components/modals/RecordInstallmentDrawer';
 import EditCustomerModal from '@/components/modals/EditCustomerModal';
 import ResetPasswordModal from '@/components/modals/ResetPasswordModal';
 import DeleteCustomerModal from '@/components/modals/DeleteCustomerModal';
+import EnrollSchemeModal from '@/components/modals/EnrollSchemeModal';
 
 interface CustomerDetailPageProps {
   params: Promise<{ id: string }>;
@@ -65,9 +67,25 @@ interface InstallmentData {
   notes: string | null;
 }
 
+interface RawSchemeRow {
+  id: string;
+  scheme_code: string;
+  slot_number?: number | null;
+  monthly_installment_amount: number | string | null;
+  total_installments: number | string | null;
+  bonus_amount: number | string | null;
+  maturity_amount: number | string | null;
+  start_month: string;
+  end_month: string;
+  status: string;
+  notes: string | null;
+  scheme_installments?: InstallmentData[] | null;
+}
+
 interface SchemeData {
   id: string;
   scheme_code: string;
+  slot_number: number | null;
   monthly_installment_amount: number;
   total_installments: number;
   bonus_amount: number;
@@ -79,32 +97,208 @@ interface SchemeData {
   installments: InstallmentData[];
 }
 
+export type SchemeLifecycleStatus =
+  | 'ACTIVE'
+  | 'COMPLETED'
+  | 'MATURED'
+  | 'PARTIALLY_REDEEMED'
+  | 'FULLY_REDEEMED'
+  | 'EMERGENCY_REFUNDED'
+  | 'CANCELLED';
+
+const getStatusBadgeStyle = (status: string) => {
+  switch (status) {
+    case 'ACTIVE':
+      return 'bg-emerald-100 text-emerald-800 border-emerald-200';
+    case 'COMPLETED':
+      return 'bg-blue-100 text-blue-800 border-blue-200';
+    case 'MATURED':
+      return 'bg-purple-100 text-purple-800 border-purple-200';
+    case 'PARTIALLY_REDEEMED':
+      return 'bg-amber-100 text-amber-800 border-amber-200';
+    case 'FULLY_REDEEMED':
+      return 'bg-slate-100 text-slate-700 border-slate-200';
+    case 'EMERGENCY_REFUNDED':
+      return 'bg-rose-100 text-rose-800 border-rose-200';
+    case 'CANCELLED':
+      return 'bg-slate-100 text-slate-500 border-slate-200';
+    default:
+      return 'bg-slate-100 text-slate-700 border-slate-200';
+  }
+};
+
+const SCHEMES_QUERY_WITH_SLOT = `
+  id,
+  scheme_code,
+  slot_number,
+  monthly_installment_amount,
+  total_installments,
+  bonus_amount,
+  maturity_amount,
+  start_month,
+  end_month,
+  status,
+  notes,
+  scheme_installments (
+    id,
+    installment_number,
+    calendar_month,
+    due_date,
+    installment_amount,
+    status,
+    paid_amount,
+    paid_date,
+    notes
+  )
+`;
+
+const SCHEMES_QUERY_BASE = `
+  id,
+  scheme_code,
+  monthly_installment_amount,
+  total_installments,
+  bonus_amount,
+  maturity_amount,
+  start_month,
+  end_month,
+  status,
+  notes,
+  scheme_installments (
+    id,
+    installment_number,
+    calendar_month,
+    due_date,
+    installment_amount,
+    status,
+    paid_amount,
+    paid_date,
+    notes
+  )
+`;
+
 export default function CustomerDetailPage({ params }: CustomerDetailPageProps) {
   const router = useRouter();
   const resolvedParams = use(params);
   const customerId = resolvedParams.id;
 
   const [isLoading, setIsLoading] = useState(true);
+  const [isSchemesLoading, setIsSchemesLoading] = useState(false);
   const [customer, setCustomer] = useState<CustomerData | null>(null);
-  const [scheme, setScheme] = useState<SchemeData | null>(null);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [allSchemes, setAllSchemes] = useState<SchemeData[]>([]);
+  const [selectedSchemeId, setSelectedSchemeId] = useState<string | null>(null);
+  const [customerError, setCustomerError] = useState<string | null>(null);
+  const [schemesError, setSchemesError] = useState<string | null>(null);
   const [notFound, setNotFound] = useState(false);
 
   const [isRecordDrawerOpen, setIsRecordDrawerOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isEnrollModalOpen, setIsEnrollModalOpen] = useState(false);
 
+  // 1. Isolated Schemes Fetcher with Pre-Migration Schema Fallback
+  const fetchSchemesForCustomer = useCallback(async (custUuid: string) => {
+    setIsSchemesLoading(true);
+    setSchemesError(null);
+
+    try {
+      const supabase = getSupabaseBrowserClient();
+
+      let rawSchemes: RawSchemeRow[] = [];
+      let schemeErr: { code?: string; message?: string } | null = null;
+
+      // 1A. Attempt query with slot_number for multi-scheme architecture
+      const primaryRes = await supabase
+        .from('schemes')
+        .select(SCHEMES_QUERY_WITH_SLOT)
+        .eq('customer_id', custUuid)
+        .order('created_at', { ascending: false });
+
+      if (!primaryRes.error && primaryRes.data) {
+        rawSchemes = primaryRes.data as unknown as RawSchemeRow[];
+      } else if (
+        primaryRes.error &&
+        (primaryRes.error.code === '42703' || primaryRes.error.message?.includes('slot_number'))
+      ) {
+        // 1B. If database has not yet applied the slot_number migration (PostgreSQL error 42703),
+        // gracefully fall back to the pre-migration column list so active schemes still load.
+        const fallbackRes = await supabase
+          .from('schemes')
+          .select(SCHEMES_QUERY_BASE)
+          .eq('customer_id', custUuid)
+          .order('created_at', { ascending: false });
+
+        if (!fallbackRes.error && fallbackRes.data) {
+          rawSchemes = fallbackRes.data as unknown as RawSchemeRow[];
+        } else {
+          schemeErr = fallbackRes.error;
+        }
+      } else {
+        schemeErr = primaryRes.error;
+      }
+
+      if (schemeErr) {
+        setSchemesError(schemeErr.message || 'Failed to load savings schemes.');
+        setAllSchemes([]);
+        setSelectedSchemeId(null);
+        return;
+      }
+
+      if (rawSchemes.length > 0) {
+        const mappedSchemes: SchemeData[] = rawSchemes.map((s) => ({
+          id: s.id,
+          scheme_code: s.scheme_code,
+          slot_number: typeof s.slot_number === 'number' ? s.slot_number : (s.slot_number ? Number(s.slot_number) : null),
+          monthly_installment_amount: Number(s.monthly_installment_amount) || 1000,
+          total_installments: Number(s.total_installments) || 12,
+          bonus_amount: Number(s.bonus_amount) || 1000,
+          maturity_amount: Number(s.maturity_amount) || 13000,
+          start_month: s.start_month,
+          end_month: s.end_month,
+          status: s.status,
+          notes: s.notes,
+          installments: (s.scheme_installments || []).sort(
+            (a: InstallmentData, b: InstallmentData) => a.installment_number - b.installment_number
+          ),
+        }));
+
+        setAllSchemes(mappedSchemes);
+        setSelectedSchemeId((prev) => {
+          if (prev && mappedSchemes.some((item) => item.id === prev)) {
+            return prev;
+          }
+          const primary =
+            mappedSchemes.find((s) => s.status === 'ACTIVE') ||
+            mappedSchemes.find((s) => s.status === 'COMPLETED' || s.status === 'MATURED' || s.status === 'PARTIALLY_REDEEMED') ||
+            mappedSchemes[0];
+          return primary.id;
+        });
+      } else {
+        setAllSchemes([]);
+        setSelectedSchemeId(null);
+      }
+    } catch (err: unknown) {
+      const msg =
+        err instanceof Error
+          ? err.message
+          : typeof err === 'object' && err !== null && 'message' in err
+          ? String((err as { message: unknown }).message)
+          : 'Failed to load savings schemes.';
+      setSchemesError(msg);
+      setAllSchemes([]);
+      setSelectedSchemeId(null);
+    } finally {
+      setIsSchemesLoading(false);
+    }
+  }, []);
+
+  // 2. Main Customer Details Fetcher
   const fetchCustomerDetails = useCallback(async () => {
-    setIsLoading(true);
-    setErrorMessage(null);
-    setNotFound(false);
-
     try {
       const supabase = getSupabaseBrowserClient();
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(customerId);
 
-      // 1. Fetch Customer Record
+      // Fetch Customer Record
       let custQuery = supabase
         .from('customers')
         .select('*');
@@ -116,7 +310,9 @@ export default function CustomerDetailPage({ params }: CustomerDetailPageProps) 
       const { data: custData, error: custErr } = await custQuery.maybeSingle();
 
       if (custErr) {
-        throw custErr;
+        setCustomerError(custErr.message || 'Failed to load customer profile.');
+        setIsLoading(false);
+        return;
       }
 
       if (!custData) {
@@ -127,67 +323,27 @@ export default function CustomerDetailPage({ params }: CustomerDetailPageProps) 
 
       setCustomer(custData as CustomerData);
 
-      // 2. Fetch Customer Schemes & Installments
-      const { data: schemesData, error: schemeErr } = await supabase
-        .from('schemes')
-        .select(`
-          id,
-          scheme_code,
-          monthly_installment_amount,
-          total_installments,
-          bonus_amount,
-          maturity_amount,
-          start_month,
-          end_month,
-          status,
-          notes,
-          scheme_installments (
-            id,
-            installment_number,
-            calendar_month,
-            due_date,
-            installment_amount,
-            status,
-            paid_amount,
-            paid_date,
-            notes
-          )
-        `)
-        .eq('customer_id', custData.id)
-        .order('created_at', { ascending: false });
-
-      if (schemeErr) throw schemeErr;
-
-      const rawSchemes = schemesData || [];
-      if (rawSchemes.length > 0) {
-        const primary = rawSchemes.find((s) => s.status === 'ACTIVE') || rawSchemes[0];
-        const installments = (primary.scheme_installments || []).sort(
-          (a: InstallmentData, b: InstallmentData) => a.installment_number - b.installment_number
-        );
-
-        setScheme({
-          id: primary.id,
-          scheme_code: primary.scheme_code,
-          monthly_installment_amount: Number(primary.monthly_installment_amount) || 1000,
-          total_installments: primary.total_installments || 12,
-          bonus_amount: Number(primary.bonus_amount) || 1000,
-          maturity_amount: Number(primary.maturity_amount) || 13000,
-          start_month: primary.start_month,
-          end_month: primary.end_month,
-          status: primary.status,
-          notes: primary.notes,
-          installments,
-        });
-      } else {
-        setScheme(null);
-      }
+      // Fetch Schemes for customer in isolated operation
+      await fetchSchemesForCustomer(custData.id);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to load customer profile.';
-      setErrorMessage(msg);
+      const msg =
+        err instanceof Error
+          ? err.message
+          : typeof err === 'object' && err !== null && 'message' in err
+          ? String((err as { message: unknown }).message)
+          : 'Failed to load customer profile.';
+      setCustomerError(msg);
     } finally {
       setIsLoading(false);
     }
-  }, [customerId]);
+  }, [customerId, fetchSchemesForCustomer]);
+
+  const handleRetryCustomer = useCallback(() => {
+    setIsLoading(true);
+    setCustomerError(null);
+    setNotFound(false);
+    fetchCustomerDetails();
+  }, [fetchCustomerDetails]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -228,8 +384,8 @@ export default function CustomerDetailPage({ params }: CustomerDetailPageProps) 
     );
   }
 
-  // Fatal Error State
-  if (errorMessage && !customer) {
+  // Fatal Customer Error State (when customer record itself cannot be loaded)
+  if (customerError && !customer) {
     return (
       <div className="max-w-xl mx-auto py-16 px-6 text-center">
         <div className="luxury-card p-6 bg-rose-50 border-rose-200 text-rose-900 space-y-4">
@@ -237,13 +393,21 @@ export default function CustomerDetailPage({ params }: CustomerDetailPageProps) 
             <AlertCircle className="w-6 h-6 shrink-0" />
             <span>Failed to Load Customer Profile</span>
           </div>
-          <p className="text-xs text-rose-700">{errorMessage}</p>
-          <button
-            onClick={() => fetchCustomerDetails()}
-            className="px-4 py-2 rounded-xl bg-rose-600 text-white text-xs font-semibold hover:bg-rose-700 transition"
-          >
-            Retry Loading
-          </button>
+          <p className="text-xs text-rose-700 font-mono">{customerError}</p>
+          <div className="flex items-center justify-center gap-3">
+            <button
+              onClick={() => fetchCustomerDetails()}
+              className="px-4 py-2 rounded-xl bg-rose-600 text-white text-xs font-semibold hover:bg-rose-700 transition cursor-pointer"
+            >
+              Retry Loading
+            </button>
+            <Link
+              href="/customers"
+              className="px-4 py-2 rounded-xl border border-slate-200 text-slate-700 text-xs font-semibold hover:bg-slate-50 transition"
+            >
+              Back to Directory
+            </Link>
+          </div>
         </div>
       </div>
     );
@@ -253,7 +417,9 @@ export default function CustomerDetailPage({ params }: CustomerDetailPageProps) 
     return null;
   }
 
-  // Calculations for active scheme
+  // Selected scheme & calculations
+  const scheme = allSchemes.find((s) => s.id === selectedSchemeId) || allSchemes[0] || null;
+  const currentSlotIndex = scheme ? allSchemes.findIndex((s) => s.id === scheme.id) : 0;
   const installments = scheme?.installments || [];
   const paidCount = installments.filter((i) => i.status === 'PAID').length;
   const totalMonths = scheme?.total_installments || 12;
@@ -261,9 +427,21 @@ export default function CustomerDetailPage({ params }: CustomerDetailPageProps) 
     .filter((i) => i.status === 'PAID')
     .reduce((sum, i) => sum + (Number(i.paid_amount) || 0), 0);
   const remainingAmount = Math.max(0, (totalMonths * (scheme?.monthly_installment_amount || 1000)) - paidAmount);
-  const progressPercentage = ((paidCount / totalMonths) * 100).toFixed(1);
+  const progressPercentage = totalMonths > 0 ? ((paidCount / totalMonths) * 100).toFixed(1) : '0';
   const nextPendingInstallment = installments.find((i) => i.status === 'PENDING');
   const isMatured = scheme?.status === 'MATURED' || scheme?.status === 'COMPLETED' || paidCount === 12;
+
+  const OPEN_SCHEME_STATUSES = ['ACTIVE', 'COMPLETED', 'MATURED', 'PARTIALLY_REDEEMED'];
+  const openSchemesCount = allSchemes.filter((s) => OPEN_SCHEME_STATUSES.includes(s.status)).length;
+
+  const combinedPaidAmount = allSchemes.reduce((sum, s) => {
+    return (
+      sum +
+      s.installments
+        .filter((i) => i.status === 'PAID')
+        .reduce((iSum, i) => iSum + (Number(i.paid_amount) || 0), 0)
+    );
+  }, 0);
 
   return (
     <div className="space-y-6 pb-12 max-w-7xl mx-auto">
@@ -277,7 +455,14 @@ export default function CustomerDetailPage({ params }: CustomerDetailPageProps) 
           <span className="text-blue-900 font-bold">{customer.full_name}</span>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2.5">
+          <button
+            onClick={() => setIsEnrollModalOpen(true)}
+            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-xs font-semibold text-white transition shadow-xs cursor-pointer"
+          >
+            <PlusCircle className="w-4 h-4" />
+            <span>Add Another Scheme</span>
+          </button>
           <button
             onClick={() => setIsResetModalOpen(true)}
             className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white border border-amber-200 text-xs font-semibold text-amber-800 hover:bg-amber-50/60 transition shadow-xs cursor-pointer"
@@ -310,14 +495,14 @@ export default function CustomerDetailPage({ params }: CustomerDetailPageProps) 
       </div>
 
       {/* Error Alert */}
-      {errorMessage && (
+      {customerError && (
         <div className="luxury-card p-4 bg-rose-50 border-rose-200 text-rose-900 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <AlertCircle className="w-5 h-5 text-rose-600 shrink-0" />
-            <div className="text-xs sm:text-sm font-medium">{errorMessage}</div>
+            <div className="text-xs sm:text-sm font-medium">{customerError}</div>
           </div>
           <button
-            onClick={() => fetchCustomerDetails()}
+            onClick={handleRetryCustomer}
             className="px-3 py-1.5 rounded-lg bg-rose-600 text-white text-xs font-semibold hover:bg-rose-700 transition"
           >
             Retry
@@ -422,22 +607,117 @@ export default function CustomerDetailPage({ params }: CustomerDetailPageProps) 
 
         {/* Scheme Progress Card (Col Span 8) */}
         <div className="md:col-span-8 bg-white rounded-2xl p-6 border border-slate-200 shadow-2xs flex flex-col justify-between">
-          {!scheme ? (
-            <div className="py-12 text-center flex flex-col items-center justify-center">
-              <Sparkles className="w-10 h-10 text-slate-300 mb-2" />
+          {schemesError ? (
+            <div className="py-12 text-center flex flex-col items-center justify-center space-y-3">
+              <div className="w-12 h-12 rounded-full bg-rose-50 flex items-center justify-center mx-auto text-rose-600">
+                <AlertCircle className="w-6 h-6" />
+              </div>
+              <h3 className="text-base font-bold text-slate-800 font-serif-luxury">
+                Failed to Load Schemes
+              </h3>
+              <p className="text-xs text-rose-600 max-w-sm mx-auto font-mono">
+                {schemesError}
+              </p>
+              <button
+                type="button"
+                onClick={() => fetchSchemesForCustomer(customer.id)}
+                className="mt-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold cursor-pointer shadow-xs transition"
+              >
+                Retry Loading Schemes
+              </button>
+            </div>
+          ) : isSchemesLoading ? (
+            <div className="py-16 text-center flex flex-col items-center justify-center gap-3">
+              <Loader2 className="w-6 h-6 text-blue-600 animate-spin" />
+              <div className="text-xs font-medium text-slate-500">Loading customer savings schemes...</div>
+            </div>
+          ) : !scheme ? (
+            <div className="py-12 text-center flex flex-col items-center justify-center space-y-3">
+              <Sparkles className="w-10 h-10 text-slate-300 mx-auto" />
               <h3 className="text-base font-bold text-slate-800 font-serif-luxury">
                 No Active Scheme Enrolled
               </h3>
-              <p className="text-xs text-slate-500 mt-1 mb-4">
-                This customer does not have an active savings scheme enrolled yet.
+              <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                This customer does not have an active savings scheme enrolled yet. Enroll them now into their first scheme.
               </p>
+              <button
+                type="button"
+                onClick={() => setIsEnrollModalOpen(true)}
+                className="mt-2 px-5 py-2.5 rounded-xl royal-button font-bold text-xs flex items-center gap-2 cursor-pointer shadow-xs"
+              >
+                <PlusCircle className="w-4 h-4" />
+                <span>Enroll in Savings Scheme</span>
+              </button>
             </div>
           ) : (
             <div className="space-y-6">
+              {/* Multi-Scheme Switcher Bar (when customer has multiple schemes) */}
+              {allSchemes.length > 1 && (
+                <div className="border-b border-slate-100 pb-4">
+                  <div className="flex items-center justify-between mb-2.5">
+                    <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                      Customer Schemes ({allSchemes.length})
+                    </div>
+                    <div className="text-[11px] font-medium text-slate-500">
+                      Combined Paid: <span className="font-bold font-mono text-slate-900">{formatCurrency(combinedPaidAmount)}</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+                    {allSchemes.map((s, idx) => {
+                      const isSelected = scheme?.id === s.id;
+                      const sPaidCount = s.installments.filter((i) => i.status === 'PAID').length;
+                      return (
+                        <button
+                          key={s.id}
+                          type="button"
+                          onClick={() => setSelectedSchemeId(s.id)}
+                          className={`px-3 py-2 rounded-xl text-xs font-medium border text-left shrink-0 transition-all cursor-pointer ${
+                            isSelected
+                              ? 'bg-blue-50/80 border-blue-500 text-blue-900 shadow-2xs font-semibold'
+                              : 'bg-slate-50 hover:bg-slate-100/80 border-slate-200 text-slate-700'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                              isSelected ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-700'
+                            }`}>
+                              Slot #{s.slot_number ?? (idx + 1)}
+                            </span>
+                            <span className="font-mono font-bold text-[11px]">{s.scheme_code}</span>
+                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${getStatusBadgeStyle(s.status)}`}>
+                              {s.status}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between gap-3 mt-1.5 text-[11px] text-slate-500">
+                            <span>{formatCurrency(s.monthly_installment_amount)}/mo</span>
+                            <span>{sPaidCount}/{s.total_installments} Paid</span>
+                          </div>
+                        </button>
+                      );
+                    })}
+
+                    {/* Quick Add Another Scheme Button inside Switcher */}
+                    <button
+                      type="button"
+                      onClick={() => setIsEnrollModalOpen(true)}
+                      className="px-3.5 py-2.5 rounded-xl text-xs font-semibold border border-dashed border-blue-300 bg-blue-50/50 hover:bg-blue-100/60 text-blue-800 flex items-center gap-1.5 shrink-0 transition-colors cursor-pointer"
+                    >
+                      <PlusCircle className="w-3.5 h-3.5 text-blue-600" />
+                      <span>+ Add Scheme {openSchemesCount < 5 ? `(${openSchemesCount}/5)` : '(5/5)'}</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
                 <div>
-                  <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200 font-mono mb-2">
-                    {scheme.scheme_code}
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200 font-mono">
+                      {allSchemes.length > 1 ? `SLOT #${scheme.slot_number ?? (currentSlotIndex + 1)} • ` : ''}{scheme.scheme_code}
+                    </div>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${getStatusBadgeStyle(scheme.status)}`}>
+                      {scheme.status}
+                    </span>
                   </div>
                   <h3 className="font-heading font-bold text-xl text-slate-900">
                     12-Month Gold Savings Scheme
@@ -520,6 +800,15 @@ export default function CustomerDetailPage({ params }: CustomerDetailPageProps) 
                   </button>
                 )}
 
+                <button
+                  type="button"
+                  onClick={() => setIsEnrollModalOpen(true)}
+                  className="px-4 py-2.5 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-800 font-bold text-xs flex items-center gap-2 shadow-2xs transition cursor-pointer"
+                >
+                  <PlusCircle className="w-4 h-4 text-blue-600" />
+                  <span>Add Another Scheme {openSchemesCount > 0 ? `(${openSchemesCount}/5)` : ''}</span>
+                </button>
+
                 {isMatured && (
                   <Link
                     href={`/redemption?scheme=${scheme.id}`}
@@ -541,7 +830,7 @@ export default function CustomerDetailPage({ params }: CustomerDetailPageProps) 
           <div className="flex items-center justify-between mb-6 pb-4 border-b border-slate-100">
             <div>
               <h3 className="font-heading font-bold text-lg text-slate-900">
-                12-Month Passbook Installment Timeline
+                12-Month Passbook Installment Timeline {allSchemes.length > 1 ? `(Slot #${scheme.slot_number ?? (currentSlotIndex + 1)} • ${scheme.scheme_code})` : ''}
               </h3>
               <p className="text-xs text-slate-500 mt-0.5">
                 Complete record of scheduled and paid monthly installments
@@ -692,6 +981,28 @@ export default function CustomerDetailPage({ params }: CustomerDetailPageProps) 
             sessionStorage.setItem('flash_message', msg);
             router.push('/customers');
             router.refresh();
+          }}
+        />
+      )}
+
+      {/* Enroll in Another Scheme Modal */}
+      {customer && (
+        <EnrollSchemeModal
+          isOpen={isEnrollModalOpen}
+          onClose={() => setIsEnrollModalOpen(false)}
+          customer={{
+            id: customer.id,
+            customer_code: customer.customer_code,
+            full_name: customer.full_name,
+            phone_number: customer.phone_number,
+          }}
+          existingSchemes={allSchemes}
+          onSuccess={async (newSchemeId) => {
+            setIsEnrollModalOpen(false);
+            await fetchCustomerDetails();
+            if (newSchemeId) {
+              setSelectedSchemeId(newSchemeId);
+            }
           }}
         />
       )}

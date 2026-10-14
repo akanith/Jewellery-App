@@ -42,9 +42,13 @@ Thumbs.db
 # Playwright
 admin-web/playwright-report/
 admin-web/test-results/
+test-results/
 .playwright-mcp/
 
 
 # Vercel
 .vercel/
 
+# Production database dumps & backups
+backups/
+*.sql.bak

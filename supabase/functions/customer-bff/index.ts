@@ -80,6 +80,10 @@ function getSupabaseAdminClient() {
     }
   }
 
+  if (!secretKey) {
+    secretKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  }
+
   if (!supabaseUrl || !secretKey) {
     throw new Error("Missing required Supabase environment configuration.");
   }
@@ -459,32 +463,49 @@ async function handleDashboard(req: Request): Promise<Response> {
       return jsonResponse({ success: false, error: "Customer profile not found." }, 404);
     }
 
-    // 2. Fetch current active scheme
-    const { data: scheme } = await supabase
+    // 2. Fetch all schemes for the authenticated customer
+    const OPEN_STATUSES = ["ACTIVE", "COMPLETED", "MATURED", "PARTIALLY_REDEEMED"];
+    const { data: allSchemes, error: schemesError } = await supabase
       .from("schemes")
       .select("*")
       .eq("customer_id", session.customerId)
-      .order("created_at", { ascending: false })
-      .maybeSingle();
+      .order("created_at", { ascending: false });
 
-    // 3. Fetch installments for scheme
-    let installments: any[] = [];
-    if (scheme) {
-      const { data: instData } = await supabase
+    if (schemesError) {
+      console.error("Dashboard schemes query error:", schemesError);
+      return jsonResponse({ success: false, error: "Failed to fetch customer schemes." }, 500);
+    }
+
+    const schemesList = allSchemes || [];
+    const schemeIds = schemesList.map((s) => s.id);
+
+    // 3. Fetch installments across all customer schemes
+    let allInstallments: any[] = [];
+    if (schemeIds.length > 0) {
+      const { data: instData, error: instError } = await supabase
         .from("scheme_installments")
         .select("*")
-        .eq("scheme_id", scheme.id)
+        .in("scheme_id", schemeIds)
         .order("installment_number", { ascending: true });
-      installments = instData || [];
+
+      if (instError) {
+        console.error("Dashboard installments query error:", instError);
+        return jsonResponse({ success: false, error: "Failed to fetch installments." }, 500);
+      }
+      allInstallments = instData || [];
     }
 
     // 4. Fetch recent payments
-    const { data: recentPayments } = await supabase
+    const { data: recentPayments, error: paymentsError } = await supabase
       .from("payments")
       .select("*")
       .eq("customer_id", session.customerId)
       .order("payment_date", { ascending: false })
       .limit(5);
+
+    if (paymentsError) {
+      console.error("Dashboard payments query error:", paymentsError);
+    }
 
     // 5. Fetch unread notifications count
     const { count: unreadCount } = await supabase
@@ -493,22 +514,92 @@ async function handleDashboard(req: Request): Promise<Response> {
       .eq("customer_id", session.customerId)
       .eq("is_read", false);
 
-    // Calculate aggregated metrics
-    const paidInstallments = installments.filter((i) => i.status === "PAID").length;
-    const totalInstallments = scheme?.total_installments || 12;
-    const paidAmount = installments
-      .filter((i) => i.status === "PAID")
-      .reduce((sum, i) => sum + Number(i.paid_amount || i.installment_amount || 0), 0);
-    const targetContribution = Number(scheme?.target_contribution || 12000);
-    const remainingContribution = Math.max(0, targetContribution - paidAmount);
-    const bonusAmount = Number(scheme?.bonus_amount || 1000);
-    const maturityAmount = Number(scheme?.maturity_amount || 13000);
-    const progressPercentage = Math.min(
-      100,
-      Math.round((paidInstallments / totalInstallments) * 100)
-    );
+    // 6. Map each scheme into individual summary
+    const mappedSchemes = schemesList.map((s, idx) => {
+      const sInsts = allInstallments.filter((i) => i.scheme_id === s.id);
+      const sPaidInsts = sInsts.filter((i) => i.status === "PAID").length;
+      const sTotalInsts = s.total_installments || 12;
+      const sPaidAmount = sInsts
+        .filter((i) => i.status === "PAID")
+        .reduce((sum, i) => sum + Number(i.paid_amount || i.installment_amount || 0), 0);
+      const sTargetContribution = Number(s.target_contribution || 12000);
+      const sRemainingContribution = Math.max(0, sTargetContribution - sPaidAmount);
+      const sBonusAmount = Number(s.bonus_amount || 1000);
+      const sMaturityAmount = Number(s.maturity_amount || 13000);
+      const sProgressPercentage = Math.min(
+        100,
+        Math.round((sPaidInsts / sTotalInsts) * 100)
+      );
+      const sNextPending = sInsts.find((i) => i.status === "PENDING");
 
-    const nextPending = installments.find((i) => i.status === "PENDING");
+      return {
+        schemeId: s.id,
+        slotNumber: s.slot_number ?? (idx + 1),
+        schemeName: "Ramyas Jeweller Savings Scheme",
+        schemeCode: s.scheme_code,
+        monthlyInstallmentAmount: Number(s.monthly_installment_amount || 1000),
+        paidAmount: sPaidAmount,
+        remainingContribution: sRemainingContribution,
+        paidInstallments: sPaidInsts,
+        totalInstallments: sTotalInsts,
+        maturityAmount: sMaturityAmount,
+        bonusAmount: sBonusAmount,
+        maturityDate: formatMonthYear(s.end_month),
+        progressPercentage: sProgressPercentage,
+        status: s.status,
+        currentInstallment: sNextPending
+          ? {
+              installmentNumber: sNextPending.installment_number,
+              calendarMonth: formatMonthYear(sNextPending.calendar_month),
+              dueDateFormatted: formatDateFormatted(sNextPending.due_date),
+              amount: Number(sNextPending.installment_amount),
+              status: sNextPending.status,
+            }
+          : null,
+      };
+    });
+
+    // Determine primary scheme (first open scheme, or latest scheme)
+    const primarySchemeSummary =
+      mappedSchemes.find((m) => OPEN_STATUSES.includes(m.status)) ||
+      mappedSchemes[0] ||
+      null;
+
+    const primaryNextPending = primarySchemeSummary?.currentInstallment || null;
+
+    // 7. Calculate combined summary metrics across all schemes
+    const activeSchemes = mappedSchemes.filter((m) => OPEN_STATUSES.includes(m.status));
+    const combinedSummary = {
+      totalSchemesCount: mappedSchemes.length,
+      activeSchemesCount: activeSchemes.length,
+      totalPaidAmount: mappedSchemes.reduce((sum, m) => sum + m.paidAmount, 0),
+      totalTargetContribution: mappedSchemes.reduce(
+        (sum, m) => sum + (m.paidAmount + m.remainingContribution),
+        0
+      ),
+      totalRemainingContribution: mappedSchemes.reduce(
+        (sum, m) => sum + m.remainingContribution,
+        0
+      ),
+      totalMaturityAmount: mappedSchemes.reduce((sum, m) => sum + m.maturityAmount, 0),
+      totalBonusAmount: mappedSchemes.reduce((sum, m) => sum + m.bonusAmount, 0),
+      totalPaidInstallments: mappedSchemes.reduce((sum, m) => sum + m.paidInstallments, 0),
+      totalInstallmentsCount: mappedSchemes.reduce((sum, m) => sum + m.totalInstallments, 0),
+      overallProgressPercentage:
+        mappedSchemes.length > 0
+          ? Math.min(
+              100,
+              Math.round(
+                (mappedSchemes.reduce((sum, m) => sum + m.paidInstallments, 0) /
+                  Math.max(
+                    1,
+                    mappedSchemes.reduce((sum, m) => sum + m.totalInstallments, 0)
+                  )) *
+                  100
+              )
+            )
+          : 0,
+    };
 
     return jsonResponse({
       success: true,
@@ -517,31 +608,12 @@ async function handleDashboard(req: Request): Promise<Response> {
         customerCode: customer.customer_code,
         mobileNumber: customer.phone_number,
         unreadNotificationsCount: unreadCount || 0,
-        scheme: scheme
-          ? {
-              schemeId: scheme.id,
-              schemeName: "Ramyas Jeweller Savings Scheme",
-              schemeCode: scheme.scheme_code,
-              paidAmount,
-              remainingContribution,
-              paidInstallments,
-              totalInstallments,
-              maturityAmount,
-              bonusAmount,
-              maturityDate: formatMonthYear(scheme.end_month),
-              progressPercentage,
-              status: scheme.status,
-            }
-          : null,
-        currentInstallment: nextPending
-          ? {
-              installmentNumber: nextPending.installment_number,
-              calendarMonth: formatMonthYear(nextPending.calendar_month),
-              dueDateFormatted: formatDateFormatted(nextPending.due_date),
-              amount: Number(nextPending.installment_amount),
-              status: nextPending.status,
-            }
-          : null,
+        // Backward-compatible fields
+        scheme: primarySchemeSummary,
+        currentInstallment: primaryNextPending,
+        // Multi-scheme additions
+        schemes: mappedSchemes,
+        summary: combinedSummary,
         recentPayments: (recentPayments || []).map((p) => ({
           id: p.receipt_number,
           calendarMonth: formatMonthYear(p.payment_date),
@@ -567,39 +639,130 @@ async function handlePassbook(req: Request): Promise<Response> {
     return jsonResponse({ success: false, error: "Unauthorized session." }, 401);
   }
 
+  // 1. Parse and validate optional schemeId query parameter
+  const url = new URL(req.url);
+  const rawSchemeId = url.searchParams.get("schemeId") || url.searchParams.get("scheme_id");
+  let requestedSchemeId: string | null = null;
+
+  if (rawSchemeId !== null && rawSchemeId !== undefined) {
+    const trimmed = rawSchemeId.trim();
+    if (trimmed.length > 0) {
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (!uuidRegex.test(trimmed)) {
+        return jsonResponse({ success: false, error: "Invalid scheme ID format." }, 400);
+      }
+      requestedSchemeId = trimmed;
+    }
+  }
+
   try {
     const supabase = getSupabaseAdminClient();
 
-    const { data: customer } = await supabase
+    const { data: customer, error: customerError } = await supabase
       .from("customers")
       .select("id, customer_code, full_name")
       .eq("id", session.customerId)
       .single();
 
-    const { data: scheme } = await supabase
-      .from("schemes")
-      .select("*")
-      .eq("customer_id", session.customerId)
-      .order("created_at", { ascending: false })
-      .maybeSingle();
+    if (customerError || !customer) {
+      return jsonResponse({ success: false, error: "Customer profile not found." }, 404);
+    }
 
+    // 2. Fetch targeted scheme, strictly enforcing customer ownership
+    let scheme: any = null;
+
+    if (requestedSchemeId) {
+      // 2A. Explicit scheme requested: verify customer ownership regardless of open/closed status
+      const { data: explicitScheme, error: schemeError } = await supabase
+        .from("schemes")
+        .select("*")
+        .eq("id", requestedSchemeId)
+        .eq("customer_id", session.customerId)
+        .maybeSingle();
+
+      if (schemeError) {
+        console.error("Scheme query error:", schemeError);
+        return jsonResponse({ success: false, error: "Failed to fetch scheme details." }, 500);
+      }
+
+      if (!explicitScheme) {
+        return jsonResponse({ success: false, error: "Scheme not found." }, 404);
+      }
+
+      scheme = explicitScheme;
+    } else {
+      // 2B. Default selection: query most recently created eligible open scheme
+      const OPEN_STATUSES = ["ACTIVE", "COMPLETED", "MATURED", "PARTIALLY_REDEEMED"];
+      const { data: openScheme, error: openSchemeError } = await supabase
+        .from("schemes")
+        .select("*")
+        .eq("customer_id", session.customerId)
+        .in("status", OPEN_STATUSES)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (openSchemeError) {
+        console.error("Open scheme query error:", openSchemeError);
+        return jsonResponse({ success: false, error: "Failed to fetch scheme details." }, 500);
+      }
+
+      if (openScheme) {
+        scheme = openScheme;
+      } else {
+        // Fallback: If no eligible open scheme exists, check for most recent historical scheme
+        const { data: latestAnyScheme, error: anySchemeError } = await supabase
+          .from("schemes")
+          .select("*")
+          .eq("customer_id", session.customerId)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (anySchemeError) {
+          console.error("Historical scheme query error:", anySchemeError);
+          return jsonResponse({ success: false, error: "Failed to fetch scheme details." }, 500);
+        }
+
+        scheme = latestAnyScheme;
+      }
+    }
+
+    // 3. Fetch installments strictly for this scheme
     let installments: any[] = [];
     if (scheme) {
-      const { data: instData } = await supabase
+      const { data: instData, error: instError } = await supabase
         .from("scheme_installments")
         .select("*")
         .eq("scheme_id", scheme.id)
         .order("installment_number", { ascending: true });
+
+      if (instError) {
+        console.error("Installments query error:", instError);
+        return jsonResponse({ success: false, error: "Failed to fetch installments." }, 500);
+      }
       installments = instData || [];
     }
 
-    const { data: payments } = await supabase
-      .from("payments")
-      .select("*")
-      .eq("customer_id", session.customerId);
+    // 4. Fetch payments strictly scoped to both customer_id AND scheme.id
+    let payments: any[] = [];
+    if (scheme) {
+      const { data: payData, error: payError } = await supabase
+        .from("payments")
+        .select("*")
+        .eq("customer_id", session.customerId)
+        .eq("scheme_id", scheme.id);
 
+      if (payError) {
+        console.error("Payments query error:", payError);
+        return jsonResponse({ success: false, error: "Failed to fetch payments." }, 500);
+      }
+      payments = payData || [];
+    }
+
+    // 5. Populate paymentMap scoped strictly to this scheme (no cross-scheme collisions)
     const paymentMap = new Map();
-    (payments || []).forEach((p) => {
+    payments.forEach((p) => {
       paymentMap.set(p.installment_number, p);
     });
 
@@ -628,6 +791,8 @@ async function handlePassbook(req: Request): Promise<Response> {
     return jsonResponse({
       success: true,
       data: {
+        schemeId: scheme?.id || null,
+        slotNumber: scheme?.slot_number ?? null,
         customerName: customer?.full_name || session.fullName,
         customerCode: customer?.customer_code || session.customerCode,
         schemeName: "Ramyas Jeweller Savings Scheme",
