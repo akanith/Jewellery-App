@@ -1,7 +1,10 @@
 import { defineConfig, devices } from '@playwright/test';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-if (supabaseUrl.includes('yjpbswsgtbmgageburmy.supabase.co')) {
+const supabaseUrl = (process.env.NEXT_PUBLIC_SUPABASE_URL || '').toLowerCase().trim();
+if (
+  supabaseUrl.includes('yjpbswsgtbmgageburmy') ||
+  supabaseUrl.includes('yjpbswsgtbmgageburmy.supabase.co')
+) {
   throw new Error(
     '[FATAL SAFETY GUARD] Playwright E2E configuration resolved to PRODUCTION Supabase URL (yjpbswsgtbmgageburmy.supabase.co). Playwright E2E execution aborted to prevent production database corruption.'
   );
@@ -51,5 +54,9 @@ export default defineConfig({
     url: 'http://localhost:3000',
     reuseExistingServer: !process.env.CI,
     timeout: 120000,
+    env: {
+      NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || '',
+    },
   },
 });

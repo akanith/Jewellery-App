@@ -4,6 +4,7 @@ import {
   generateTestMobile,
   generateTestName,
   deleteTestCustomer,
+  cancelTestSchemeForTesting,
 } from './helpers/test-utils';
 
 test.describe('AW-MS-01: Multi-Scheme Five-Slot Architecture & Record Installment E2E', () => {
@@ -88,19 +89,43 @@ test.describe('AW-MS-01: Multi-Scheme Five-Slot Architecture & Record Installmen
     expect(slot6Res.error?.message).toMatch(/maximum 5 active schemes/i);
 
     // 5. Lowest-Free-Slot Recovery: Cancel Scheme in Slot #3
-    const { error: cancelErr } = await supabase
+    // 5a. Authorization Behavior: Verify authenticated admin is forbidden from direct table UPDATE on public.schemes (RLS Defense-in-Depth)
+    const { error: directUpdateErr } = await supabase
       .from('schemes')
       .update({ status: 'CANCELLED' })
       .eq('id', scheme3Id);
-    expect(cancelErr).toBeNull();
+    expect(directUpdateErr).not.toBeNull();
+    expect(directUpdateErr?.code).toBe('42501');
 
-    // Re-enroll: Must reclaim freed Slot #3!
+    // 5b. Transition Scheme #3 to CANCELLED via trusted test-fixture helper (isolated test environment only)
+    await cancelTestSchemeForTesting(scheme3Id);
+
+    // 5c. Verify Scheme #3 is now CANCELLED in DB and retains its original slot_number (3)
+    const { data: s3CancelledData, error: s3CancelledErr } = await supabase
+      .from('schemes')
+      .select('id, slot_number, status')
+      .eq('id', scheme3Id)
+      .single();
+    expect(s3CancelledErr).toBeNull();
+    expect(s3CancelledData!.status).toBe('CANCELLED');
+    expect(s3CancelledData!.slot_number).toBe(3);
+
+    // 5d. Re-enroll: Must reclaim freed lowest Slot #3!
     const reclaimedRes = await supabase.rpc('enroll_customer_scheme', {
       p_customer_id: createdCustomerId,
       p_start_month: startMonthStr,
     });
     expect(reclaimedRes.error).toBeNull();
     expect(reclaimedRes.data.slot_number).toBe(3);
+    expect(reclaimedRes.data.scheme_id).not.toBe(scheme3Id);
+
+    // 5e. Re-verify 6th-enrollment rejection (all 5 slots are now occupied again: 1, 2, 4, 5, and reclaimed 3)
+    const slot6RetryRes = await supabase.rpc('enroll_customer_scheme', {
+      p_customer_id: createdCustomerId,
+      p_start_month: startMonthStr,
+    });
+    expect(slot6RetryRes.error).not.toBeNull();
+    expect(slot6RetryRes.error?.message).toMatch(/maximum 5 active schemes/i);
 
     // 6. Record Installment Payment against Scheme 2 (Slot #2)
     const { data: payData, error: payErr } = await supabase.rpc('record_installment_payment', {

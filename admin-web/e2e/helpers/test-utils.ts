@@ -1,14 +1,27 @@
 import { createClient } from '@supabase/supabase-js';
 import { Page, expect } from '@playwright/test';
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const SUPABASE_PUBLISHABLE_KEY = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
+const SUPABASE_PUBLISHABLE_KEY = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY?.trim();
 
-if (!SUPABASE_URL || SUPABASE_URL.includes('yjpbswsgtbmgageburmy.supabase.co')) {
-  throw new Error(
-    '[FATAL SAFETY GUARD] Playwright E2E tests are configured against the PRODUCTION Supabase instance (yjpbswsgtbmgageburmy.supabase.co) or NEXT_PUBLIC_SUPABASE_URL is missing. E2E tests MUST run against an isolated local/staging environment.'
-  );
+export function assertNotProductionSupabase(url?: string): void {
+  if (!url || url.trim() === '') {
+    throw new Error(
+      '[FATAL SAFETY GUARD] NEXT_PUBLIC_SUPABASE_URL is missing. E2E tests MUST run against an isolated local/staging environment.'
+    );
+  }
+  const normalized = url.toLowerCase().trim();
+  if (
+    normalized.includes('yjpbswsgtbmgageburmy') ||
+    normalized.includes('yjpbswsgtbmgageburmy.supabase.co')
+  ) {
+    throw new Error(
+      '[FATAL SAFETY GUARD] Playwright E2E tests are configured against the PRODUCTION Supabase instance (yjpbswsgtbmgageburmy.supabase.co). E2E execution aborted to prevent production database corruption.'
+    );
+  }
 }
+
+assertNotProductionSupabase(SUPABASE_URL);
 
 export function getTestSupabaseClient() {
   return createClient(SUPABASE_URL!, SUPABASE_PUBLISHABLE_KEY!, {
@@ -188,9 +201,65 @@ export async function createTestCustomerWithPastScheme(
 }
 
 /**
+ * Retrieves a service-role Supabase client strictly for isolated E2E test-fixture setup/teardown.
+ * Protected by fatal safety guard to prevent execution against production.
+ * NEVER expose this or the service-role key to browser/client code.
+ */
+export function getTestServiceRoleClient() {
+  assertNotProductionSupabase(SUPABASE_URL);
+
+  const isLocalEnv = SUPABASE_URL.includes('127.0.0.1') || SUPABASE_URL.includes('localhost');
+  const serviceKey =
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    (isLocalEnv
+      ? 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU'
+      : undefined);
+
+  if (!serviceKey) {
+    throw new Error(
+      '[E2E Test Fixture Error] SUPABASE_SERVICE_ROLE_KEY environment variable is missing. Test fixture operations require service-role access in the isolated test environment.'
+    );
+  }
+
+  return createClient(SUPABASE_URL, serviceKey, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+    },
+  });
+}
+
+/**
+ * Test fixture helper to transition a scheme to CANCELLED in the isolated test environment.
+ * Direct table updates on `public.schemes` are strictly forbidden for authenticated users
+ * by database RLS/privilege grants (REVOKE UPDATE ON public.schemes FROM authenticated).
+ * This helper uses the service-role client strictly within the Node test runner (with production
+ * safety checks) to simulate historical scheme closure for slot-reclamation testing.
+ *
+ * NEVER expose the service-role key to client/browser code.
+ */
+export async function cancelTestSchemeForTesting(schemeId: string): Promise<void> {
+  if (!schemeId || typeof schemeId !== 'string') {
+    throw new Error(`[E2E Test Fixture Error] Invalid schemeId provided: ${schemeId}`);
+  }
+
+  const adminServiceClient = getTestServiceRoleClient();
+
+  const { error } = await adminServiceClient
+    .from('schemes')
+    .update({ status: 'CANCELLED' })
+    .eq('id', schemeId);
+
+  if (error) {
+    throw new Error(`[E2E Test Fixture Error] Failed to cancel scheme ${schemeId}: ${error.message}`);
+  }
+}
+
+/**
  * Safely deletes a test-created customer in the isolated test database.
- * Cleans up child records (payments, installments, redemptions, schemes, auth, audit logs)
- * and deletes the customer/profile records. Throws an error if cleanup fails.
+ * First attempts atomic deletion via the security-definer `delete_customer_account` RPC.
+ * Falls back to cascading child deletion if necessary.
+ * Throws an error if cleanup fails.
  */
 export async function deleteTestCustomer(customerId: string): Promise<boolean> {
   if (!customerId || typeof customerId !== 'string' || customerId.length < 32) {
@@ -200,7 +269,17 @@ export async function deleteTestCustomer(customerId: string): Promise<boolean> {
   try {
     const supabase = await getAuthenticatedAdminSupabaseClient();
 
-    // Clean up child financial/scheme records first to ensure clean deletion in isolated test DB
+    // 1. Prefer calling the official delete_customer_account SECURITY DEFINER RPC
+    const { error: rpcErr } = await supabase.rpc('delete_customer_account', {
+      p_customer_id: customerId,
+    });
+
+    if (!rpcErr) {
+      console.log(`[E2E Teardown] Cleaned up temporary test customer ${customerId} via delete_customer_account`);
+      return true;
+    }
+
+    // 2. Fallback: Clean up child financial/scheme records first to ensure clean deletion in isolated test DB
     await supabase.from('redemption_items').delete().eq('customer_id', customerId);
     await supabase.from('redemptions').delete().eq('customer_id', customerId);
     await supabase.from('payments').delete().eq('customer_id', customerId);
