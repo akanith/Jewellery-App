@@ -129,6 +129,7 @@ test.describe('Phase 6 — Supabase & BFF Security Audit Tests', () => {
       supabase.rpc('admin_cleanup_pre_production_audit_logs', { p_confirmation_phrase: 'test' }),
       supabase.rpc('admin_cleanup_six_test_customers', { p_confirmation_phrase: 'test' }),
       supabase.rpc('reset_customer_code_sequence'),
+      supabase.rpc('set_customer_initial_password', { p_customer_id: '00000000-0000-0000-0000-000000000001' }),
     ]);
 
     for (const result of maintenanceCalls) {
@@ -168,5 +169,17 @@ test.describe('Phase 6 — Supabase & BFF Security Audit Tests', () => {
     expect(data).toBeNull();
     expect(error).not.toBeNull();
     expect(error?.message).toMatch(/only super administrators/i);
+  });
+
+  test('SEC-10: Deactivated or non-admin callers cannot execute administrative RPCs', async () => {
+    const { data, error } = await supabase.rpc('update_customer_profile', {
+      p_customer_id: '00000000-0000-0000-0000-000000000001',
+      p_full_name: 'Test Inactive Admin',
+      p_phone_number: '9876543210',
+    });
+
+    expect(data).toBeNull();
+    expect(error).not.toBeNull();
+    expect(error?.message).toMatch(/unauthorized|admin access required|only registered administrators/i);
   });
 });
