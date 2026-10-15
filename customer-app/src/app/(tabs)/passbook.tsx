@@ -502,7 +502,7 @@ export default function CustomerPassbookScreen() {
                         </View>
                       </View>
                       <Text style={styles.gridCardAmount}>
-                        {formatCurrency(inst.installmentAmount || 1000)}
+                        {formatCurrency(inst.installmentAmount || data.monthlyInstallment || 1000)}
                       </Text>
                       <View style={styles.gridCardBottomRow}>
                         <Text style={styles.gridCardDate}>
@@ -535,7 +535,7 @@ export default function CustomerPassbookScreen() {
                         </View>
                       </View>
                       <Text style={styles.dueGridCardAmount}>
-                        {formatCurrency(inst.installmentAmount || 1000)}
+                        {formatCurrency(inst.installmentAmount || data.monthlyInstallment || 1000)}
                       </Text>
                       <Text style={styles.dueInstDate}>
                         {inst.calendarMonth}
@@ -560,7 +560,7 @@ export default function CustomerPassbookScreen() {
                       </View>
                     </View>
                     <Text style={styles.futureCardAmount}>
-                      {formatCurrency(inst.installmentAmount || 1000)}
+                      {formatCurrency(inst.installmentAmount || data.monthlyInstallment || 1000)}
                     </Text>
                     <Text style={styles.futureCardMonth}>{inst.calendarMonth}</Text>
                   </View>

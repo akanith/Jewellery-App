@@ -26,15 +26,19 @@
       "favicon": "./assets/images/favicon.png"
     },
     "splash": {
+      "image": "./assets/images/splash-icon.png",
       "resizeMode": "cover",
       "backgroundColor": "#FAF3EC"
     },
     "plugins": [
       "expo-router",
+      "expo-dev-client",
       [
         "expo-splash-screen",
         {
           "backgroundColor": "#FAF3EC",
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 100,
           "resizeMode": "cover"
         }
       ]
@@ -42,6 +46,13 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "ac59e67a-2503-41dd-adf7-6b31b30fa86e"
+      }
+    },
+    "owner": "akanith15"
   }
 }
