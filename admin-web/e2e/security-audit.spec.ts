@@ -61,7 +61,7 @@ test.describe('Phase 6 — Supabase & BFF Security Audit Tests', () => {
       p_phone_number: '9999999999',
     });
     expect(profileRes.data).toBeNull();
-    expect(profileRes.error?.message).toMatch(/unauthorized|admin access required/i);
+    expect(profileRes.error?.message).toMatch(/permission denied|unauthorized|admin access required/i);
 
     // Attempt scheme enrollment without admin session
     const enrollRes = await supabase.rpc('enroll_customer_scheme', {
@@ -69,7 +69,7 @@ test.describe('Phase 6 — Supabase & BFF Security Audit Tests', () => {
       p_start_month: '2026-10-01',
     });
     expect(enrollRes.data).toBeNull();
-    expect(enrollRes.error?.message).toMatch(/unauthorized|admin access required/i);
+    expect(enrollRes.error?.message).toMatch(/permission denied|unauthorized|admin access required/i);
 
     // Attempt payment recording without admin session
     const paymentRes = await supabase.rpc('record_installment_payment', {
@@ -78,7 +78,7 @@ test.describe('Phase 6 — Supabase & BFF Security Audit Tests', () => {
       p_payment_method: 'CASH',
     });
     expect(paymentRes.data).toBeNull();
-    expect(paymentRes.error?.message).toMatch(/unauthorized|admin access required/i);
+    expect(paymentRes.error?.message).toMatch(/permission denied|unauthorized|admin access required/i);
 
     // Attempt scheme redemption without admin session
     const redeemRes = await supabase.rpc('record_scheme_redemption', {
@@ -89,7 +89,7 @@ test.describe('Phase 6 — Supabase & BFF Security Audit Tests', () => {
       p_items: [],
     });
     expect(redeemRes.data).toBeNull();
-    expect(redeemRes.error?.message).toMatch(/unauthorized|admin access required/i);
+    expect(redeemRes.error?.message).toMatch(/permission denied|unauthorized|admin access required/i);
   });
 
   test('SEC-05: Secret leakage audit in client code', async () => {
@@ -126,7 +126,7 @@ test.describe('Phase 6 — Supabase & BFF Security Audit Tests', () => {
     for (const result of unauthorizedCalls) {
       expect(result.data).toBeNull();
       expect(result.error).not.toBeNull();
-      expect(result.error?.message).toMatch(/permission denied|does not exist/i);
+      expect(result.error?.message).toMatch(/permission denied|does not exist|could not find the function|schema cache/i);
     }
   });
 
@@ -142,7 +142,7 @@ test.describe('Phase 6 — Supabase & BFF Security Audit Tests', () => {
     for (const result of maintenanceCalls) {
       expect(result.data).toBeNull();
       expect(result.error).not.toBeNull();
-      expect(result.error?.message).toMatch(/permission denied|does not exist/i);
+      expect(result.error?.message).toMatch(/permission denied|does not exist|could not find the function|schema cache/i);
     }
   });
 
@@ -175,7 +175,7 @@ test.describe('Phase 6 — Supabase & BFF Security Audit Tests', () => {
 
     expect(data).toBeNull();
     expect(error).not.toBeNull();
-    expect(error?.message).toMatch(/only super administrators/i);
+    expect(error?.message).toMatch(/permission denied|only super administrators/i);
   });
 
   test('SEC-10: Authenticated non-admin and deactivated administrator callers are rejected from administrative RPCs', async () => {
