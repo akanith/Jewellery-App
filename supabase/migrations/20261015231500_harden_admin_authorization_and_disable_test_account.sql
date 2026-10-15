@@ -70,34 +70,37 @@ DECLARE
     v_test_admin_active BOOLEAN;
     v_test_admin_super BOOLEAN;
 BEGIN
-    -- Exactly 2 active administrators must remain (ADMIN001 and ADMIN002)
-    SELECT COUNT(*) INTO v_active_admins
-    FROM public.admin_users a
-    JOIN public.profiles p ON p.id = a.id
-    WHERE p.role = 'ADMIN' AND p.is_active = TRUE;
+    -- If EMP-E2E-TEST exists (target production environment), verify exact state after migration
+    IF EXISTS (SELECT 1 FROM public.admin_users WHERE employee_code = 'EMP-E2E-TEST') THEN
+        -- Exactly 2 active administrators must remain (ADMIN001 and ADMIN002)
+        SELECT COUNT(*) INTO v_active_admins
+        FROM public.admin_users a
+        JOIN public.profiles p ON p.id = a.id
+        WHERE p.role = 'ADMIN' AND p.is_active = TRUE;
 
-    IF v_active_admins <> 2 THEN
-        RAISE EXCEPTION 'MIGRATION ASSERTION FAILED: Expected exactly 2 active administrators, found %', v_active_admins;
-    END IF;
+        IF v_active_admins <> 2 THEN
+            RAISE EXCEPTION 'MIGRATION ASSERTION FAILED: Expected exactly 2 active administrators, found %', v_active_admins;
+        END IF;
 
-    -- Exactly 2 super administrators must remain (ADMIN001 and ADMIN002)
-    SELECT COUNT(*) INTO v_super_admins
-    FROM public.admin_users a
-    JOIN public.profiles p ON p.id = a.id
-    WHERE p.role = 'ADMIN' AND p.is_active = TRUE AND a.is_super_admin = TRUE;
+        -- Exactly 2 super administrators must remain (ADMIN001 and ADMIN002)
+        SELECT COUNT(*) INTO v_super_admins
+        FROM public.admin_users a
+        JOIN public.profiles p ON p.id = a.id
+        WHERE p.role = 'ADMIN' AND p.is_active = TRUE AND a.is_super_admin = TRUE;
 
-    IF v_super_admins <> 2 THEN
-        RAISE EXCEPTION 'MIGRATION ASSERTION FAILED: Expected exactly 2 active super-administrators, found %', v_super_admins;
-    END IF;
+        IF v_super_admins <> 2 THEN
+            RAISE EXCEPTION 'MIGRATION ASSERTION FAILED: Expected exactly 2 active super-administrators, found %', v_super_admins;
+        END IF;
 
-    -- Verify EMP-E2E-TEST is strictly deactivated
-    SELECT p.is_active, a.is_super_admin INTO v_test_admin_active, v_test_admin_super
-    FROM public.admin_users a
-    JOIN public.profiles p ON p.id = a.id
-    WHERE a.employee_code = 'EMP-E2E-TEST';
+        -- Verify EMP-E2E-TEST is strictly deactivated
+        SELECT p.is_active, a.is_super_admin INTO v_test_admin_active, v_test_admin_super
+        FROM public.admin_users a
+        JOIN public.profiles p ON p.id = a.id
+        WHERE a.employee_code = 'EMP-E2E-TEST';
 
-    IF v_test_admin_active IS NOT FALSE OR v_test_admin_super IS NOT FALSE THEN
-        RAISE EXCEPTION 'MIGRATION ASSERTION FAILED: EMP-E2E-TEST was not properly deactivated';
+        IF v_test_admin_active IS NOT FALSE OR v_test_admin_super IS NOT FALSE THEN
+            RAISE EXCEPTION 'MIGRATION ASSERTION FAILED: EMP-E2E-TEST was not properly deactivated';
+        END IF;
     END IF;
 END $$;
 
