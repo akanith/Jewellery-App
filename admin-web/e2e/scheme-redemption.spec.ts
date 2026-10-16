@@ -27,13 +27,11 @@ test.describe('AW-09: Scheme Maturity Redemption', () => {
     const customerName = generateTestName();
     const phoneNumber = generateTestMobile();
     let customerId: string | null = null;
-    let schemeId: string | null = null;
 
     try {
       // All data created by this test stays inside Playwright's isolated local Supabase.
       const customer = await createTestCustomerWithPastScheme(customerName, phoneNumber, 11);
       customerId = customer.customer_id;
-      schemeId = customer.scheme_id;
 
       const supabase = await getAuthenticatedAdminSupabaseClient();
 
@@ -105,8 +103,6 @@ test.describe('AW-09: Scheme Maturity Redemption', () => {
         // Uses the existing guarded cleanup helper in isolated CI only.
         await deleteTestCustomer(customerId);
       }
-      // Keep a reference for diagnostic context if creation partially succeeded.
-      expect(schemeId || customerId).toBeTruthy();
     }
   });
 });
