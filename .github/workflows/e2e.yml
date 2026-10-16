@@ -51,6 +51,10 @@ jobs:
         run: npx tsc --noEmit
         working-directory: customer-app
 
+      - name: Lint Customer App
+        run: npm run lint
+        working-directory: customer-app
+
   e2e-tests:
     name: Playwright E2E & Security Audit Tests (Isolated Environment)
     needs: typecheck-and-build
