@@ -120,7 +120,7 @@ export default function ResetPasswordScreen() {
           <Text style={styles.cardTitle}>{t('setPasswordTitle')}</Text>
           <Text style={styles.cardSubtitle}>{t('setPasswordSubtitle')}</Text>
 
-          {errorMessage && (
+          {Boolean(errorMessage) && (
             <View style={styles.errorContainer}>
               <Ionicons name="alert-circle" size={18} color="#991B1B" />
               <Text style={styles.errorText}>{errorMessage}</Text>
