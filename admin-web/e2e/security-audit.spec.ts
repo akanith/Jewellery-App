@@ -1,11 +1,11 @@
 import { test, expect } from '@playwright/test';
 import {
   getTestSupabaseClient,
-  getAuthenticatedAdminSupabaseClient,
   getTestServiceRoleClient,
+  getAuthenticatedAdminSupabaseClient,
   createAuthenticatedNonAdminFixture,
-  createAuthenticatedInactiveAdminFixture,
   createAuthenticatedAdminFixture,
+  createAuthenticatedInactiveAdminFixture,
 } from './helpers/test-utils';
 
 test.describe('Phase 6 — Supabase & BFF Security Audit Tests', () => {
@@ -50,18 +50,21 @@ test.describe('Phase 6 — Supabase & BFF Security Audit Tests', () => {
       expect(data).toBeNull();
       expect(error).not.toBeNull();
       expect(error?.message).toMatch(/permission denied|unauthorized|only registered administrators|admin access required|only super administrators/i);
+      expect(error?.message).not.toMatch(/could not find the function|schema cache/i);
     }
   });
 
   test('SEC-04: Unauthorized customer profile changes, enrollment, payments and redemptions fail cleanly', async () => {
-    // Attempt profile update without admin session
+    // Attempt profile update without admin session (unauthenticated caller rejected at DB permission layer)
     const profileRes = await supabase.rpc('update_customer_profile', {
       p_customer_id: '00000000-0000-0000-0000-000000000001',
       p_full_name: 'Hacker Name',
       p_phone_number: '9999999999',
     });
     expect(profileRes.data).toBeNull();
-    expect(profileRes.error?.message).toMatch(/permission denied|unauthorized|admin access required/i);
+    expect(profileRes.error).not.toBeNull();
+    expect(profileRes.error?.message).toMatch(/permission denied/i);
+    expect(profileRes.error?.message).not.toMatch(/could not find the function|schema cache/i);
 
     // Attempt scheme enrollment without admin session
     const enrollRes = await supabase.rpc('enroll_customer_scheme', {
@@ -69,7 +72,9 @@ test.describe('Phase 6 — Supabase & BFF Security Audit Tests', () => {
       p_start_month: '2026-10-01',
     });
     expect(enrollRes.data).toBeNull();
-    expect(enrollRes.error?.message).toMatch(/permission denied|unauthorized|admin access required/i);
+    expect(enrollRes.error).not.toBeNull();
+    expect(enrollRes.error?.message).toMatch(/permission denied/i);
+    expect(enrollRes.error?.message).not.toMatch(/could not find the function|schema cache/i);
 
     // Attempt payment recording without admin session
     const paymentRes = await supabase.rpc('record_installment_payment', {
@@ -78,7 +83,9 @@ test.describe('Phase 6 — Supabase & BFF Security Audit Tests', () => {
       p_payment_method: 'CASH',
     });
     expect(paymentRes.data).toBeNull();
-    expect(paymentRes.error?.message).toMatch(/permission denied|unauthorized|admin access required/i);
+    expect(paymentRes.error).not.toBeNull();
+    expect(paymentRes.error?.message).toMatch(/permission denied/i);
+    expect(paymentRes.error?.message).not.toMatch(/could not find the function|schema cache/i);
 
     // Attempt scheme redemption without admin session
     const redeemRes = await supabase.rpc('record_scheme_redemption', {
@@ -89,7 +96,9 @@ test.describe('Phase 6 — Supabase & BFF Security Audit Tests', () => {
       p_items: [],
     });
     expect(redeemRes.data).toBeNull();
-    expect(redeemRes.error?.message).toMatch(/permission denied|unauthorized|admin access required/i);
+    expect(redeemRes.error).not.toBeNull();
+    expect(redeemRes.error?.message).toMatch(/permission denied/i);
+    expect(redeemRes.error?.message).not.toMatch(/could not find the function|schema cache/i);
   });
 
   test('SEC-05: Secret leakage audit in client code', async () => {
@@ -99,50 +108,62 @@ test.describe('Phase 6 — Supabase & BFF Security Audit Tests', () => {
   });
 
   test('SEC-06: Customer authentication RPCs are not directly executable with the public client', async () => {
+    const dummyHash = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
+    const futureExpiry = new Date(Date.now() + 3600000).toISOString();
+
     const unauthorizedCalls = await Promise.all([
       supabase.rpc('customer_password_login', {
         p_phone_number: '9009990000',
-        p_password: 'InvalidPassword123',
+        p_password: 'SafeTestPassword123!',
       }),
       supabase.rpc('customer_change_password', {
         p_customer_id: '00000000-0000-0000-0000-000000000001',
-        p_old_password: 'irrelevant',
-        p_new_password: 'SecurePass123',
+        p_old_password: 'SafeTestOldPassword123!',
+        p_new_password: 'SafeTestNewPassword456!',
       }),
       supabase.rpc('request_customer_password_reset', {
         p_mobile_number: '9009990000',
       }),
       supabase.rpc('create_customer_session', {
         p_customer_id: '00000000-0000-0000-0000-000000000001',
+        p_token_hash: dummyHash,
+        p_expires_at: futureExpiry,
       }),
       supabase.rpc('verify_customer_session', {
-        p_session_token: 'invalid_token_sample',
+        p_token_hash: dummyHash,
       }),
       supabase.rpc('revoke_customer_session', {
-        p_session_token: 'invalid_token_sample',
+        p_token_hash: dummyHash,
       }),
     ]);
 
     for (const result of unauthorizedCalls) {
       expect(result.data).toBeNull();
       expect(result.error).not.toBeNull();
-      expect(result.error?.message).toMatch(/permission denied|does not exist|could not find the function|schema cache/i);
+      expect(result.error?.message).toMatch(/permission denied/i);
+      expect(result.error?.message).not.toMatch(/could not find the function|schema cache/i);
     }
   });
 
   test('SEC-07: Maintenance and cleanup RPCs are not directly executable with the public client', async () => {
     const maintenanceCalls = await Promise.all([
-      supabase.rpc('admin_cleanup_e2e_test_data', { p_confirmation_phrase: 'test' }),
-      supabase.rpc('admin_cleanup_pre_production_audit_logs', { p_confirmation_phrase: 'test' }),
-      supabase.rpc('admin_cleanup_six_test_customers', { p_confirmation_phrase: 'test' }),
-      supabase.rpc('reset_customer_code_sequence'),
-      supabase.rpc('set_customer_initial_password', { p_customer_id: '00000000-0000-0000-0000-000000000001' }),
+      supabase.rpc('admin_cleanup_e2e_test_data', { p_execute: false }),
+      supabase.rpc('admin_cleanup_pre_production_audit_logs', {
+        p_cutoff: '2026-09-29T14:24:01.921Z',
+        p_execute: false,
+      }),
+      supabase.rpc('admin_cleanup_six_test_customers', { p_execute: false }),
+      supabase.rpc('reset_customer_code_sequence', {}),
+      supabase.rpc('set_customer_initial_password', {
+        p_customer_id: '00000000-0000-0000-0000-000000000001',
+      }),
     ]);
 
     for (const result of maintenanceCalls) {
       expect(result.data).toBeNull();
       expect(result.error).not.toBeNull();
-      expect(result.error?.message).toMatch(/permission denied|does not exist|could not find the function|schema cache/i);
+      expect(result.error?.message).toMatch(/permission denied/i);
+      expect(result.error?.message).not.toMatch(/could not find the function|schema cache/i);
     }
   });
 
@@ -168,14 +189,52 @@ test.describe('Phase 6 — Supabase & BFF Security Audit Tests', () => {
   });
 
   test('SEC-09: Super-admin emergency refund RPC is strictly restricted', async () => {
-    const { data, error } = await supabase.rpc('process_emergency_refund', {
+    // 1. Direct unauthenticated public-client call is rejected by PostgreSQL permission layer
+    const { data: publicData, error: publicError } = await supabase.rpc('process_emergency_refund', {
       p_scheme_id: '00000000-0000-0000-0000-000000000001',
       p_refund_amount: 1000,
     });
 
-    expect(data).toBeNull();
-    expect(error).not.toBeNull();
-    expect(error?.message).toMatch(/permission denied|only super administrators/i);
+    expect(publicData).toBeNull();
+    expect(publicError).not.toBeNull();
+    expect(publicError?.message).toMatch(/permission denied/i);
+    expect(publicError?.message).not.toMatch(/could not find the function|schema cache/i);
+
+    // 2. Ordinary admin vs Super-admin authorization validation (when service role key available in local/CI)
+    if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      let activeOrdinaryAdminFixture: Awaited<ReturnType<typeof createAuthenticatedAdminFixture>> | null = null;
+      try {
+        // Authenticated ordinary admin (isSuperAdmin: false) is rejected by DB authorization guard
+        activeOrdinaryAdminFixture = await createAuthenticatedAdminFixture({
+          isSuperAdmin: false,
+          isActive: true,
+          roleTitle: 'Ordinary Staff Admin',
+        });
+        const ordinaryRefund = await activeOrdinaryAdminFixture.client.rpc('process_emergency_refund', {
+          p_scheme_id: '00000000-0000-0000-0000-000000000001',
+          p_refund_amount: 1000,
+        });
+        expect(ordinaryRefund.data).toBeNull();
+        expect(ordinaryRefund.error).not.toBeNull();
+        expect(ordinaryRefund.error?.message).toMatch(/only super administrators/i);
+        expect(ordinaryRefund.error?.message).not.toMatch(/permission denied|schema cache|could not find the function/i);
+
+        // Authenticated super-admin passes authorization guard, but is stopped by safe data validation
+        const superAdminClient = await getAuthenticatedAdminSupabaseClient();
+        const superRefund = await superAdminClient.rpc('process_emergency_refund', {
+          p_scheme_id: '00000000-0000-0000-0000-000000000001',
+          p_refund_amount: 1000,
+        });
+        expect(superRefund.data).toBeNull();
+        expect(superRefund.error).not.toBeNull();
+        expect(superRefund.error?.message).toMatch(/scheme enrollment with id .* not found/i);
+        expect(superRefund.error?.message).not.toMatch(/only super administrators|permission denied|schema cache/i);
+      } finally {
+        if (activeOrdinaryAdminFixture) {
+          await activeOrdinaryAdminFixture.cleanup();
+        }
+      }
+    }
   });
 
   test('SEC-10: Authenticated non-admin and deactivated administrator callers are rejected from administrative RPCs', async () => {
@@ -199,6 +258,22 @@ test.describe('Phase 6 — Supabase & BFF Security Audit Tests', () => {
       nonAdminFixture = await createAuthenticatedNonAdminFixture();
       inactiveAdminFixture = await createAuthenticatedInactiveAdminFixture();
 
+      // Confirm inactive administrator has matching admin_users record and inactive profiles record
+      const { data: inactiveProfile } = await serviceClient
+        .from('profiles')
+        .select('role, is_active')
+        .eq('id', inactiveAdminFixture.userId)
+        .single();
+      expect(inactiveProfile?.role).toBe('ADMIN');
+      expect(inactiveProfile?.is_active).toBe(false);
+
+      const { data: inactiveAdminRecord } = await serviceClient
+        .from('admin_users')
+        .select('id, is_super_admin')
+        .eq('id', inactiveAdminFixture.userId)
+        .single();
+      expect(inactiveAdminRecord?.id).toBe(inactiveAdminFixture.userId);
+
       // 2. Authenticated non-admin attempts protected administrative RPCs
       const nonAdminUpdate = await nonAdminFixture.client.rpc('update_customer_profile', {
         p_customer_id: targetCustomerId,
@@ -208,6 +283,7 @@ test.describe('Phase 6 — Supabase & BFF Security Audit Tests', () => {
       expect(nonAdminUpdate.data).toBeNull();
       expect(nonAdminUpdate.error).not.toBeNull();
       expect(nonAdminUpdate.error?.message).toMatch(/unauthorized|admin access required|only registered administrators/i);
+      expect(nonAdminUpdate.error?.message).not.toMatch(/permission denied|schema cache/i);
 
       const nonAdminRefund = await nonAdminFixture.client.rpc('process_emergency_refund', {
         p_scheme_id: targetCustomerId,
@@ -216,6 +292,7 @@ test.describe('Phase 6 — Supabase & BFF Security Audit Tests', () => {
       expect(nonAdminRefund.data).toBeNull();
       expect(nonAdminRefund.error).not.toBeNull();
       expect(nonAdminRefund.error?.message).toMatch(/unauthorized|only super administrators|admin access required/i);
+      expect(nonAdminRefund.error?.message).not.toMatch(/permission denied|schema cache/i);
 
       // 3. Authenticated deactivated administrator attempts protected administrative RPCs
       // Profile has role = 'ADMIN' and is_active = false; matching admin_users record exists
@@ -227,6 +304,7 @@ test.describe('Phase 6 — Supabase & BFF Security Audit Tests', () => {
       expect(inactiveAdminUpdate.data).toBeNull();
       expect(inactiveAdminUpdate.error).not.toBeNull();
       expect(inactiveAdminUpdate.error?.message).toMatch(/unauthorized|admin access required|only registered administrators/i);
+      expect(inactiveAdminUpdate.error?.message).not.toMatch(/permission denied|schema cache/i);
 
       const inactiveAdminRefund = await inactiveAdminFixture.client.rpc('process_emergency_refund', {
         p_scheme_id: targetCustomerId,
@@ -235,6 +313,7 @@ test.describe('Phase 6 — Supabase & BFF Security Audit Tests', () => {
       expect(inactiveAdminRefund.data).toBeNull();
       expect(inactiveAdminRefund.error).not.toBeNull();
       expect(inactiveAdminRefund.error?.message).toMatch(/unauthorized|only super administrators|admin access required/i);
+      expect(inactiveAdminRefund.error?.message).not.toMatch(/permission denied|schema cache/i);
 
       // 4. Verify no customer, profile, scheme, or financial records were changed
       const { count: finalCustCount } = await serviceClient
@@ -293,6 +372,7 @@ test.describe('Phase 6 — Supabase & BFF Security Audit Tests', () => {
       expect(refundByNonSuper.data).toBeNull();
       expect(refundByNonSuper.error).not.toBeNull();
       expect(refundByNonSuper.error?.message).toMatch(/only super administrators/i);
+      expect(refundByNonSuper.error?.message).not.toMatch(/permission denied|schema cache/i);
 
       // 3. Active super-admin caller passes super-admin authorization check
       const superAdminClient = await getAuthenticatedAdminSupabaseClient();
@@ -304,6 +384,7 @@ test.describe('Phase 6 — Supabase & BFF Security Audit Tests', () => {
       expect(refundBySuper.data).toBeNull();
       expect(refundBySuper.error).not.toBeNull();
       expect(refundBySuper.error?.message).toMatch(/scheme enrollment with id .* not found/i);
+      expect(refundBySuper.error?.message).not.toMatch(/only super administrators|permission denied|schema cache/i);
     } finally {
       if (activeNonSuperAdminFixture) {
         await activeNonSuperAdminFixture.cleanup();
