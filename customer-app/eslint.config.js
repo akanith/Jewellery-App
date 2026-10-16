@@ -6,5 +6,9 @@ module.exports = defineConfig([
   expoConfig,
   {
     ignores: ["dist/*"],
+    rules: {
+      // React Native must render raw text inside <Text>, never directly in <View>.
+      "react-native/no-raw-text": "error",
+    },
   }
 ]);
