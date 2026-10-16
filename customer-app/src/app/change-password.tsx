@@ -107,14 +107,14 @@ export default function ChangePasswordScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.card}>
-          {errorMessage && (
+          {Boolean(errorMessage) && (
             <View style={styles.errorContainer}>
               <Ionicons name="alert-circle" size={18} color="#991B1B" />
               <Text style={styles.errorText}>{errorMessage}</Text>
             </View>
           )}
 
-          {successMessage && (
+          {Boolean(successMessage) && (
             <View style={styles.successContainer}>
               <Ionicons name="checkmark-circle" size={18} color="#166534" />
               <Text style={styles.successText}>{successMessage}</Text>

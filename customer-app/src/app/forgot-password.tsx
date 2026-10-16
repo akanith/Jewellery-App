@@ -159,7 +159,7 @@ export default function ForgotPasswordScreen() {
                 {t('forgotPasswordDescription')}
               </Text>
 
-              {errorMessage && (
+              {Boolean(errorMessage) && (
                 <View style={styles.errorContainer}>
                   <Ionicons name="alert-circle" size={18} color="#991B1B" />
                   <View style={{ flex: 1 }}>

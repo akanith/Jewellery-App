@@ -585,7 +585,7 @@ export default function CustomerHomeScreen() {
         )}
 
         {/* 7. ANNOUNCEMENT CARD */}
-        {data.announcement && (
+        {Boolean(data.announcement) && (
           <View style={styles.announcementCard}>
             <Ionicons
               name="megaphone-outline"
