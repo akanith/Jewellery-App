@@ -189,7 +189,7 @@ export default function NotificationsScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* FEATURED ANNOUNCEMENT BANNER */}
-        {data.featuredBanner && (
+        {Boolean(data.featuredBanner) && (
           <View style={styles.bannerCard}>
             <Image
               source={require('@/assets/images/gold_temple_collection_banner.jpg')}
