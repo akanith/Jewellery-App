@@ -1,8 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
 import { Page, expect } from '@playwright/test';
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
-const SUPABASE_PUBLISHABLE_KEY = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY?.trim();
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() || 'http://127.0.0.1:54321';
+const SUPABASE_PUBLISHABLE_KEY = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY?.trim() || 'sb_publishable_bYOw6Eq1dE-7ARfmhCjc5A_YGLFalvD';
 
 export function assertNotProductionSupabase(url?: string): asserts url is string {
   if (!url || url.trim() === '') {
@@ -248,6 +248,144 @@ export async function cancelTestSchemeForTesting(schemeId: string): Promise<void
   if (error) {
     throw new Error(`[E2E Test Fixture Error] Failed to cancel scheme ${schemeId}: ${error.message}`);
   }
+}
+
+/**
+ * Creates an isolated authenticated non-admin client fixture for security tests.
+ * Retains fatal production safety guard. Cleans up on teardown.
+ */
+export async function createAuthenticatedNonAdminFixture() {
+  const adminServiceClient = getTestServiceRoleClient();
+  const email = `test_non_admin_${Date.now()}_${Math.random().toString(36).substring(7)}@test.com`;
+  const password = 'TestPassword123!';
+  const phone = generateTestMobile();
+
+  const { data: authData, error: authErr } = await adminServiceClient.auth.admin.createUser({
+    email,
+    password,
+    email_confirm: true,
+  });
+  if (authErr || !authData?.user) {
+    throw new Error(`[E2E Security Fixture] Failed to create non-admin auth user: ${authErr?.message}`);
+  }
+  const userId = authData.user.id;
+
+  const { error: profErr } = await adminServiceClient.from('profiles').insert({
+    id: userId,
+    role: 'CUSTOMER',
+    phone_number: phone,
+    full_name: 'Test Non Admin User',
+    is_active: true,
+  });
+  if (profErr) {
+    await adminServiceClient.auth.admin.deleteUser(userId);
+    throw new Error(`[E2E Security Fixture] Failed to create customer profile: ${profErr.message}`);
+  }
+
+  const client = createClient(SUPABASE_URL!, SUPABASE_PUBLISHABLE_KEY!, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  const { error: signInErr } = await client.auth.signInWithPassword({ email, password });
+  if (signInErr) {
+    await adminServiceClient.from('profiles').delete().eq('id', userId);
+    await adminServiceClient.auth.admin.deleteUser(userId);
+    throw new Error(`[E2E Security Fixture] Failed to sign in as non-admin: ${signInErr.message}`);
+  }
+
+  return {
+    userId,
+    client,
+    cleanup: async () => {
+      await adminServiceClient.from('profiles').delete().eq('id', userId);
+      await adminServiceClient.auth.admin.deleteUser(userId);
+    },
+  };
+}
+
+/**
+ * Creates an isolated authenticated administrator fixture with custom active/super_admin states.
+ * Retains fatal production safety guard. Cleans up on teardown.
+ */
+export async function createAuthenticatedAdminFixture(options: {
+  isSuperAdmin?: boolean;
+  isActive?: boolean;
+  roleTitle?: string;
+} = {}) {
+  const { isSuperAdmin = false, isActive = true, roleTitle = 'Test Admin' } = options;
+  const adminServiceClient = getTestServiceRoleClient();
+  const email = `test_admin_${Date.now()}_${Math.random().toString(36).substring(7)}@test.com`;
+  const password = 'TestPassword123!';
+  const phone = generateTestMobile();
+  const empCode = `EMP-TEST-${Date.now().toString().slice(-6)}`;
+
+  const { data: authData, error: authErr } = await adminServiceClient.auth.admin.createUser({
+    email,
+    password,
+    email_confirm: true,
+  });
+  if (authErr || !authData?.user) {
+    throw new Error(`[E2E Security Fixture] Failed to create admin auth user: ${authErr?.message}`);
+  }
+  const userId = authData.user.id;
+
+  const { error: profErr } = await adminServiceClient.from('profiles').insert({
+    id: userId,
+    role: 'ADMIN',
+    phone_number: phone,
+    full_name: `Test ${isActive ? 'Active' : 'Inactive'} Admin`,
+    is_active: isActive,
+  });
+  if (profErr) {
+    await adminServiceClient.auth.admin.deleteUser(userId);
+    throw new Error(`[E2E Security Fixture] Failed to create admin profile: ${profErr.message}`);
+  }
+
+  const { error: adminErr } = await adminServiceClient.from('admin_users').insert({
+    id: userId,
+    employee_code: empCode,
+    role_title: roleTitle,
+    permissions: { all: true },
+    is_super_admin: isSuperAdmin,
+  });
+  if (adminErr) {
+    await adminServiceClient.from('profiles').delete().eq('id', userId);
+    await adminServiceClient.auth.admin.deleteUser(userId);
+    throw new Error(`[E2E Security Fixture] Failed to create admin_users record: ${adminErr.message}`);
+  }
+
+  const client = createClient(SUPABASE_URL!, SUPABASE_PUBLISHABLE_KEY!, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  const { error: signInErr } = await client.auth.signInWithPassword({ email, password });
+  if (signInErr) {
+    await adminServiceClient.from('admin_users').delete().eq('id', userId);
+    await adminServiceClient.from('profiles').delete().eq('id', userId);
+    await adminServiceClient.auth.admin.deleteUser(userId);
+    throw new Error(`[E2E Security Fixture] Failed to sign in as admin: ${signInErr.message}`);
+  }
+
+  return {
+    userId,
+    client,
+    cleanup: async () => {
+      await adminServiceClient.from('admin_users').delete().eq('id', userId);
+      await adminServiceClient.from('profiles').delete().eq('id', userId);
+      await adminServiceClient.auth.admin.deleteUser(userId);
+    },
+  };
+}
+
+/**
+ * Creates an isolated authenticated client fixture whose profile has role = 'ADMIN'
+ * but is_active = false and has a corresponding admin_users record.
+ * Retains fatal production safety guard. Cleans up on teardown.
+ */
+export async function createAuthenticatedInactiveAdminFixture() {
+  return createAuthenticatedAdminFixture({
+    isSuperAdmin: false,
+    isActive: false,
+    roleTitle: 'Inactive Admin Test',
+  });
 }
 
 /**

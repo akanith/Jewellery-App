@@ -45,6 +45,9 @@ export default function RewardScreen() {
         if (isMounted && dash?.schemes && dash.schemes.length > 0) {
           setSchemes(dash.schemes);
           setSelectedSchemeId(dash.schemes[0].schemeId || dash.schemes[0].id || '');
+        } else if (isMounted && dash?.scheme) {
+          setSchemes([dash.scheme]);
+          setSelectedSchemeId(dash.scheme.schemeId || dash.scheme.id || '');
         }
       } catch (err) {
         console.warn('Failed to load dashboard schemes in reward screen:', err);
@@ -75,18 +78,25 @@ export default function RewardScreen() {
 
   const selectedScheme = schemes.find((s) => (s.schemeId || s.id) === selectedSchemeId) || schemes[0] || null;
   const monthlyAmount = selectedScheme?.monthlyInstallmentAmount || selectedScheme?.monthlyInstallment || 1000;
-  const paidCount = selectedScheme?.paidInstallments ?? 12;
+  const paidCount = selectedScheme?.paidInstallments ?? 0;
   const totalCount = selectedScheme?.totalInstallments ?? 12;
-  const isCompleted =
-    schemes.length === 0
-      ? true
-      : paidCount >= totalCount ||
-        selectedScheme?.status === 'COMPLETED' ||
-        selectedScheme?.status === 'MATURED' ||
-        selectedScheme?.status === 'PARTIALLY_REDEEMED' ||
-        selectedScheme?.status === 'FULLY_REDEEMED';
-  const bonusAmount = formatCurrency(monthlyAmount);
-  const maturityValue = formatCurrency(monthlyAmount * totalCount + monthlyAmount);
+  const isCompleted = Boolean(
+    selectedScheme &&
+      (paidCount >= totalCount ||
+        selectedScheme.status === 'COMPLETED' ||
+        selectedScheme.status === 'MATURED' ||
+        selectedScheme.status === 'PARTIALLY_REDEEMED' ||
+        selectedScheme.status === 'FULLY_REDEEMED')
+  );
+  const bonusAmount = selectedScheme
+    ? formatCurrency(selectedScheme.bonusAmount || monthlyAmount)
+    : '—';
+  const maturityValue = selectedScheme
+    ? formatCurrency(
+        selectedScheme.maturityAmount ||
+          monthlyAmount * totalCount + (selectedScheme.bonusAmount || monthlyAmount)
+      )
+    : '—';
 
   if (isLoading) {
     return (
