@@ -173,7 +173,7 @@ export default function LoginScreen() {
           <Text style={styles.cardTitle}>{t('welcomeBack')}</Text>
 
           {/* Validation Error Alert */}
-          {errorMessage && (
+          {Boolean(errorMessage) && (
             <View style={styles.errorContainer}>
               <Ionicons name="alert-circle" size={18} color="#991B1B" />
               <Text style={styles.errorText}>{errorMessage}</Text>
