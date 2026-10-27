@@ -41,6 +41,10 @@ test.describe('AW-05: Add New Customer & Scheme Enrollment', () => {
       // Verify customer passbook loads cleanly with 12 installment slots
       await expect(page.getByRole('heading', { name: testName })).toBeVisible();
       await expect(page.getByText(/12-month gold savings scheme/i)).toBeVisible();
+
+      // Verify Add Another Scheme buttons are removed from UI
+      await expect(page.getByText(/add another scheme/i)).not.toBeVisible();
+      await expect(page.getByText(/\+ add scheme/i)).not.toBeVisible();
     } finally {
       if (createdCustomerId) {
         await deleteTestCustomer(createdCustomerId);

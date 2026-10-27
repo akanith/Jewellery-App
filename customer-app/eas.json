@@ -14,11 +14,26 @@
       }
     },
     "preview": {
+      "developmentClient": false,
       "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_APP_ENV": "staging"
+      },
       "android": {
         "buildType": "apk"
       }
     },
-    "production": {}
+    "production": {
+      "developmentClient": false,
+      "distribution": "store",
+      "env": {
+        "EXPO_PUBLIC_APP_ENV": "hosted",
+        "EXPO_PUBLIC_HOSTED_SUPABASE_URL": "https://yjpbswsgtbmgageburmy.supabase.co",
+        "EXPO_PUBLIC_HOSTED_BFF_BASE_URL": "https://yjpbswsgtbmgageburmy.supabase.co/functions/v1"
+      },
+      "android": {
+        "buildType": "app-bundle"
+      }
+    }
   }
 }

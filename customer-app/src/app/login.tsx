@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -18,6 +18,7 @@ import {
   loginWithMobile,
   sanitizeMobileNumber,
   validateMobileNumber,
+  getStoredCustomerSession,
 } from '@/services/customerAuthService';
 import { OFFICIAL_SHOP_INFO } from '@/constants/shopData';
 import { useLanguage } from '@/i18n';
@@ -32,6 +33,28 @@ export default function LoginScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'login' | 'support' | 'locate'>('login');
+
+  // If a valid unexpired authenticated session already exists, restore and navigate to Home
+  useEffect(() => {
+    let isMounted = true;
+    getStoredCustomerSession()
+      .then((session) => {
+        if (isMounted && session?.token && session?.isAuthenticated) {
+          if (session.passwordStatus === 'RESET_REQUIRED') {
+            router.replace('/reset-password' as any);
+          } else if (session.authorizedProfiles && session.authorizedProfiles.length > 1) {
+            router.replace('/select-customer' as any);
+          } else {
+            router.replace('/(tabs)' as any);
+          }
+        }
+      })
+      .catch(() => {});
+
+    return () => {
+      isMounted = false;
+    };
+  }, [router]);
 
   const isMobileValid = /^[6-9]\d{9}$/.test(mobileNumber);
   const isFormValid = isMobileValid && password.trim().length > 0;
@@ -65,7 +88,9 @@ export default function LoginScreen() {
     try {
       const result = await loginWithMobile(mobileNumber, password);
       if (result.success && result.session) {
-        if (result.session.passwordStatus === 'RESET_REQUIRED') {
+        if (result.requiresSelection || (result.profiles && result.profiles.length > 1)) {
+          router.replace('/select-customer' as any);
+        } else if (result.session.passwordStatus === 'RESET_REQUIRED') {
           router.replace('/reset-password' as any);
         } else {
           router.replace('/(tabs)' as any);
@@ -102,7 +127,7 @@ export default function LoginScreen() {
       <View style={styles.headerContainer}>
         <View style={styles.headerBrand}>
           <Ionicons name="diamond-outline" size={20} color="#70001E" style={styles.diamondIcon} />
-          <Text style={styles.headerBrandText}>JewelSave</Text>
+          <Text style={styles.headerBrandText}>Ramyas Jeweller</Text>
         </View>
 
         <TouchableOpacity

@@ -17,6 +17,8 @@ interface CustomerHeaderProps {
   avatarUri?: string | null;
   onNotificationPress?: () => void;
   onProfilePress?: () => void;
+  hasMultipleProfiles?: boolean;
+  onSwitchProfile?: () => void;
 }
 
 /**
@@ -29,6 +31,8 @@ export const CustomerHeader: React.FC<CustomerHeaderProps> = ({
   avatarUri = null,
   onNotificationPress,
   onProfilePress,
+  hasMultipleProfiles = false,
+  onSwitchProfile,
 }) => {
   const router = useRouter();
   const { t } = useLanguage();
@@ -50,6 +54,14 @@ export const CustomerHeader: React.FC<CustomerHeaderProps> = ({
     }
   };
 
+  const handleSwitchProfileTap = () => {
+    if (onSwitchProfile) {
+      onSwitchProfile();
+    } else {
+      router.push('/select-customer' as any);
+    }
+  };
+
   return (
     <View style={[styles.headerContainer, { paddingHorizontal: responsive.pageHorizontalPadding }]}>
       {/* LEFT: GREETING & CUSTOMER NAME */}
@@ -57,13 +69,28 @@ export const CustomerHeader: React.FC<CustomerHeaderProps> = ({
         <Text style={[styles.greetingSub, { fontSize: responsive.scaleFont(13, 12, 14) }]}>
           {t('goodMorning')}
         </Text>
-        <Text style={[styles.customerName, { fontSize: responsive.scaleFont(19, 17, 21) }]} numberOfLines={1}>
+        <Text style={[styles.customerName, { fontSize: responsive.scaleFont(19, 17, 21) }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>
           {customerName}
         </Text>
       </View>
 
-      {/* RIGHT: NOTIFICATION & AVATAR ACTIONS */}
+      {/* RIGHT: NOTIFICATION, SWITCH PROFILE & AVATAR ACTIONS */}
       <View style={styles.actionsRow}>
+        {/* SWITCH PROFILE BUTTON (shown only if customer has multiple authorized profiles) */}
+        {hasMultipleProfiles && (
+          <TouchableOpacity
+            style={styles.switchProfileBtn}
+            onPress={handleSwitchProfileTap}
+            activeOpacity={0.8}
+            accessibilityLabel={t('switchProfileBtn')}
+          >
+            <Ionicons name="swap-horizontal" size={14} color="#70001E" />
+            <Text style={styles.switchProfileText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.82}>
+              {t('switchProfileBtn')}
+            </Text>
+          </TouchableOpacity>
+        )}
+
         {/* NOTIFICATION BUTTON */}
         <TouchableOpacity
           style={styles.notificationBtn}
@@ -127,7 +154,28 @@ const styles = StyleSheet.create({
   actionsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 8,
+  },
+  switchProfileBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: '#FFF8E7',
+    borderWidth: 1.2,
+    borderColor: '#D4AF37',
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 14,
+    shadowColor: '#D4AF37',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.15,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  switchProfileText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#70001E',
   },
   notificationBtn: {
     width: 44,

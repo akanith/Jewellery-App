@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -11,15 +11,16 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useLanguage } from '@/i18n';
 import { CustomerProfileViewModel } from '@/types/profile';
-import { logoutCustomer, getStoredCustomerSession } from '@/services/customerAuthService';
+import { logoutCustomer, getStoredCustomerSession, getAuthorizedProfiles } from '@/services/customerAuthService';
 import { getCustomerProfile } from '@/services/customerDataService';
 import LogoutModal from '@/components/LogoutModal';
 import { OFFICIAL_SCHEME_NAME } from '@/constants/shopData';
 import { useResponsiveMetrics } from '@/constants/responsive';
+import { exportPassbookPdf } from '@/services/passbookPdfService';
 
 const initialProfileViewModel: CustomerProfileViewModel = {
   profile: {
@@ -46,40 +47,66 @@ const initialProfileViewModel: CustomerProfileViewModel = {
 
 export default function CustomerProfileScreen() {
   const router = useRouter();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const responsive = useResponsiveMetrics();
   const [profileData, setProfileData] = useState<CustomerProfileViewModel>(initialProfileViewModel);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [hasMultipleProfiles, setHasMultipleProfiles] = useState(false);
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
+  const activeCustomerIdRef = useRef<string | null>(null);
 
-  useEffect(() => {
-    let isMounted = true;
-    const loadProfile = async () => {
-      setIsLoading(true);
-      const session = await getStoredCustomerSession();
-      if (!session) {
+  useFocusEffect(
+    useCallback(() => {
+      let isMounted = true;
+      const loadProfile = async () => {
+        const session = await getStoredCustomerSession();
+        if (!session || !session.token) {
+          if (isMounted) {
+            setIsLoading(false);
+            router.replace('/login');
+          }
+          return;
+        }
+
+        const customerChanged = activeCustomerIdRef.current !== session.customerId;
+        if (customerChanged) {
+          activeCustomerIdRef.current = session.customerId || null;
+          setProfileData(initialProfileViewModel);
+          setIsLoading(true);
+        }
+
+        const hasMultiple = Boolean(session.authorizedProfiles && session.authorizedProfiles.length > 1);
         if (isMounted) {
+          setHasMultipleProfiles(hasMultiple);
+        }
+
+        // Check fresh authorized profiles in background
+        getAuthorizedProfiles()
+          .then((profiles) => {
+            if (isMounted) {
+              setHasMultipleProfiles(Boolean(profiles && profiles.length > 1));
+            }
+          })
+          .catch(() => {});
+
+        const realProfile = await getCustomerProfile();
+        if (isMounted) {
+          if (realProfile) {
+            setProfileData(realProfile);
+          }
           setIsLoading(false);
-          router.replace('/login');
         }
-        return;
-      }
+      };
 
-      const realProfile = await getCustomerProfile();
-      if (isMounted) {
-        if (realProfile) {
-          setProfileData(realProfile);
-        }
-        setIsLoading(false);
-      }
-    };
+      loadProfile();
 
-    loadProfile();
-    return () => {
-      isMounted = false;
-    };
-  }, [router]);
+      return () => {
+        isMounted = false;
+      };
+    }, [router])
+  );
 
   if (isLoading) {
     return (
@@ -107,13 +134,31 @@ export default function CustomerProfileScreen() {
     }
   };
 
-  const handleDownloadPassbookPDF = () => {
-    const title = t('downloadPassbookPdf');
-    const msg = t('passbookPdfFuture');
-    if (Platform.OS === 'web') {
-      window.alert(`${title}\n\n${msg}`);
-    } else {
-      Alert.alert(title, msg, [{ text: t('ok') }]);
+  const handleDownloadPassbookPDF = async () => {
+    setIsExportingPdf(true);
+    try {
+      const result = await exportPassbookPdf(undefined, language);
+      if (!result.success) {
+        const errorMsg =
+          result.error === 'PASSBOOK_NOT_COMPLETE'
+            ? t('passbookPdfIneligibleMsg').replace('{paid}', String(result.paidInstallments ?? currentScheme.paidInstallments ?? 0))
+            : (result.message || t('passbookPdfFailed'));
+
+        if (Platform.OS === 'web') {
+          window.alert(`${t('downloadPassbookPdf')}\n\n${errorMsg}`);
+        } else {
+          Alert.alert(t('passbookPdfNotCompleteTitle'), errorMsg, [{ text: t('ok') }]);
+        }
+      }
+    } catch (err: any) {
+      const failMsg = err?.message || t('passbookPdfFailed');
+      if (Platform.OS === 'web') {
+        window.alert(failMsg);
+      } else {
+        Alert.alert(t('passbookPdfNotCompleteTitle'), failMsg, [{ text: t('ok') }]);
+      }
+    } finally {
+      setIsExportingPdf(false);
     }
   };
 
@@ -197,6 +242,24 @@ export default function CustomerProfileScreen() {
             <Ionicons name="ribbon-outline" size={14} color="#70001E" />
             <Text style={styles.schemeBadgeText}>{profile.schemeBadge}</Text>
           </View>
+
+          {hasMultipleProfiles && (
+            <TouchableOpacity
+              onPress={() => router.push('/select-customer' as any)}
+              style={styles.switchProfilePill}
+              activeOpacity={0.8}
+              accessibilityLabel={t('switchProfile')}
+            >
+              <View style={styles.switchIconCircle}>
+                <Ionicons name="swap-horizontal" size={16} color="#70001E" />
+              </View>
+              <View style={{ flexShrink: 1, alignItems: 'flex-start' }}>
+                <Text style={styles.switchProfilePillText}>{t('switchProfile')}</Text>
+                <Text style={styles.switchProfilePillSub}>{t('switchProfileSubtitle')}</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color="#70001E" style={{ marginLeft: 'auto' }} />
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* CURRENT SCHEME CARD */}
@@ -280,6 +343,27 @@ export default function CustomerProfileScreen() {
           <Text style={styles.sectionHeaderTitle}>{t('quickActions')}</Text>
 
           <View style={styles.actionList}>
+            {/* SWITCH PROFILE */}
+            {hasMultipleProfiles && (
+              <>
+                <TouchableOpacity
+                  style={styles.actionRow}
+                  onPress={() => router.push('/select-customer' as any)}
+                  activeOpacity={0.7}
+                >
+                  <View style={[styles.actionIconCircle, { backgroundColor: '#FEF3C7' }]}>
+                    <Ionicons name="people-outline" size={18} color="#B45309" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.actionLabel, { color: '#70001E', fontWeight: '700' }]}>{t('switchProfile')}</Text>
+                    <Text style={{ fontSize: 11, color: '#64748B' }}>{t('switchProfileSubtitle')}</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+                </TouchableOpacity>
+                <View style={styles.actionDivider} />
+              </>
+            )}
+
             {/* VIEW PASSBOOK */}
             <TouchableOpacity
               style={styles.actionRow}
@@ -300,12 +384,19 @@ export default function CustomerProfileScreen() {
               style={styles.actionRow}
               onPress={handleDownloadPassbookPDF}
               activeOpacity={0.7}
+              disabled={isExportingPdf}
             >
               <View style={styles.actionIconCircle}>
                 <Ionicons name="document-text-outline" size={18} color="#70001E" />
               </View>
-              <Text style={styles.actionLabel}>{t('downloadPassbookPdf')}</Text>
-              <Ionicons name="download-outline" size={18} color="#64748B" />
+              <Text style={styles.actionLabel}>
+                {isExportingPdf ? t('generatingPassbookPdf') : t('downloadPassbookPdf')}
+              </Text>
+              {isExportingPdf ? (
+                <ActivityIndicator size="small" color="#70001E" />
+              ) : (
+                <Ionicons name="download-outline" size={18} color="#64748B" />
+              )}
             </TouchableOpacity>
 
             <View style={styles.actionDivider} />
@@ -578,6 +669,46 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#70001E',
     letterSpacing: 0.4,
+  },
+  switchProfilePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: '#FFF8E7',
+    borderColor: '#D4AF37',
+    borderWidth: 1.5,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 16,
+    marginTop: 14,
+    width: '100%',
+    shadowColor: '#D4AF37',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  switchIconCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#F3C044',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  switchProfilePillText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#70001E',
+    letterSpacing: 0.2,
+  },
+  switchProfilePillSub: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: '#78350F',
+    marginTop: 1,
   },
   schemeCard: {
     backgroundColor: '#FFFFFF',

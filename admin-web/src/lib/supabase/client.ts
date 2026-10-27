@@ -18,6 +18,34 @@ let browserClient: SupabaseClient | null = null;
  * Validates and retrieves the required Supabase environment configuration.
  */
 export function getSupabaseEnvConfig() {
+  const appEnv = (process.env.NEXT_PUBLIC_APP_ENV || '').trim().toLowerCase();
+
+  // Explicit local development backend
+  if (appEnv === 'local') {
+    const localUrl = process.env.NEXT_PUBLIC_LOCAL_SUPABASE_URL || 'http://127.0.0.1:54321';
+    const localKey =
+      process.env.NEXT_PUBLIC_LOCAL_SUPABASE_ANON_KEY ||
+      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0';
+    return {
+      supabaseUrl: localUrl,
+      supabaseAnonKey: localKey,
+    };
+  }
+
+  // Explicit hosted production backend
+  if (appEnv === 'hosted') {
+    const hostedUrl = process.env.NEXT_PUBLIC_HOSTED_SUPABASE_URL || 'https://yjpbswsgtbmgageburmy.supabase.co';
+    const hostedKey =
+      process.env.NEXT_PUBLIC_HOSTED_SUPABASE_PUBLISHABLE_KEY ||
+      process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+      '';
+    return {
+      supabaseUrl: hostedUrl,
+      supabaseAnonKey: hostedKey,
+    };
+  }
+
+  // Direct environment variable fallback
   const supabaseUrl =
     process.env.NEXT_PUBLIC_SUPABASE_URL ||
     process.env.NEXT_PUBLIC_SUPABASE_PROJECT_URL;

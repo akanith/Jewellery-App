@@ -5,7 +5,7 @@
  * Matches Mockup Design #2.
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import {
   ArrowLeft,
@@ -15,14 +15,24 @@ import {
   FileText,
   Gem,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  Users
 } from 'lucide-react';
 import { createCustomerWithScheme } from '@/lib/supabase/rpc';
+import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 
 interface SuccessEnrollmentData {
   customerId: string;
   customerCode: string;
   schemeCode: string;
+  familyLinked?: boolean;
+  familyLinkError?: string | null;
+}
+
+interface ExistingProfileSummary {
+  id: string;
+  full_name: string;
+  customer_code: string;
 }
 
 export default function NewCustomerPage() {
@@ -38,9 +48,41 @@ export default function NewCustomerPage() {
   const [nomineeRelationship, setNomineeRelationship] = useState('Spouse');
   const [notes, setNotes] = useState('');
 
+  const [existingProfilesWithPhone, setExistingProfilesWithPhone] = useState<ExistingProfileSummary[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successData, setSuccessData] = useState<SuccessEnrollmentData | null>(null);
+
+  // Check for existing customer profiles when a 10-digit phone is entered
+  useEffect(() => {
+    let isCurrent = true;
+    const clean = phoneNumber.replace(/\D/g, '');
+    if (clean.length === 10) {
+      const supabase = getSupabaseBrowserClient();
+      (async () => {
+        try {
+          const { data } = await supabase
+            .from('customers')
+            .select('id, full_name, customer_code')
+            .eq('phone_number', clean);
+          if (isCurrent && data) {
+            setExistingProfilesWithPhone(data);
+          }
+        } catch {
+          // ignore transient lookup error
+        }
+      })();
+    } else {
+      Promise.resolve().then(() => {
+        if (isCurrent) {
+          setExistingProfilesWithPhone([]);
+        }
+      });
+    }
+    return () => {
+      isCurrent = false;
+    };
+  }, [phoneNumber]);
 
   // Scheme Calculations
   const todayDate = new Date();
@@ -109,14 +151,6 @@ export default function NewCustomerPage() {
         if (error?.toLowerCase().includes('already registered to an administrator')) {
           throw new Error('This mobile number is already registered to an administrator.');
         }
-        if (
-          error?.toLowerCase().includes('already exists') ||
-          error?.toLowerCase().includes('duplicate key') ||
-          error?.toLowerCase().includes('uq_customers_phone_number') ||
-          error?.toLowerCase().includes('uq_profiles_phone_number')
-        ) {
-          throw new Error('A customer with this mobile number already exists.');
-        }
         if (error?.toLowerCase().includes('unauthorized') || error?.toLowerCase().includes('registered administrators')) {
           throw new Error('Unauthorized: Only registered administrators can create customers.');
         }
@@ -151,6 +185,26 @@ export default function NewCustomerPage() {
           <p className="text-sm text-slate-500 mt-2">
             The customer profile and 12-month savings scheme have been atomically created.
           </p>
+
+          {/* Partial Success / Family Linking Status Banners */}
+          {successData.familyLinkError && (
+            <div className="mt-4 p-4 rounded-xl bg-amber-50 border border-amber-200 text-left">
+              <div className="flex items-center gap-2 text-amber-800 font-semibold text-xs">
+                <AlertCircle className="w-4 h-4 shrink-0 text-amber-600" />
+                <span>Notice: Customer created, but family linking requires manual completion</span>
+              </div>
+              <p className="text-xs text-amber-700 mt-1">
+                Customer was registered as <span className="font-mono font-bold">{successData.customerCode}</span>, but linking to the existing family profile failed ({successData.familyLinkError}). The customer record is safe and was not duplicated. You can link profiles manually in Customer Details.
+              </p>
+            </div>
+          )}
+
+          {successData.familyLinked && (
+            <div className="mt-4 p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-800 font-medium text-left flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span>Family member profiles successfully linked for shared customer app access.</span>
+            </div>
+          )}
 
           <div className="my-8 p-5 rounded-2xl bg-slate-50 border border-slate-200 text-left space-y-3">
             <div className="flex justify-between text-xs">
@@ -277,6 +331,28 @@ export default function NewCustomerPage() {
                       className="w-full pl-12 pr-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-mono text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 transition"
                     />
                   </div>
+
+                  {/* Informative Shared Mobile Number Warning Banner */}
+                  {existingProfilesWithPhone.length > 0 && (
+                    <div className="mt-2.5 p-3 rounded-xl bg-amber-50/90 border border-amber-200 text-xs text-amber-900 flex items-start gap-2.5 animate-in fade-in duration-150">
+                      <Users className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                      <div className="flex-1">
+                        <div className="font-bold text-amber-900">
+                          Shared Mobile Notice: Mobile is already assigned to {existingProfilesWithPhone.length} person{existingProfilesWithPhone.length > 1 ? 's' : ''}:
+                        </div>
+                        <ul className="mt-1 list-disc list-inside space-y-0.5 text-amber-800 font-medium">
+                          {existingProfilesWithPhone.map((p) => (
+                            <li key={p.id}>
+                              <span className="font-bold">{p.full_name}</span> ({p.customer_code})
+                            </li>
+                          ))}
+                        </ul>
+                        <div className="mt-2 text-[11px] text-amber-800 leading-relaxed bg-amber-100/70 p-2 rounded-lg border border-amber-200/60">
+                          <span className="font-semibold">Customer App Access:</span> All customer profiles registered under this normalized mobile number will be selectable after successful login. Each registration maintains its own unique Customer ID, separate scheme enrollments, and independent passbook records.
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div>

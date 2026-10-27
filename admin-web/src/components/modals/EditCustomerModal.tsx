@@ -83,13 +83,8 @@ export default function EditCustomerModal({
       if (res.error) {
         console.error('[EditCustomerModal Error]', res.error);
         const errLower = res.error.toLowerCase();
-        if (
-          errLower.includes('already exists') ||
-          errLower.includes('duplicate key') ||
-          errLower.includes('uq_customers_phone_number') ||
-          errLower.includes('profiles_phone_number_key')
-        ) {
-          setErrorMessage('A customer with this mobile number already exists.');
+        if (errLower.includes('registered to an administrator')) {
+          setErrorMessage('This mobile number is already registered to an administrator.');
         } else {
           setErrorMessage(res.error);
         }

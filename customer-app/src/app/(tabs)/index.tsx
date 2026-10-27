@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -9,15 +9,21 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { CustomerHeader } from '@/components/CustomerHeader';
 import { CustomerHomeData, SchemeSummary } from '@/types/dashboard';
 import { formatCurrency } from '../../lib/formatters';
 import { useLanguage, TranslationKey } from '@/i18n';
-import { getStoredCustomerSession } from '@/services/customerAuthService';
-import { getCustomerDashboard } from '@/services/customerDataService';
+import { getStoredCustomerSession, getAuthorizedProfiles } from '@/services/customerAuthService';
+import { getCustomerDashboard, checkOnlinePaymentStatus } from '@/services/customerDataService';
 import { useResponsiveMetrics } from '@/constants/responsive';
+import { CashPaymentModal } from '@/components/CashPaymentModal';
+import {
+  openRazorpayHostedCheckout,
+  getPersistedPendingPaymentAttempt,
+  clearPersistedPendingPaymentAttempt,
+} from '@/services/paymentService';
 
 // Isolated fallback structure if network is offline before first sync
 const initialHomeData: CustomerHomeData = {
@@ -40,53 +46,96 @@ export default function CustomerHomeScreen() {
   const [data, setData] = useState<CustomerHomeData>(initialHomeData);
   const [selectedSchemeId, setSelectedSchemeId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [session, setSession] = useState<any>(null);
+  const [isCashModalOpen, setIsCashModalOpen] = useState(false);
+  const [isOpeningOnline, setIsOpeningOnline] = useState(false);
+  const activeCustomerIdRef = useRef<string | null>(null);
 
-  useEffect(() => {
-    let isMounted = true;
-    const loadDashboard = async () => {
-      setIsLoading(true);
-      const session = await getStoredCustomerSession();
-      if (!session) {
-        if (isMounted) {
-          setIsLoading(false);
-          router.replace('/login');
-        }
-        return;
-      }
-
-      // Pre-seed customer information from active session for immediate display
-      if (session.customerCode && isMounted) {
-        setData((prev) => ({
-          ...prev,
-          customerName: session.fullName || prev.customerName,
-          customerCode: session.customerCode || prev.customerCode,
-        }));
-      }
-
-      const realData = await getCustomerDashboard();
-      if (isMounted) {
-        if (realData) {
-          setData(realData);
-          if (realData.schemes && realData.schemes.length > 0) {
-            setSelectedSchemeId(realData.schemes[0].schemeId);
-          } else if (realData.scheme) {
-            setSelectedSchemeId(realData.scheme.schemeId);
-          }
-        } else {
-          const currentSession = await getStoredCustomerSession();
-          if (!currentSession) {
+  useFocusEffect(
+    useCallback(() => {
+      let isMounted = true;
+      const loadDashboard = async () => {
+        const currentSession = await getStoredCustomerSession();
+        if (!currentSession || !currentSession.token) {
+          if (isMounted) {
+            setIsLoading(false);
             router.replace('/login');
           }
+          return;
         }
-        setIsLoading(false);
-      }
-    };
 
-    loadDashboard();
-    return () => {
-      isMounted = false;
-    };
-  }, [router]);
+        const customerChanged = activeCustomerIdRef.current !== currentSession.customerId;
+        if (customerChanged) {
+          activeCustomerIdRef.current = currentSession.customerId || null;
+          // Purge data from the previous profile immediately
+          setData({
+            ...initialHomeData,
+            customerName: currentSession.fullName || 'Customer',
+            customerCode: currentSession.customerCode || '',
+          });
+          setSelectedSchemeId(null);
+          setIsLoading(true);
+        }
+
+        if (isMounted) {
+          setSession(currentSession);
+        }
+
+        // Keep authorizedProfiles refreshed to ensure Switch Profile button in header is always accurate
+        getAuthorizedProfiles()
+          .then((profiles) => {
+            if (isMounted && profiles) {
+              setSession((prev: any) =>
+                prev ? { ...prev, authorizedProfiles: profiles } : prev
+              );
+            }
+          })
+          .catch(() => {});
+
+        const realData = await getCustomerDashboard();
+        if (isMounted) {
+          if (realData) {
+            setData(realData);
+            if (realData.schemes && realData.schemes.length > 0) {
+              setSelectedSchemeId(realData.schemes[0].schemeId);
+            } else if (realData.scheme) {
+              setSelectedSchemeId(realData.scheme.schemeId);
+            }
+          }
+          setIsLoading(false);
+        }
+
+        // Auto-reconcile check if returning from checkout with a pending attempt
+        getPersistedPendingPaymentAttempt(currentSession?.customerId)
+          .then((persistedAttempt) => {
+            const attemptIdToCheck = persistedAttempt?.attemptId;
+            if (attemptIdToCheck) {
+              checkOnlinePaymentStatus(attemptIdToCheck)
+                .then((statusRes) => {
+                  if (statusRes?.isPaid) {
+                    clearPersistedPendingPaymentAttempt(currentSession?.customerId);
+                    getCustomerDashboard().then((refreshed) => {
+                      if (isMounted && refreshed) {
+                        setData(refreshed);
+                      }
+                    });
+                  } else if (statusRes?.status === 'FAILED') {
+                    clearPersistedPendingPaymentAttempt(currentSession?.customerId);
+                  }
+                })
+                .catch(() => {});
+            }
+          })
+          .catch(() => {});
+      };
+
+      loadDashboard();
+
+      return () => {
+        isMounted = false;
+      };
+    }, [router])
+  );
 
   // Resolve all schemes list (supporting multiple schemes)
   const schemesList: SchemeSummary[] =
@@ -117,35 +166,31 @@ export default function CustomerHomeScreen() {
       monthlyAmount * totalCount
     : 0;
 
-  // Combined Portfolio Summary
-  const summary = data.summary || {
-    totalSchemesCount: schemesList.length,
-    activeSchemesCount: schemesList.filter((s) => s.status === 'ACTIVE').length,
-    totalPaidAmount: schemesList.reduce((acc, s) => acc + (s.paidAmount || 0), 0),
-    totalTargetContribution: schemesList.reduce(
-      (acc, s) => acc + ((s.paidAmount || 0) + (s.remainingContribution || 0)),
-      0
-    ),
-    totalMaturityAmount: schemesList.reduce((acc, s) => acc + (s.maturityAmount || 0), 0),
-    totalPaidInstallments: schemesList.reduce((acc, s) => acc + (s.paidInstallments || 0), 0),
-    totalInstallmentsCount: schemesList.reduce((acc, s) => acc + (s.totalInstallments || 12), 0),
-    overallProgressPercentage:
-      schemesList.length > 0
-        ? Math.min(
-            100,
-            Math.round(
-              (schemesList.reduce((acc, s) => acc + (s.paidInstallments || 0), 0) /
-                Math.max(
-                  1,
-                  schemesList.reduce((acc, s) => acc + (s.totalInstallments || 12), 0)
-                )) *
-                100
-            )
-          )
-        : 0,
+  const currentInst = activeScheme?.currentInstallment || data.currentInstallment;
+  const dueInstAmount =
+    currentInst?.amount ?? (monthlyAmount > 0 ? monthlyAmount : 1000);
+  const dueCalendarMonth = currentInst?.calendarMonth || 'Current Month';
+  const dueInstNum = currentInst?.installmentNumber;
+
+  const handleOpenCashModal = () => {
+    setIsCashModalOpen(true);
   };
 
-  const currentInst = activeScheme?.currentInstallment || data.currentInstallment;
+  const handlePayOnline = async () => {
+    if (isOpeningOnline) return;
+    setIsOpeningOnline(true);
+    try {
+      await openRazorpayHostedCheckout(
+        dueInstAmount,
+        dueCalendarMonth,
+        dueInstNum,
+        selectedSchemeId || activeScheme?.schemeId,
+        session?.customerId
+      );
+    } finally {
+      setIsOpeningOnline(false);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -166,6 +211,10 @@ export default function CustomerHomeScreen() {
         customerName={data.customerName}
         unreadCount={data.unreadNotificationsCount}
         avatarUri={data.avatarUri}
+        hasMultipleProfiles={Boolean(
+          session?.authorizedProfiles && session.authorizedProfiles.length > 1
+        )}
+        onSwitchProfile={() => router.push('/select-customer' as any)}
       />
 
       <ScrollView
@@ -179,63 +228,7 @@ export default function CustomerHomeScreen() {
         ]}
         showsVerticalScrollIndicator={false}
       >
-        {/* 1. COMBINED PORTFOLIO SUMMARY CARD */}
-        {schemesList.length > 0 && (
-          <View style={styles.portfolioCard}>
-            <View style={styles.portfolioHeaderRow}>
-              <View>
-                <Text style={styles.portfolioEyebrow}>RAMYAS JEWELLER</Text>
-                <Text style={styles.portfolioTitle}>SAVINGS PORTFOLIO</Text>
-              </View>
-              <View style={styles.portfolioBadge}>
-                <Ionicons name="sparkles" size={12} color="#70001E" />
-                <Text style={styles.portfolioBadgeText}>
-                  {summary.activeSchemesCount} {t('active')} {t('scheme')}
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.portfolioMetricsGrid}>
-              <View style={styles.portfolioMetricCol}>
-                <Text style={styles.portfolioMetricLabel}>{t('contributed').toUpperCase()}</Text>
-                <Text style={styles.portfolioMetricValue}>
-                  {formatCurrency(summary.totalPaidAmount)}
-                </Text>
-                <Text style={styles.portfolioMetricSub}>
-                  {summary.totalTargetContribution > 0
-                    ? `${t('ofLabel')} ${formatCurrency(summary.totalTargetContribution)}`
-                    : '—'}
-                </Text>
-              </View>
-
-              <View style={styles.portfolioMetricDivider} />
-
-              <View style={styles.portfolioMetricCol}>
-                <Text style={styles.portfolioMetricLabel}>{t('maturityValueLabel')}</Text>
-                <Text style={styles.portfolioMetricValueGold}>
-                  {summary.totalMaturityAmount > 0
-                    ? formatCurrency(summary.totalMaturityAmount)
-                    : '—'}
-                </Text>
-                <Text style={styles.portfolioMetricSub}>
-                  {summary.totalPaidInstallments} / {summary.totalInstallmentsCount} {t('installmentLabel')}
-                </Text>
-              </View>
-            </View>
-
-            {/* Combined Progress Bar */}
-            <View style={styles.portfolioProgressBarTrack}>
-              <View
-                style={[
-                  styles.portfolioProgressBarFill,
-                  { width: `${summary.overallProgressPercentage}%` },
-                ]}
-              />
-            </View>
-          </View>
-        )}
-
-        {/* 2. MULTI-SCHEME SELECTOR CARDS (When customer has 2+ schemes) */}
+        {/* MULTI-SCHEME SELECTOR CARDS (When customer has 2+ schemes) */}
         {schemesList.length > 1 && (
           <View style={styles.schemesSection}>
             <View style={styles.schemesSectionHeader}>
@@ -420,10 +413,15 @@ export default function CustomerHomeScreen() {
 
               <View style={styles.nextPaymentDetails}>
                 <Text style={styles.nextPaymentSub}>{t('nextPayment')}</Text>
-                <Text style={styles.nextPaymentDate}>
+                <Text style={styles.nextPaymentDate} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>
                   {currentInst?.calendarMonth || '—'}
                 </Text>
-                <Text style={styles.nextPaymentAmount}>
+                {currentInst?.dueDateFormatted ? (
+                  <Text style={styles.nextPaymentDueDate} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>
+                    {t('dueBy')}: {currentInst.dueDateFormatted}
+                  </Text>
+                ) : null}
+                <Text style={styles.nextPaymentAmount} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>
                   {currentInst?.amount
                     ? formatCurrency(currentInst.amount)
                     : monthlyAmount > 0
@@ -433,21 +431,85 @@ export default function CustomerHomeScreen() {
               </View>
 
               <View style={styles.onTimeBadge}>
-                <Text style={styles.onTimeBadgeText}>{t('onTime')}</Text>
+                <Text style={styles.onTimeBadgeText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>
+                  {t('onTime')}
+                </Text>
               </View>
             </View>
 
-            {/* Pay at Shop Action Button */}
-            <TouchableOpacity
-              style={styles.payAtShopButton}
-              onPress={() => router.push('/shop')}
-              activeOpacity={0.85}
+            {/* Dual Payment Options: Pay by Cash & Pay Online */}
+            <View
+              style={[
+                styles.paymentButtonsContainer,
+                { flexDirection: responsive.width < 375 ? 'column' : 'row' },
+              ]}
             >
-              <Ionicons name="storefront-outline" size={22} color="#70001E" />
-              <Text style={styles.payAtShopButtonText}>{t('payAtShop')}</Text>
-            </TouchableOpacity>
+              {/* Pay by Cash */}
+              <TouchableOpacity
+                style={styles.payCashBtn}
+                onPress={handleOpenCashModal}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityLabel="Pay by Cash at Showroom"
+              >
+                <Ionicons name="cash-outline" size={19} color="#70001E" />
+                <Text style={styles.payCashBtnText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.82}>
+                  {t('payByCash')}
+                </Text>
+              </TouchableOpacity>
+
+              {/* Pay Online */}
+              <TouchableOpacity
+                style={styles.payOnlineBtn}
+                onPress={handlePayOnline}
+                activeOpacity={0.85}
+                disabled={isOpeningOnline}
+                accessibilityRole="button"
+                accessibilityLabel="Pay Online using Razorpay"
+              >
+                {isOpeningOnline ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <>
+                    <Ionicons name="card-outline" size={18} color="#FFFFFF" />
+                    <Text style={styles.payOnlineBtnText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.82}>
+                      {t('payOnline')}
+                    </Text>
+                    <Ionicons name="open-outline" size={14} color="#D4AF37" />
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+
+            {/* Secure Checkout & UPI Caption / Unavailable Notice */}
+            <View style={styles.paymentCaptionRow}>
+              <Ionicons
+                name={data.onlinePaymentConfigured ? 'shield-checkmark' : 'information-circle-outline'}
+                size={13}
+                color={data.onlinePaymentConfigured ? '#16834B' : '#854D0E'}
+              />
+              <Text
+                style={[
+                  styles.paymentCaptionText,
+                  !data.onlinePaymentConfigured && styles.paymentCaptionTextUnavailable,
+                ]}
+              >
+                {data.onlinePaymentConfigured ? t('secureRazorpayCaption') : t('onlinePaymentsUnavailableCaption')}
+              </Text>
+            </View>
           </View>
         )}
+
+        {/* CASH PAYMENT INSTRUCTIONS MODAL */}
+        <CashPaymentModal
+          visible={isCashModalOpen}
+          onClose={() => setIsCashModalOpen(false)}
+          dueAmount={dueInstAmount}
+          calendarMonth={dueCalendarMonth}
+          installmentNumber={dueInstNum}
+          customerName={data.customerName}
+          customerCode={session?.customerCode || (data as any)?.customerCode}
+        />
 
         {/* 5. YOUR JOURNEY TIMELINE CARD */}
         {activeScheme && (
@@ -585,7 +647,7 @@ export default function CustomerHomeScreen() {
         )}
 
         {/* 7. ANNOUNCEMENT CARD */}
-        {data.announcement && (
+        {data.announcement ? (
           <View style={styles.announcementCard}>
             <Ionicons
               name="megaphone-outline"
@@ -595,7 +657,7 @@ export default function CustomerHomeScreen() {
             />
             <Text style={styles.announcementText}>{data.announcement}</Text>
           </View>
-        )}
+        ) : null}
       </ScrollView>
     </SafeAreaView>
   );
@@ -611,103 +673,6 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     paddingBottom: 36,
     gap: 18,
-  },
-
-  /* 1. COMBINED PORTFOLIO CARD */
-  portfolioCard: {
-    backgroundColor: '#520018',
-    borderRadius: 22,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: '#E7C86E',
-    shadowColor: '#520018',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35,
-    shadowRadius: 12,
-    elevation: 6,
-  },
-  portfolioHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 16,
-  },
-  portfolioEyebrow: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: '#E7C86E',
-    letterSpacing: 1.5,
-  },
-  portfolioTitle: {
-    fontSize: 15,
-    fontWeight: '900',
-    color: '#FFFFFF',
-    letterSpacing: 1,
-    marginTop: 2,
-  },
-  portfolioBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#FFF3C4',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  portfolioBadgeText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#70001E',
-  },
-  portfolioMetricsGrid: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.22)',
-    borderRadius: 14,
-    padding: 14,
-    marginBottom: 14,
-  },
-  portfolioMetricCol: {
-    flex: 1,
-  },
-  portfolioMetricDivider: {
-    width: 1,
-    height: 38,
-    backgroundColor: 'rgba(231, 200, 110, 0.25)',
-    marginHorizontal: 12,
-  },
-  portfolioMetricLabel: {
-    fontSize: 9.5,
-    fontWeight: '700',
-    color: '#E7C86E',
-    letterSpacing: 0.8,
-    marginBottom: 2,
-  },
-  portfolioMetricValue: {
-    fontSize: 18,
-    fontWeight: '900',
-    color: '#FFFFFF',
-  },
-  portfolioMetricValueGold: {
-    fontSize: 18,
-    fontWeight: '900',
-    color: '#E7C86E',
-  },
-  portfolioMetricSub: {
-    fontSize: 10.5,
-    color: '#F8EDEF',
-    marginTop: 2,
-  },
-  portfolioProgressBarTrack: {
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    overflow: 'hidden',
-  },
-  portfolioProgressBarFill: {
-    height: '100%',
-    borderRadius: 3,
-    backgroundColor: '#E7C86E',
   },
 
   /* 2. MULTI-SCHEME SECTION */
@@ -1038,6 +1003,12 @@ const styles = StyleSheet.create({
     color: '#25232A',
     marginBottom: 2,
   },
+  nextPaymentDueDate: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#B45309',
+    marginBottom: 3,
+  },
   nextPaymentAmount: {
     fontSize: 18,
     fontWeight: '800',
@@ -1055,21 +1026,75 @@ const styles = StyleSheet.create({
     color: '#16834B',
     letterSpacing: 0.5,
   },
-  payAtShopButton: {
-    backgroundColor: '#F7DE72',
+  paymentButtonsContainer: {
+    gap: 10,
+    marginTop: 4,
+  },
+  payCashBtn: {
+    flex: 1,
+    height: 48,
     borderRadius: 14,
-    height: 52,
+    backgroundColor: '#FFFDF8',
+    borderWidth: 1.5,
+    borderColor: '#D4AF37',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    borderWidth: 1,
-    borderColor: '#D4AF37',
+    paddingHorizontal: 12,
+    shadowColor: '#D4AF37',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.12,
+    shadowRadius: 3,
+    elevation: 1,
   },
-  payAtShopButtonText: {
-    fontSize: 17,
+  payCashBtnText: {
+    fontSize: 14,
     fontWeight: '800',
     color: '#70001E',
+    letterSpacing: 0.2,
+  },
+  payOnlineBtn: {
+    flex: 1,
+    height: 48,
+    borderRadius: 14,
+    backgroundColor: '#70001E',
+    borderWidth: 1.5,
+    borderColor: '#9E1B42',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingHorizontal: 12,
+    shadowColor: '#70001E',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.22,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  payOnlineBtnText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: 0.2,
+  },
+  paymentCaptionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+    marginTop: 10,
+    paddingHorizontal: 4,
+  },
+  paymentCaptionText: {
+    fontSize: 10.5,
+    fontWeight: '500',
+    color: '#6F6870',
+    textAlign: 'center',
+  },
+  paymentCaptionTextUnavailable: {
+    color: '#854D0E',
+    fontWeight: '600',
   },
 
   /* 5. JOURNEY TIMELINE CARD */

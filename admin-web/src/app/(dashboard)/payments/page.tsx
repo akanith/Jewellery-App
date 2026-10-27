@@ -598,7 +598,7 @@ export default function PaymentsPage() {
           </div>
 
           <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto">
-            {['ALL', 'GPAY', 'PHONEPE', 'CASH', 'BANK_TRANSFER'].map((method) => (
+            {['ALL', 'RAZORPAY', 'GPAY', 'PHONEPE', 'CASH', 'BANK_TRANSFER'].map((method) => (
               <button
                 key={method}
                 onClick={() => setMethodFilter(method)}
@@ -608,7 +608,11 @@ export default function PaymentsPage() {
                     : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                 }`}
               >
-                {method === 'ALL' ? 'All Methods' : method.replace('_', ' ')}
+                {method === 'ALL'
+                  ? 'All Methods'
+                  : method === 'RAZORPAY'
+                  ? 'Razorpay Online'
+                  : method.replace('_', ' ')}
               </button>
             ))}
           </div>
@@ -699,9 +703,25 @@ export default function PaymentsPage() {
 
                         {/* Method */}
                         <td className="py-4 px-5">
-                          <span className="inline-block px-2.5 py-1 rounded-md text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
-                            {p.payment_method}
-                          </span>
+                          <div className="flex flex-col gap-1 items-start">
+                            <span
+                              className={`inline-block px-2.5 py-1 rounded-md text-[10px] font-bold ${
+                                p.payment_method === 'RAZORPAY'
+                                  ? 'bg-purple-50 text-purple-700 border border-purple-200'
+                                  : 'bg-slate-100 text-slate-700 border border-slate-200'
+                              }`}
+                            >
+                              {p.payment_method === 'RAZORPAY' ? '⚡ RAZORPAY' : p.payment_method}
+                            </span>
+                            {p.transaction_reference && (
+                              <span
+                                className="text-[10px] font-mono text-slate-500 truncate max-w-[150px]"
+                                title={p.transaction_reference}
+                              >
+                                {p.transaction_reference}
+                              </span>
+                            )}
+                          </div>
                         </td>
 
                         {/* Status */}

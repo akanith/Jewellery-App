@@ -137,9 +137,16 @@ export default function EnrollSchemeModal({
     e.preventDefault();
     if (isSubmitting) return;
 
+    if (openCount > 0) {
+      setErrorMessage(
+        'Customer already has an enrolled scheme. Only one scheme enrollment is permitted per customer.'
+      );
+      return;
+    }
+
     if (isMaxReached) {
       setErrorMessage(
-        'Customer already holds the maximum permitted 5 open schemes. An existing scheme must be redeemed or cancelled before enrolling in a new slot.'
+        'Customer already holds the maximum permitted open schemes.'
       );
       return;
     }
@@ -205,7 +212,7 @@ export default function EnrollSchemeModal({
             </div>
             <div>
               <h2 className="font-serif-luxury font-bold text-xl text-slate-900 tracking-tight">
-                {openCount === 0 ? 'ENROLL IN SAVINGS SCHEME' : 'ADD ANOTHER SCHEME'}
+                ENROLL IN SAVINGS SCHEME
               </h2>
               <p className="text-xs text-slate-500 mt-0.5">
                 Enroll customer into the Ramyas Jeweller 12-Month Gold Savings Scheme.
@@ -454,7 +461,7 @@ export default function EnrollSchemeModal({
 
             <button
               type="submit"
-              disabled={isSubmitting || isMaxReached}
+              disabled={isSubmitting || openCount > 0}
               className="px-5 py-2.5 rounded-xl royal-button font-bold text-xs flex items-center gap-2 cursor-pointer shadow-xs disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isSubmitting ? (
@@ -462,15 +469,15 @@ export default function EnrollSchemeModal({
                   <Loader2 className="w-4 h-4 animate-spin" />
                   <span>Enrolling Scheme...</span>
                 </>
-              ) : isMaxReached ? (
+              ) : openCount > 0 ? (
                 <>
                   <Lock className="w-4 h-4" />
-                  <span>Max Schemes Reached (5/5)</span>
+                  <span>Scheme Already Enrolled</span>
                 </>
               ) : (
                 <>
                   <CheckCircle2 className="w-4 h-4" />
-                  <span>Confirm & Enroll (Slot #{nextAvailableSlot})</span>
+                  <span>Confirm & Enroll</span>
                 </>
               )}
             </button>

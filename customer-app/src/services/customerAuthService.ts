@@ -1,20 +1,34 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { buildBffUrl } from './urlConfig';
 
+export interface CustomerProfileOption {
+  customerId: string;
+  customerCode: string;
+  fullName: string;
+  mobileNumber: string;
+  passwordStatus?: 'RESET_REQUIRED' | 'ACTIVE' | 'LOCKED';
+  schemeCount?: number;
+  isSelected?: boolean;
+}
+
 export interface CustomerSession {
   token: string;
+  customerId?: string;
   customerCode: string;
   fullName: string;
   mobileNumber: string;
   passwordStatus?: 'RESET_REQUIRED' | 'ACTIVE' | 'LOCKED';
   isAuthenticated: boolean;
   authenticatedAt: string;
+  authorizedProfiles?: CustomerProfileOption[];
 }
 
 export interface CustomerAuthResult {
   success: boolean;
   message?: string;
   session?: CustomerSession;
+  requiresSelection?: boolean;
+  profiles?: CustomerProfileOption[];
 }
 
 export interface PasswordResetResult {
@@ -72,7 +86,7 @@ export const validatePasswordCriteria = (password: string): { isValid: boolean; 
 
 /**
  * Authenticates customer via real Customer BFF /auth/login with mobile number and password.
- * Returns raw server session token, real customer identity, and password status.
+ * Returns raw server session token, real customer identity, password status, and all authorized profiles.
  */
 export const loginWithMobile = async (mobileNumber: string, password?: string): Promise<CustomerAuthResult> => {
   const validation = validateMobileNumber(mobileNumber);
@@ -119,14 +133,29 @@ export const loginWithMobile = async (mobileNumber: string, password?: string): 
       };
     }
 
+    const profilesList: CustomerProfileOption[] = Array.isArray(json.profiles)
+      ? json.profiles.map((p: any) => ({
+          customerId: p.customerId || p.customer_id,
+          customerCode: p.customerCode || p.customer_code,
+          fullName: p.fullName || p.full_name,
+          mobileNumber: sanitizeMobileNumber(p.mobileNumber || p.phone_number || cleanedNumber),
+          passwordStatus: p.passwordStatus || p.password_status || 'ACTIVE',
+          schemeCount: p.schemeCount ?? p.scheme_count ?? 0,
+        }))
+      : [];
+
+    const requiresSelection = Boolean(json.requiresSelection) || profilesList.length > 1;
+
     const session: CustomerSession = {
       token: json.token,
+      customerId: json.customer.customerId,
       customerCode: json.customer.customerCode,
       fullName: json.customer.fullName,
       mobileNumber: sanitizeMobileNumber(json.customer.mobileNumber || cleanedNumber),
       passwordStatus: json.customer.passwordStatus || 'ACTIVE',
       isAuthenticated: true,
       authenticatedAt: new Date().toISOString(),
+      authorizedProfiles: profilesList,
     };
 
     await AsyncStorage.setItem(CUSTOMER_SESSION_KEY, JSON.stringify(session));
@@ -135,6 +164,8 @@ export const loginWithMobile = async (mobileNumber: string, password?: string): 
       success: true,
       message: 'Login successful.',
       session,
+      requiresSelection,
+      profiles: profilesList,
     };
   } catch {
     return {
@@ -304,5 +335,98 @@ export const logoutCustomer = async (callServer = true): Promise<void> => {
   } finally {
     // Always clear session locally, preserving language preference
     await AsyncStorage.removeItem(CUSTOMER_SESSION_KEY);
+  }
+};
+
+/**
+ * Switches the active profile within an authorized session.
+ * Communicates with BFF POST /auth/select-profile.
+ */
+export const selectCustomerProfile = async (
+  targetCustomerId: string
+): Promise<{ success: boolean; message?: string; session?: CustomerSession }> => {
+  try {
+    const session = await getStoredCustomerSession();
+    if (!session?.token) {
+      return { success: false, message: 'Session expired. Please log in again.' };
+    }
+
+    const url = buildBffUrl('/auth/select-profile');
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${session.token}`,
+      },
+      body: JSON.stringify({ customerId: targetCustomerId }),
+    });
+
+    const json = await response.json().catch(() => null);
+    if (!response.ok || !json?.success) {
+      return {
+        success: false,
+        message: json?.error || 'Failed to select customer profile.',
+      };
+    }
+
+    // Update stored active customer identity
+    const updatedCustomer = json.customer;
+    session.customerId = updatedCustomer.customerId || targetCustomerId;
+    session.customerCode = updatedCustomer.customerCode || session.customerCode;
+    session.fullName = updatedCustomer.fullName || session.fullName;
+    session.passwordStatus = updatedCustomer.passwordStatus || session.passwordStatus;
+
+    if (session.authorizedProfiles) {
+      session.authorizedProfiles = session.authorizedProfiles.map((p) => ({
+        ...p,
+        isSelected: p.customerId === session.customerId,
+      }));
+    }
+
+    await AsyncStorage.setItem(CUSTOMER_SESSION_KEY, JSON.stringify(session));
+    return { success: true, session };
+  } catch {
+    return { success: false, message: 'Unable to connect to service. Please try again.' };
+  }
+};
+
+/**
+ * Fetches all customer profiles authorized for the current verified phone.
+ */
+export const getAuthorizedProfiles = async (): Promise<CustomerProfileOption[]> => {
+  try {
+    const session = await getStoredCustomerSession();
+    if (!session?.token) return [];
+
+    const url = buildBffUrl('/auth/profiles');
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${session.token}`,
+      },
+    });
+
+    const json = await response.json().catch(() => null);
+    if (response.ok && json?.success && Array.isArray(json.profiles)) {
+      const freshProfiles = json.profiles.map((p: any) => ({
+        customerId: p.customerId,
+        customerCode: p.customerCode,
+        fullName: p.fullName,
+        mobileNumber: p.mobileNumber,
+        passwordStatus: p.passwordStatus,
+        schemeCount: p.schemeCount,
+        isSelected: p.customerId === session.customerId,
+      }));
+
+      // Cache on session
+      session.authorizedProfiles = freshProfiles;
+      await AsyncStorage.setItem(CUSTOMER_SESSION_KEY, JSON.stringify(session));
+      return freshProfiles;
+    }
+
+    return session.authorizedProfiles || [];
+  } catch {
+    const session = await getStoredCustomerSession();
+    return session?.authorizedProfiles || [];
   }
 };

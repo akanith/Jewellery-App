@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -11,7 +11,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Circle } from 'react-native-svg';
 import { useLanguage } from '@/i18n';
@@ -19,10 +19,21 @@ import { CustomerHeader } from '@/components/CustomerHeader';
 import { CustomerPassbookData, PassbookInstallment } from '@/types/passbook';
 import { SchemeSummary } from '@/types/dashboard';
 import { formatCurrency } from '@/lib/formatters';
-import { getCustomerPassbook, getCustomerDashboard } from '@/services/customerDataService';
+import {
+  getCustomerPassbook,
+  getCustomerDashboard,
+  checkOnlinePaymentStatus,
+} from '@/services/customerDataService';
 import { getStoredCustomerSession } from '@/services/customerAuthService';
 import { OFFICIAL_SCHEME_NAME } from '@/constants/shopData';
 import { useResponsiveMetrics } from '@/constants/responsive';
+import { CashPaymentModal } from '@/components/CashPaymentModal';
+import {
+  openRazorpayHostedCheckout,
+  getPersistedPendingPaymentAttempt,
+  clearPersistedPendingPaymentAttempt,
+} from '@/services/paymentService';
+import { exportPassbookPdf } from '@/services/passbookPdfService';
 
 
 const initialPassbookData: CustomerPassbookData = {
@@ -75,7 +86,7 @@ const getMaturityMonthStr = (installments: PassbookInstallment[]): string => {
 export default function CustomerPassbookScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ schemeId?: string }>();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const responsive = useResponsiveMetrics();
   const [data, setData] = useState<CustomerPassbookData>(initialPassbookData);
   const [selectedSchemeId, setSelectedSchemeId] = useState<string | null>(params.schemeId || null);
@@ -83,10 +94,15 @@ export default function CustomerPassbookScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [retryKey, setRetryKey] = useState(0);
+  const [session, setSession] = useState<any>(null);
+  const [isCashModalOpen, setIsCashModalOpen] = useState(false);
+  const [isOpeningOnline, setIsOpeningOnline] = useState(false);
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
 
   const customerSchemesRef = useRef<SchemeSummary[]>([]);
   const currentRequestIdRef = useRef(0);
   const prevParamSchemeIdRef = useRef<string | undefined>(params.schemeId);
+  const activeCustomerIdRef = useRef<string | null>(null);
 
   // Synchronize route parameter changes (e.g., navigated from Dashboard scheme card) via effect
   useEffect(() => {
@@ -98,6 +114,59 @@ export default function CustomerPassbookScreen() {
       setIsLoading(true);
     }
   }, [params.schemeId]);
+
+  // Handle screen focus & detect customer profile switch
+  useFocusEffect(
+    useCallback(() => {
+      let isMounted = true;
+      getStoredCustomerSession()
+        .then((currSession) => {
+          if (!isMounted) return;
+          if (!currSession || !currSession.token) {
+            router.replace('/login');
+            return;
+          }
+
+          setSession(currSession);
+
+          if (activeCustomerIdRef.current && activeCustomerIdRef.current !== currSession.customerId) {
+            // Active customer has switched! Purge all cached scheme data from previous customer
+            activeCustomerIdRef.current = currSession.customerId || null;
+            customerSchemesRef.current = [];
+            setCustomerSchemes([]);
+            setSelectedSchemeId(null);
+            setData(initialPassbookData);
+            setRetryKey((k) => k + 1);
+          } else {
+            activeCustomerIdRef.current = currSession.customerId || null;
+
+            // Auto-reconcile check if returning with an active pending payment attempt
+            getPersistedPendingPaymentAttempt(currSession.customerId)
+              .then((persistedAttempt) => {
+                const attemptIdToCheck = persistedAttempt?.attemptId;
+                if (attemptIdToCheck) {
+                  checkOnlinePaymentStatus(attemptIdToCheck)
+                    .then((statusRes) => {
+                      if (statusRes?.isPaid) {
+                        clearPersistedPendingPaymentAttempt(currSession.customerId);
+                        setRetryKey((k) => k + 1);
+                      } else if (statusRes?.status === 'FAILED') {
+                        clearPersistedPendingPaymentAttempt(currSession.customerId);
+                      }
+                    })
+                    .catch(() => {});
+                }
+              })
+              .catch(() => {});
+          }
+        })
+        .catch(() => {});
+
+      return () => {
+        isMounted = false;
+      };
+    }, [router])
+  );
 
   useEffect(() => {
     let isMounted = true;
@@ -212,16 +281,6 @@ export default function CustomerPassbookScreen() {
     );
   }
 
-  const handleDownloadPassbook = () => {
-    const title = t('downloadPassbook');
-    const msg = t('passbookPdfFuture');
-    if (Platform.OS === 'web') {
-      window.alert(`${title}\n\n${msg}`);
-    } else {
-      Alert.alert(title, msg, [{ text: t('ok') }]);
-    }
-  };
-
   // Calculate SVG progress ring parameters (80px x 80px, 7.5px stroke width)
   const ringSize = 80;
   const strokeWidth = 7.5;
@@ -236,6 +295,41 @@ export default function CustomerPassbookScreen() {
   const paidCount = Math.min(totalCount, Math.max(0, actualPaidCount));
   const progressRatio = paidCount / totalCount;
   const strokeDashoffset = circumference - circumference * progressRatio;
+  const isSchemeCompleted = totalCount === 12 && paidCount === 12;
+
+  const handleDownloadPassbook = async () => {
+    if (!isSchemeCompleted) {
+      const msg = t('passbookPdfIneligibleMsg').replace('{paid}', String(paidCount));
+      if (Platform.OS === 'web') {
+        window.alert(msg);
+      } else {
+        Alert.alert(t('passbookPdfNotCompleteTitle'), msg, [{ text: t('ok') }]);
+      }
+      return;
+    }
+
+    setIsDownloadingPdf(true);
+    try {
+      const result = await exportPassbookPdf(data.schemeId || undefined, language);
+      if (!result.success) {
+        const errorMsg = result.message || t('passbookPdfFailed');
+        if (Platform.OS === 'web') {
+          window.alert(errorMsg);
+        } else {
+          Alert.alert(t('passbookPdfNotCompleteTitle'), errorMsg, [{ text: t('ok') }]);
+        }
+      }
+    } catch (err: any) {
+      const failMsg = err?.message || t('passbookPdfFailed');
+      if (Platform.OS === 'web') {
+        window.alert(failMsg);
+      } else {
+        Alert.alert(t('passbookPdfNotCompleteTitle'), failMsg, [{ text: t('ok') }]);
+      }
+    } finally {
+      setIsDownloadingPdf(false);
+    }
+  };
 
   // Derive due installment from authoritative installment status and installment number:
   // Never infer payment or due state from array position or paid counts.
@@ -248,6 +342,28 @@ export default function CustomerPassbookScreen() {
     ? String(dueInstallment.installmentNumber).padStart(2, '0')
     : '01';
   const dueInstallmentMonth = dueInstallment?.calendarMonth || '—';
+  const dueInstAmount = dueInstallment?.installmentAmount || data.monthlyInstallment || 1000;
+  const dueInstNum = dueInstallment?.installmentNumber;
+
+  const handleOpenCashModal = () => {
+    setIsCashModalOpen(true);
+  };
+
+  const handlePayOnline = async () => {
+    if (isOpeningOnline) return;
+    setIsOpeningOnline(true);
+    try {
+      await openRazorpayHostedCheckout(
+        dueInstAmount,
+        dueInstallmentMonth,
+        dueInstNum,
+        selectedSchemeId || data.schemeId || undefined,
+        session?.customerId
+      );
+    } finally {
+      setIsOpeningOnline(false);
+    }
+  };
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -258,6 +374,10 @@ export default function CustomerPassbookScreen() {
         customerName={data.customerName}
         unreadCount={data.unreadNotificationsCount}
         avatarUri={data.avatarUri}
+        hasMultipleProfiles={Boolean(
+          session?.authorizedProfiles && session.authorizedProfiles.length > 1
+        )}
+        onSwitchProfile={() => router.push('/select-customer' as any)}
       />
 
       <ScrollView
@@ -408,7 +528,9 @@ export default function CustomerPassbookScreen() {
                 <Text style={styles.progressRingCount}>
                   {paidCount} / {totalCount}
                 </Text>
-                <Text style={styles.progressRingLabel}>COMPLETED</Text>
+                <Text style={styles.progressRingLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
+                  {t('completedTag')}
+                </Text>
               </View>
             </View>
           </View>
@@ -426,11 +548,13 @@ export default function CustomerPassbookScreen() {
             {/* Middle Details */}
             <View style={styles.dueAlertMiddle}>
               <View style={styles.dueAlertTitleRow}>
-                <Text style={styles.dueAlertTitle}>
-                  {t('installmentDueLabel')} {dueInstallmentNum} Due
+                <Text style={styles.dueAlertTitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>
+                  {t('installmentDueLabel')} {dueInstallmentNum} {t('dueTag')}
                 </Text>
                 <View style={styles.dueTagBadge}>
-                  <Text style={styles.dueTagBadgeText}>DUE {dueInstallmentMonth.toUpperCase()}</Text>
+                  <Text style={styles.dueTagBadgeText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>
+                    {t('dueTag')} {dueInstallmentMonth.toUpperCase()}
+                  </Text>
                 </View>
               </View>
               <Text style={styles.dueAlertSubtext}>
@@ -439,24 +563,84 @@ export default function CustomerPassbookScreen() {
             </View>
 
             {/* Amount */}
-            <Text style={styles.dueAlertAmount}>
+            <Text style={styles.dueAlertAmount} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>
               {formatCurrency(dueInstallment?.installmentAmount || data.monthlyInstallment)}
             </Text>
           </View>
 
-          {/* CTA Buttons Row */}
-          <View style={styles.dueCtaButtonsRow}>
+          {/* Dual Payment Options: Pay by Cash & Pay Online */}
+          <View
+            style={[
+              styles.dueCtaButtonsRow,
+              { flexDirection: responsive.width < 375 ? 'column' : 'row' },
+            ]}
+          >
+            {/* Pay by Cash */}
             <TouchableOpacity
-              style={styles.payShowroomBtn}
-              onPress={() => router.push('/shop')}
-              activeOpacity={0.8}
+              style={styles.payCashBtn}
+              onPress={handleOpenCashModal}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel="Pay by Cash at Showroom"
             >
-              <Ionicons name="storefront-outline" size={16} color="#70001E" />
-              <Text style={styles.payShowroomBtnText}>{t('payAtShowroom')}</Text>
+              <Ionicons name="cash-outline" size={17} color="#70001E" />
+              <Text style={styles.payCashBtnText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.82}>
+                {t('payByCash')}
+              </Text>
             </TouchableOpacity>
+
+            {/* Pay Online */}
+            <TouchableOpacity
+              style={styles.payOnlineBtn}
+              onPress={handlePayOnline}
+              activeOpacity={0.85}
+              disabled={isOpeningOnline}
+              accessibilityRole="button"
+              accessibilityLabel="Pay Online using Razorpay"
+            >
+              {isOpeningOnline ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <>
+                  <Ionicons name="card-outline" size={16} color="#FFFFFF" />
+                  <Text style={styles.payOnlineBtnText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.82}>
+                    {t('payOnline')}
+                  </Text>
+                  <Ionicons name="open-outline" size={14} color="#D4AF37" />
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+
+          {/* Secure Checkout & UPI Caption / Unavailable Notice */}
+          <View style={styles.paymentCaptionRow}>
+            <Ionicons
+              name={data.onlinePaymentConfigured ? 'shield-checkmark' : 'information-circle-outline'}
+              size={12}
+              color={data.onlinePaymentConfigured ? '#16834B' : '#854D0E'}
+            />
+            <Text
+              style={[
+                styles.paymentCaptionText,
+                !data.onlinePaymentConfigured && styles.paymentCaptionTextUnavailable,
+              ]}
+            >
+              {data.onlinePaymentConfigured ? t('secureRazorpayCaption') : t('onlinePaymentsUnavailableCaption')}
+            </Text>
           </View>
         </View>
       ) : null}
+
+      {/* CASH PAYMENT INSTRUCTIONS MODAL */}
+      <CashPaymentModal
+        visible={isCashModalOpen}
+        onClose={() => setIsCashModalOpen(false)}
+        dueAmount={dueInstAmount}
+        calendarMonth={dueInstallmentMonth}
+        installmentNumber={dueInstNum}
+        customerName={data.customerName}
+        customerCode={session?.customerCode || (data as any)?.customerCode}
+      />
 
         {/* 12-MONTH INSTALLMENT LEDGER GRID (READ-ONLY RECORD) */}
         <View style={styles.ledgerSection}>
@@ -477,7 +661,7 @@ export default function CustomerPassbookScreen() {
                 <View style={styles.emptyInstallmentsBox}>
                   <Ionicons name="calendar-outline" size={32} color="#70001E" />
                   <Text style={styles.emptyInstallmentsText}>
-                    No installment records found for this scheme.
+                    {t('noInstallmentRecords')}
                   </Text>
                 </View>
               ) : (
@@ -501,20 +685,22 @@ export default function CustomerPassbookScreen() {
                           <Ionicons name="checkmark" size={12} color="#16834B" />
                         </View>
                       </View>
-                      <Text style={styles.gridCardAmount}>
+                      <Text style={styles.gridCardAmount} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>
                         {formatCurrency(inst.installmentAmount || data.monthlyInstallment || 1000)}
                       </Text>
                       <View style={styles.gridCardBottomRow}>
-                        <Text style={styles.gridCardDate}>
+                        <Text style={styles.gridCardDate} numberOfLines={1}>
                           {inst.paidDateFormatted || inst.calendarMonth}
                         </Text>
-                        <Text style={styles.paidDoneText}>✓ PAID</Text>
+                        <Text style={styles.paidDoneText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.82}>
+                          ✓ {t('paidTag')}
+                        </Text>
                       </View>
                       {inst.receiptNumber ? (
                         <View style={styles.receiptTagRow}>
                           <Ionicons name="receipt-outline" size={10} color="#70001E" />
-                          <Text style={styles.receiptTagText} numberOfLines={1}>
-                            RCP #{inst.receiptNumber}
+                          <Text style={styles.receiptTagText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.82}>
+                            {t('receiptShort')}{inst.receiptNumber}
                           </Text>
                         </View>
                       ) : null}
@@ -531,16 +717,20 @@ export default function CustomerPassbookScreen() {
                       <View style={styles.gridCardTopRow}>
                         <Text style={styles.dueInstNum}>{instNumFormatted}</Text>
                         <View style={styles.duePillBadge}>
-                          <Text style={styles.duePillBadgeText}>DUE</Text>
+                          <Text style={styles.duePillBadgeText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.82}>
+                            {t('dueTag')}
+                          </Text>
                         </View>
                       </View>
-                      <Text style={styles.dueGridCardAmount}>
+                      <Text style={styles.dueGridCardAmount} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>
                         {formatCurrency(inst.installmentAmount || data.monthlyInstallment || 1000)}
                       </Text>
-                      <Text style={styles.dueInstDate}>
+                      <Text style={styles.dueInstDate} numberOfLines={1}>
                         {inst.calendarMonth}
                       </Text>
-                      <Text style={styles.duePendingSubtext}>Payment pending</Text>
+                      <Text style={styles.duePendingSubtext} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.82}>
+                        {t('paymentPending')}
+                      </Text>
                     </View>
                   );
                 }
@@ -554,15 +744,15 @@ export default function CustomerPassbookScreen() {
                     <View style={styles.gridCardTopRow}>
                       <Text style={styles.futureInstNum}>{instNumFormatted}</Text>
                       <View style={styles.pendingPillBadge}>
-                        <Text style={styles.pendingPillBadgeText}>
-                          {inst.status === 'FUTURE' ? 'FUTURE' : 'PENDING'}
+                        <Text style={styles.pendingPillBadgeText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.82}>
+                          {inst.status === 'FUTURE' ? t('future') : t('pendingStatus')}
                         </Text>
                       </View>
                     </View>
-                    <Text style={styles.futureCardAmount}>
+                    <Text style={styles.futureCardAmount} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>
                       {formatCurrency(inst.installmentAmount || data.monthlyInstallment || 1000)}
                     </Text>
-                    <Text style={styles.futureCardMonth}>{inst.calendarMonth}</Text>
+                    <Text style={styles.futureCardMonth} numberOfLines={1}>{inst.calendarMonth}</Text>
                   </View>
                 );
               })
@@ -593,14 +783,46 @@ export default function CustomerPassbookScreen() {
         </View>
 
             {/* DOWNLOAD PASSBOOK CTA BUTTON */}
-            <TouchableOpacity
-              style={styles.downloadButton}
-              onPress={handleDownloadPassbook}
-              activeOpacity={0.88}
-            >
-              <Ionicons name="download-outline" size={20} color="#FFFFFF" />
-              <Text style={styles.downloadButtonText}>{t('downloadPassbook')}</Text>
-            </TouchableOpacity>
+            <View style={styles.downloadSection}>
+              <TouchableOpacity
+                style={[
+                  styles.downloadButton,
+                  !isSchemeCompleted && styles.downloadButtonDisabled,
+                ]}
+                onPress={handleDownloadPassbook}
+                activeOpacity={isSchemeCompleted ? 0.88 : 0.6}
+                disabled={isDownloadingPdf}
+              >
+                {isDownloadingPdf ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <>
+                    <Ionicons
+                      name={isSchemeCompleted ? "download-outline" : "lock-closed-outline"}
+                      size={20}
+                      color={isSchemeCompleted ? "#FFFFFF" : "#64748B"}
+                    />
+                    <Text
+                      style={[
+                        styles.downloadButtonText,
+                        !isSchemeCompleted && styles.downloadButtonTextDisabled,
+                      ]}
+                    >
+                      {isDownloadingPdf ? t('generatingPassbookPdf') : t('downloadPassbook')}
+                    </Text>
+                  </>
+                )}
+              </TouchableOpacity>
+
+              {!isSchemeCompleted && (
+                <View style={styles.ineligibleNoticeBox}>
+                  <Ionicons name="information-circle-outline" size={15} color="#92400E" />
+                  <Text style={styles.ineligibleNoticeText}>
+                    {t('passbookPdfIneligibleMsg').replace('{paid}', String(paidCount))}
+                  </Text>
+                </View>
+              )}
+            </View>
           </>
         )}
       </ScrollView>
@@ -789,47 +1011,74 @@ const styles = StyleSheet.create({
     color: '#70001E',
   },
   dueCtaButtonsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
     gap: 10,
     marginTop: 14,
   },
-  payShowroomBtn: {
+  payCashBtn: {
     flex: 1,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E9D9C4',
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: '#FFFDF8',
+    borderWidth: 1.5,
+    borderColor: '#D4AF37',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
+    gap: 7,
+    paddingHorizontal: 12,
+    shadowColor: '#D4AF37',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 1,
   },
-  payShowroomBtnText: {
+  payCashBtnText: {
     fontSize: 13,
     fontWeight: '800',
     color: '#70001E',
+    letterSpacing: 0.2,
   },
-  scanQrBtn: {
+  payOnlineBtn: {
     flex: 1,
-    height: 42,
-    borderRadius: 21,
+    height: 44,
+    borderRadius: 14,
     backgroundColor: '#70001E',
+    borderWidth: 1.5,
+    borderColor: '#9E1B42',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
+    gap: 7,
+    paddingHorizontal: 12,
     shadowColor: '#70001E',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.25,
-    shadowRadius: 6,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  scanQrBtnText: {
+  payOnlineBtnText: {
     fontSize: 13,
     fontWeight: '800',
     color: '#FFFFFF',
+    letterSpacing: 0.2,
+  },
+  paymentCaptionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+    marginTop: 10,
+    paddingHorizontal: 4,
+  },
+  paymentCaptionText: {
+    fontSize: 10,
+    fontWeight: '500',
+    color: '#6F6870',
+    textAlign: 'center',
+  },
+  paymentCaptionTextUnavailable: {
+    color: '#854D0E',
+    fontWeight: '600',
   },
 
   /* 12-MONTH INSTALLMENT LEDGER GRID */
@@ -1083,6 +1332,10 @@ const styles = StyleSheet.create({
   },
 
   /* DOWNLOAD PASSBOOK BUTTON */
+  downloadSection: {
+    marginTop: 4,
+    gap: 8,
+  },
   downloadButton: {
     backgroundColor: '#70001E',
     borderRadius: 16,
@@ -1096,12 +1349,39 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 8,
     elevation: 4,
-    marginTop: 4,
+  },
+  downloadButtonDisabled: {
+    backgroundColor: '#F1F5F9',
+    shadowOpacity: 0,
+    elevation: 0,
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
   },
   downloadButtonText: {
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '800',
+  },
+  downloadButtonTextDisabled: {
+    color: '#64748B',
+  },
+  ineligibleNoticeBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+  },
+  ineligibleNoticeText: {
+    fontSize: 12,
+    color: '#92400E',
+    fontWeight: '600',
+    flex: 1,
+    lineHeight: 16,
   },
 
   /* MULTI-SCHEME SWITCHER */
