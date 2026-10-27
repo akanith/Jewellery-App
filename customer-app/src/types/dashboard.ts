@@ -69,4 +69,5 @@ export interface CustomerHomeData {
   currentInstallment: CurrentInstallment | null;
   recentPayments: RecentPayment[];
   announcement?: string | null;
+  onlinePaymentConfigured?: boolean;
 }

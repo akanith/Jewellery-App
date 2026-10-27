@@ -94,7 +94,7 @@ export default function ForgotPasswordScreen() {
 
         <View style={styles.headerBrand}>
           <Ionicons name="diamond-outline" size={20} color="#70001E" />
-          <Text style={styles.headerBrandText}>JewelSave</Text>
+          <Text style={styles.headerBrandText}>Ramyas Jeweller</Text>
         </View>
 
         <Text style={styles.headerSubText}>{OFFICIAL_SHOP_INFO.name}</Text>

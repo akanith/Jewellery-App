@@ -24,6 +24,10 @@ import {
   DeleteCustomerAccountResult,
   UpdateCustomerProfileParams,
   UpdateCustomerProfileResult,
+  LinkCustomerFamilyProfilesParams,
+  LinkCustomerFamilyProfilesResult,
+  UnlinkCustomerFamilyProfilesParams,
+  UnlinkCustomerFamilyProfilesResult,
 } from '@/types/database';
 
 export interface RpcResponse<T> {
@@ -337,6 +341,7 @@ export async function updateCustomerProfile(
       p_nominee_name: params.p_nominee_name || null,
       p_nominee_relationship: params.p_nominee_relationship || null,
       p_notes: params.p_notes || null,
+      p_alternate_phone: params.p_alternate_phone || null,
     });
 
     if (error) {
@@ -346,6 +351,59 @@ export async function updateCustomerProfile(
     return { data: data as UpdateCustomerProfileResult, error: null };
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unable to update customer details.';
+    return { data: null, error: message };
+  }
+}
+
+/**
+ * Explicitly links two customer profiles for shared family management.
+ * Invokes SECURITY DEFINER procedure public.link_customer_family_profiles(...).
+ * Enforces admin authorization and creates mutual authorization mappings in customer_profile_authorizations.
+ */
+export async function linkCustomerFamilyProfiles(
+  params: LinkCustomerFamilyProfilesParams
+): Promise<RpcResponse<LinkCustomerFamilyProfilesResult>> {
+  try {
+    const supabase = getSupabaseBrowserClient();
+    const { data, error } = await supabase.rpc('link_customer_family_profiles', {
+      p_customer_id_1: params.p_customer_id_1,
+      p_customer_id_2: params.p_customer_id_2,
+      p_relationship: params.p_relationship || 'FAMILY_MEMBER',
+      p_notes: params.p_notes || null,
+    });
+
+    if (error) {
+      return { data: null, error: error.message };
+    }
+
+    return { data: data as LinkCustomerFamilyProfilesResult, error: null };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unable to link customer family profiles.';
+    return { data: null, error: message };
+  }
+}
+
+/**
+ * Removes family authorization link between two customer profiles.
+ * Invokes SECURITY DEFINER procedure public.unlink_customer_family_profiles(...).
+ */
+export async function unlinkCustomerFamilyProfiles(
+  params: UnlinkCustomerFamilyProfilesParams
+): Promise<RpcResponse<UnlinkCustomerFamilyProfilesResult>> {
+  try {
+    const supabase = getSupabaseBrowserClient();
+    const { data, error } = await supabase.rpc('unlink_customer_family_profiles', {
+      p_customer_id_1: params.p_customer_id_1,
+      p_customer_id_2: params.p_customer_id_2,
+    });
+
+    if (error) {
+      return { data: null, error: error.message };
+    }
+
+    return { data: data as UnlinkCustomerFamilyProfilesResult, error: null };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unable to unlink customer family profiles.';
     return { data: null, error: message };
   }
 }

@@ -39,4 +39,5 @@ export interface CustomerPassbookData {
   unreadNotificationsCount?: number;
   avatarUri?: string | null;
   installments: PassbookInstallment[];
+  onlinePaymentConfigured?: boolean;
 }

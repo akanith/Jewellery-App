@@ -17,11 +17,13 @@ import { getCustomerDashboard } from '@/services/customerDataService';
 import { SchemeSummary } from '@/types/dashboard';
 import { formatCurrency } from '@/lib/formatters';
 import { useResponsiveMetrics } from '@/constants/responsive';
+import { useLanguage } from '@/i18n';
 
 export default function RewardScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const responsive = useResponsiveMetrics();
+  const { t } = useLanguage();
 
   const [schemes, setSchemes] = useState<SchemeSummary[]>([]);
   const [selectedSchemeId, setSelectedSchemeId] = useState<string | null>(null);
@@ -116,18 +118,20 @@ export default function RewardScreen() {
           style={styles.headerIconBtn}
           onPress={handleBackPress}
           activeOpacity={0.7}
-          accessibilityLabel="Back"
+          accessibilityLabel={t('back')}
         >
           <Ionicons name="arrow-back" size={22} color="#70001E" />
         </TouchableOpacity>
 
-        <Text style={styles.headerTitle}>Reward</Text>
+        <Text style={styles.headerTitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>
+          {t('rewardTitle')}
+        </Text>
 
         <TouchableOpacity
           style={styles.headerProfileBtn}
           onPress={handleProfilePress}
           activeOpacity={0.8}
-          accessibilityLabel="Profile"
+          accessibilityLabel={t('profile')}
         >
           <View style={styles.profileAvatarFallback}>
             <Ionicons name="person" size={18} color="#FFFFFF" />
@@ -146,7 +150,9 @@ export default function RewardScreen() {
         {/* MULTI-SCHEME SELECTOR BAR (shown when customer has multiple schemes) */}
         {schemes.length > 1 ? (
           <View style={styles.schemeSwitcherContainer}>
-            <Text style={styles.schemeSwitcherHeaderLabel}>SELECT SCHEME FOR REWARDS</Text>
+            <Text style={styles.schemeSwitcherHeaderLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>
+              {t('selectSchemeForRewards')}
+            </Text>
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
@@ -168,7 +174,7 @@ export default function RewardScreen() {
                   >
                     <View style={[styles.schemeSwitchSlotBadge, isSelected && styles.schemeSwitchSlotBadgeActive]}>
                       <Text style={[styles.schemeSwitchSlotText, isSelected && styles.schemeSwitchSlotTextActive]}>
-                        Slot #{slotNum}
+                        {t('slotLabel')} #{slotNum}
                       </Text>
                     </View>
                     <Text
@@ -177,16 +183,21 @@ export default function RewardScreen() {
                         isSelected && styles.schemeSwitchTitleActive,
                       ]}
                       numberOfLines={1}
+                      adjustsFontSizeToFit
+                      minimumFontScale={0.85}
                     >
-                      {s.schemeName || 'Gold Scheme'}
+                      {s.schemeName || t('goldSchemeDefault')}
                     </Text>
                     <Text
                       style={[
                         styles.schemeSwitchMeta,
                         isSelected && styles.schemeSwitchMetaActive,
                       ]}
+                      numberOfLines={1}
+                      adjustsFontSizeToFit
+                      minimumFontScale={0.85}
                     >
-                      ₹{s.monthlyInstallmentAmount || 1000}/mo • {s.paidInstallments ?? 0}/{s.totalInstallments ?? 12}
+                      ₹{s.monthlyInstallmentAmount || 1000}{t('perMonth')} • {s.paidInstallments ?? 0}/{s.totalInstallments ?? 12}
                     </Text>
                   </TouchableOpacity>
                 );
@@ -204,26 +215,28 @@ export default function RewardScreen() {
           {/* Eyebrow */}
           <View style={styles.eyebrowRow}>
             <Ionicons name="star" size={12} color="#8C6B1B" />
-            <Text style={styles.certEyebrow}>RAMYAS JEWELLER REWARD</Text>
+            <Text style={styles.certEyebrow} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>
+              {t('certEyebrow')}
+            </Text>
             <Ionicons name="star" size={12} color="#8C6B1B" />
           </View>
 
           {/* Main Title */}
-          <Text style={styles.certTitle} numberOfLines={1}>
-            {selectedScheme ? (selectedScheme.schemeName || 'Your Completion Gift') : 'Your Completion Gift'}
+          <Text style={styles.certTitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>
+            {selectedScheme ? (selectedScheme.schemeName || t('yourCompletionGift')) : t('yourCompletionGift')}
           </Text>
 
           {selectedScheme ? (
-            <Text style={styles.certSlotSubtitle}>
-              Slot #{selectedScheme.slotNumber ?? 1} • {formatCurrency(monthlyAmount)}/month
+            <Text style={styles.certSlotSubtitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>
+              {t('slotLabel')} #{selectedScheme.slotNumber ?? 1} • {formatCurrency(monthlyAmount)}{t('perMonth')}
             </Text>
           ) : null}
 
           {/* Description */}
           <Text style={styles.certDescription}>
             {isCompleted
-              ? 'Thank you for completing all 12 months of your savings journey with Ramyas Jeweller.'
-              : `Complete all 12 monthly installments for this scheme to unlock your full rewards and bonus.`}
+              ? t('certCompletedMsg')
+              : t('certInProgressMsg')}
           </Text>
 
           {/* Stamped Badge */}
@@ -235,8 +248,8 @@ export default function RewardScreen() {
                 color={isCompleted ? '#70001E' : '#6F6870'}
               />
             </View>
-            <Text style={[styles.stampedText, !isCompleted && styles.stampedTextPending]}>
-              {isCompleted ? `${totalCount}/${totalCount} STAMPED & VERIFIED` : `${paidCount}/${totalCount} IN PROGRESS`}
+            <Text style={[styles.stampedText, !isCompleted && styles.stampedTextPending]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>
+              {isCompleted ? `${totalCount}/${totalCount} ${t('stampedAndVerified')}` : `${paidCount}/${totalCount} ${t('inProgress')}`}
             </Text>
           </View>
         </View>
@@ -246,17 +259,19 @@ export default function RewardScreen() {
           <View style={styles.giftsHeaderRow}>
             <View style={styles.giftsTitleGroup}>
               <Ionicons name="gift-outline" size={22} color="#70001E" style={{ marginRight: 8 }} />
-              <Text style={styles.specialGiftsTitle} numberOfLines={1}>
-                Special Gifts for You
+              <Text style={styles.specialGiftsTitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>
+                {t('specialGiftsForYou')}
               </Text>
             </View>
 
             <View style={styles.handcraftedPill}>
-              <Text style={styles.handcraftedPillText}>Handcrafted</Text>
+              <Text style={styles.handcraftedPillText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>
+                {t('handcrafted')}
+              </Text>
             </View>
           </View>
 
-          <Text style={styles.giftsSubtext}>Complimentary festive welcome collection</Text>
+          <Text style={styles.giftsSubtext}>{t('festiveWelcomeCollection')}</Text>
 
           {/* Gift 1: Sweet */}
           <View style={styles.giftCardItem}>
@@ -267,11 +282,13 @@ export default function RewardScreen() {
             />
             <View style={styles.giftInfoCol}>
               <View style={styles.giftHeaderSubRow}>
-                <Text style={styles.giftItemName}>Sweet</Text>
+                <Text style={styles.giftItemName} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>
+                  {t('giftSweetName')}
+                </Text>
                 <Ionicons name="sparkles-outline" size={14} color="#8C6B1B" />
               </View>
-              <Text style={styles.giftItemSubtitle}>Traditional Festive Sweet Hamper</Text>
-              <Text style={styles.giftItemTag}>Finest Assorted Delicacies</Text>
+              <Text style={styles.giftItemSubtitle}>{t('giftSweetSubtitle')}</Text>
+              <Text style={styles.giftItemTag}>{t('giftSweetTag')}</Text>
             </View>
           </View>
 
@@ -284,11 +301,13 @@ export default function RewardScreen() {
             />
             <View style={styles.giftInfoCol}>
               <View style={styles.giftHeaderSubRow}>
-                <Text style={styles.giftItemName}>Karam</Text>
+                <Text style={styles.giftItemName} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>
+                  {t('giftKaramName')}
+                </Text>
                 <Ionicons name="restaurant-outline" size={14} color="#8C6B1B" />
               </View>
-              <Text style={styles.giftItemSubtitle}>Authentic Savoury Mixture</Text>
-              <Text style={styles.giftItemTag}>South Indian Traditional Recipe</Text>
+              <Text style={styles.giftItemSubtitle}>{t('giftKaramSubtitle')}</Text>
+              <Text style={styles.giftItemTag}>{t('giftKaramTag')}</Text>
             </View>
           </View>
 
@@ -301,11 +320,13 @@ export default function RewardScreen() {
             />
             <View style={styles.giftInfoCol}>
               <View style={styles.giftHeaderSubRow}>
-                <Text style={styles.giftItemName}>Ever Silver Pathram</Text>
+                <Text style={styles.giftItemName} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>
+                  {t('giftEverSilverName')}
+                </Text>
                 <Ionicons name="diamond-outline" size={14} color="#8C6B1B" />
               </View>
-              <Text style={styles.giftItemSubtitle}>Auspicious Stainless Steel Utensil</Text>
-              <Text style={styles.giftItemTag}>Pristine Household Keepsake</Text>
+              <Text style={styles.giftItemSubtitle}>{t('giftEverSilverSubtitle')}</Text>
+              <Text style={styles.giftItemTag}>{t('giftEverSilverTag')}</Text>
             </View>
           </View>
         </View>
@@ -314,21 +335,35 @@ export default function RewardScreen() {
         <View style={styles.benefitsSectionContainer}>
           <View style={styles.benefitsSectionHeader}>
             <Ionicons name="cash-outline" size={20} color="#70001E" style={{ marginRight: 6 }} />
-            <Text style={styles.benefitsSectionTitle}>Your Scheme Benefits</Text>
+            <Text style={styles.benefitsSectionTitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>
+              {t('schemeBenefitsTitle')}
+            </Text>
           </View>
 
           {/* Two Financial Cards */}
           <View style={styles.financialCardsRow}>
             <View style={styles.financialCard}>
-              <Text style={styles.financialLabel}>Completion Bonus</Text>
-              <Text style={styles.financialValue}>{bonusAmount}</Text>
-              <Text style={styles.financialSubtext}>Credited to plan</Text>
+              <Text style={styles.financialLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>
+                {t('completionBonusLabel')}
+              </Text>
+              <Text style={styles.financialValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>
+                {bonusAmount}
+              </Text>
+              <Text style={styles.financialSubtext} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>
+                {t('creditedToPlan')}
+              </Text>
             </View>
 
             <View style={styles.financialCard}>
-              <Text style={styles.financialLabel}>Maturity Value</Text>
-              <Text style={styles.financialValue}>{maturityValue}</Text>
-              <Text style={styles.financialSubtext}>Jewellery purchase</Text>
+              <Text style={styles.financialLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>
+                {t('maturityValueLabel')}
+              </Text>
+              <Text style={styles.financialValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>
+                {maturityValue}
+              </Text>
+              <Text style={styles.financialSubtext} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>
+                {t('jewelleryPurchase')}
+              </Text>
             </View>
           </View>
 
@@ -336,10 +371,14 @@ export default function RewardScreen() {
           <View style={styles.physicalGiftsCard}>
             <View style={styles.physicalGiftsHeaderRow}>
               <Ionicons name="gift-sharp" size={18} color="#70001E" style={{ marginRight: 6 }} />
-              <Text style={styles.physicalGiftsTitle}>Complimentary Physical Gifts</Text>
+              <Text style={styles.physicalGiftsTitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>
+                {t('physicalGiftsTitle')}
+              </Text>
             </View>
-            <Text style={styles.physicalGiftsListText}>Sweet • Karam • Ever Silver Pathram</Text>
-            <Text style={styles.physicalGiftsCounterNote}>To be received in person at showroom counter</Text>
+            <Text style={styles.physicalGiftsListText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>
+              {t('physicalGiftsList')}
+            </Text>
+            <Text style={styles.physicalGiftsCounterNote}>{t('showroomCounterCollection')}</Text>
           </View>
         </View>
 
@@ -347,8 +386,8 @@ export default function RewardScreen() {
         <View style={styles.eligibilityCard}>
           <Ionicons name="information-circle-outline" size={22} color="#666666" style={{ marginRight: 10, marginTop: 2 }} />
           <Text style={styles.eligibilityText}>
-            <Text style={styles.eligibilityBold}>Gift Eligibility: </Text>
-            These special gifts are provided after successful completion of all 12 monthly installments.
+            <Text style={styles.eligibilityBold}>{t('giftEligibilityTitle')} </Text>
+            {t('giftEligibilityDesc')}
           </Text>
         </View>
       </ScrollView>

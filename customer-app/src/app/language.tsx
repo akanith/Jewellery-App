@@ -81,7 +81,7 @@ export default function LanguageScreen() {
         style={{ flex: 1 }}
         contentContainerStyle={[
           styles.scrollContent,
-          { paddingBottom: 24 + Math.max(insets.bottom, 12) },
+          { paddingBottom: 24 },
         ]}
         showsVerticalScrollIndicator={false}
       >
@@ -161,67 +161,29 @@ export default function LanguageScreen() {
           </Text>
         </View>
 
-        {/* CONTINUE BUTTON */}
-        <TouchableOpacity
-          style={styles.continueButton}
-          onPress={handleContinue}
-          activeOpacity={0.9}
-        >
-          <Text style={styles.continueButtonText}>{t('continue')}</Text>
-        </TouchableOpacity>
-
         {/* TRUST TEXT */}
         <View style={styles.trustSection}>
           <Text style={styles.trustTitle}>{t('poweredByShop')}</Text>
         </View>
       </ScrollView>
 
-      {/* BOTTOM LANGUAGE SWITCHER BAR */}
-      <View style={styles.bottomSwitcherBar}>
+      {/* STICKY BOTTOM ACTION CONTAINER */}
+      <View
+        style={[
+          styles.bottomCtaContainer,
+          {
+            paddingBottom: Math.max(insets.bottom, 16),
+          },
+        ]}
+      >
         <TouchableOpacity
-          style={[
-            styles.bottomTabItem,
-            language === 'ta' && styles.bottomTabItemSelected,
-          ]}
-          onPress={() => handleSelectLanguage('ta')}
-          activeOpacity={0.8}
+          style={styles.continueButton}
+          onPress={handleContinue}
+          activeOpacity={0.9}
+          accessibilityRole="button"
+          accessibilityLabel={t('continue')}
         >
-          <Ionicons
-            name="globe-outline"
-            size={18}
-            color={language === 'ta' ? '#1E293B' : '#64748B'}
-          />
-          <Text
-            style={[
-              styles.bottomTabText,
-              language === 'ta' && styles.bottomTabTextSelected,
-            ]}
-          >
-            Tamil
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[
-            styles.bottomTabItem,
-            language === 'en' && styles.bottomTabItemSelected,
-          ]}
-          onPress={() => handleSelectLanguage('en')}
-          activeOpacity={0.8}
-        >
-          <Ionicons
-            name="language-outline"
-            size={18}
-            color={language === 'en' ? '#1E293B' : '#64748B'}
-          />
-          <Text
-            style={[
-              styles.bottomTabText,
-              language === 'en' && styles.bottomTabTextSelected,
-            ]}
-          >
-            English
-          </Text>
+          <Text style={styles.continueButtonText}>{t('continue')}</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -376,16 +338,22 @@ const styles = StyleSheet.create({
     flex: 1,
     lineHeight: 18,
   },
+  bottomCtaContainer: {
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    backgroundColor: '#FFFFFF',
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+  },
   continueButton: {
     backgroundColor: '#70001E',
-    borderRadius: 30,
+    borderRadius: 28,
     height: 52,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 20,
     shadowColor: '#70001E',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
+    shadowOpacity: 0.25,
     shadowRadius: 8,
     elevation: 4,
   },
@@ -393,11 +361,12 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 18,
     fontWeight: '700',
+    letterSpacing: 0.3,
   },
   trustSection: {
     alignItems: 'center',
     marginTop: 4,
-    marginBottom: 16,
+    marginBottom: 12,
   },
   trustSubtitle: {
     fontSize: 12,
@@ -408,36 +377,5 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
     color: '#70001E',
-  },
-  bottomSwitcherBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
-    backgroundColor: '#FFFFFF',
-    gap: 16,
-  },
-  bottomTabItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 24,
-    gap: 8,
-  },
-  bottomTabItemSelected: {
-    backgroundColor: '#FDE047',
-  },
-  bottomTabText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#64748B',
-  },
-  bottomTabTextSelected: {
-    color: '#1E293B',
-    fontWeight: '700',
   },
 });

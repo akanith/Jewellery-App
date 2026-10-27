@@ -241,6 +241,7 @@ export interface CreateCustomerWithSchemeParams {
   p_notes?: string | null;
   p_enroll_scheme?: boolean;
   p_start_month?: string | null;
+  p_link_family_customer_id?: string | null;
 }
 
 export interface CreateCustomerWithSchemeResult {
@@ -384,6 +385,7 @@ export interface UpdateCustomerProfileParams {
   p_nominee_name?: string | null;
   p_nominee_relationship?: string | null;
   p_notes?: string | null;
+  p_alternate_phone?: string | null;
 }
 
 export interface UpdateCustomerProfileResult {
@@ -391,4 +393,26 @@ export interface UpdateCustomerProfileResult {
   customer_id: string;
   full_name: string;
   phone_number: string;
+}
+
+export interface LinkCustomerFamilyProfilesParams {
+  p_customer_id_1: string;
+  p_customer_id_2: string;
+  p_relationship?: string;
+  p_notes?: string | null;
+}
+
+export interface LinkCustomerFamilyProfilesResult {
+  success: boolean;
+  message: string;
+}
+
+export interface UnlinkCustomerFamilyProfilesParams {
+  p_customer_id_1: string;
+  p_customer_id_2: string;
+}
+
+export interface UnlinkCustomerFamilyProfilesResult {
+  success: boolean;
+  message: string;
 }

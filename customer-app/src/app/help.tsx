@@ -181,11 +181,11 @@ export default function HelpCenterScreen() {
             onChangeText={setSearchQuery}
             clearButtonMode="while-editing"
           />
-          {searchQuery.length > 0 && (
+          {searchQuery.length > 0 ? (
             <TouchableOpacity onPress={() => setSearchQuery('')} activeOpacity={0.7}>
               <Ionicons name="close-circle" size={18} color="#94A3B8" />
             </TouchableOpacity>
-          )}
+          ) : null}
         </View>
 
         {/* POPULAR QUESTIONS SECTION */}
@@ -218,11 +218,11 @@ export default function HelpCenterScreen() {
                     />
                   </TouchableOpacity>
 
-                  {isExpanded && (
+                  {isExpanded ? (
                     <View style={styles.faqAnswerContainer}>
                       <Text style={styles.faqAnswerText}>{item.answer}</Text>
                     </View>
-                  )}
+                  ) : null}
                 </View>
               );
             })}
@@ -256,7 +256,8 @@ export default function HelpCenterScreen() {
             </TouchableOpacity>
           </View>
         </View>
-      </ScrollView>    </SafeAreaView>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 

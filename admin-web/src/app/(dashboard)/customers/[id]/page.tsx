@@ -431,8 +431,6 @@ export default function CustomerDetailPage({ params }: CustomerDetailPageProps) 
   const nextPendingInstallment = installments.find((i) => i.status === 'PENDING');
   const isMatured = scheme?.status === 'MATURED' || scheme?.status === 'COMPLETED' || paidCount === 12;
 
-  const OPEN_SCHEME_STATUSES = ['ACTIVE', 'COMPLETED', 'MATURED', 'PARTIALLY_REDEEMED'];
-  const openSchemesCount = allSchemes.filter((s) => OPEN_SCHEME_STATUSES.includes(s.status)).length;
 
   const combinedPaidAmount = allSchemes.reduce((sum, s) => {
     return (
@@ -456,13 +454,6 @@ export default function CustomerDetailPage({ params }: CustomerDetailPageProps) 
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
-          <button
-            onClick={() => setIsEnrollModalOpen(true)}
-            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-xs font-semibold text-white transition shadow-xs cursor-pointer"
-          >
-            <PlusCircle className="w-4 h-4" />
-            <span>Add Another Scheme</span>
-          </button>
           <button
             onClick={() => setIsResetModalOpen(true)}
             className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white border border-amber-200 text-xs font-semibold text-amber-800 hover:bg-amber-50/60 transition shadow-xs cursor-pointer"
@@ -696,15 +687,6 @@ export default function CustomerDetailPage({ params }: CustomerDetailPageProps) 
                       );
                     })}
 
-                    {/* Quick Add Another Scheme Button inside Switcher */}
-                    <button
-                      type="button"
-                      onClick={() => setIsEnrollModalOpen(true)}
-                      className="px-3.5 py-2.5 rounded-xl text-xs font-semibold border border-dashed border-blue-300 bg-blue-50/50 hover:bg-blue-100/60 text-blue-800 flex items-center gap-1.5 shrink-0 transition-colors cursor-pointer"
-                    >
-                      <PlusCircle className="w-3.5 h-3.5 text-blue-600" />
-                      <span>+ Add Scheme {openSchemesCount < 5 ? `(${openSchemesCount}/5)` : '(5/5)'}</span>
-                    </button>
                   </div>
                 </div>
               )}
@@ -800,14 +782,6 @@ export default function CustomerDetailPage({ params }: CustomerDetailPageProps) 
                   </button>
                 )}
 
-                <button
-                  type="button"
-                  onClick={() => setIsEnrollModalOpen(true)}
-                  className="px-4 py-2.5 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-800 font-bold text-xs flex items-center gap-2 shadow-2xs transition cursor-pointer"
-                >
-                  <PlusCircle className="w-4 h-4 text-blue-600" />
-                  <span>Add Another Scheme {openSchemesCount > 0 ? `(${openSchemesCount}/5)` : ''}</span>
-                </button>
 
                 {isMatured && (
                   <Link

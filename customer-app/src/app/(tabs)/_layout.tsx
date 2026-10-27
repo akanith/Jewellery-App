@@ -210,6 +210,8 @@ function renderTabSlot(
 
         <Text
           numberOfLines={1}
+          adjustsFontSizeToFit
+          minimumFontScale={0.8}
           style={[
             styles.tabText,
             { fontSize: responsive ? responsive.scaleFont(12.5, 11, 14) : 12.5 },

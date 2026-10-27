@@ -78,6 +78,7 @@ export async function apiCall<T = unknown>(
         success: false,
         error: json?.error || `Request failed with status ${status}`,
         status,
+        data: json as T,
       };
     }
 

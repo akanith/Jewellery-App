@@ -55,3 +55,9 @@ backups/
 
 # Expo local development artifacts
 .expo/
+.vercel
+.env*
+
+# Allow example templates, but keep real environment files ignored
+!.env.example
+!.env.local.example
