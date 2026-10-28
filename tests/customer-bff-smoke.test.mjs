@@ -62,19 +62,19 @@ DECLARE
   v_hash TEXT := extensions.crypt('${TEST_PASSWORD}', extensions.gen_salt('bf', 10));
   v_now TIMESTAMPTZ := clock_timestamp();
 BEGIN
-  -- Insert S1 Profile & Customer
+  -- Insert S1 Profile & Customer (Created first chronologically)
   INSERT INTO public.profiles (id, role, phone_number, full_name, is_active, created_at, updated_at)
-  VALUES ('${S1_ID}', 'CUSTOMER', '${SHARED_MOBILE}', 'Synthetic Alice', TRUE, v_now, v_now);
+  VALUES ('${S1_ID}', 'CUSTOMER', '${SHARED_MOBILE}', 'Synthetic Alice', TRUE, v_now - INTERVAL '10 seconds', v_now - INTERVAL '10 seconds');
 
   INSERT INTO public.customers (id, customer_code, phone_number, full_name, city, created_at, updated_at)
-  VALUES ('${S1_ID}', 'RJ2026-SYNTH-001', '${SHARED_MOBILE}', 'Synthetic Alice', 'Dindigul', v_now, v_now);
+  VALUES ('${S1_ID}', 'RJ2026-SYNTH-001', '${SHARED_MOBILE}', 'Synthetic Alice', 'Dindigul', v_now - INTERVAL '10 seconds', v_now - INTERVAL '10 seconds');
 
   INSERT INTO public.customer_auth (customer_id, password_hash, password_status, failed_login_attempts, created_at, updated_at)
-  VALUES ('${S1_ID}', v_hash, 'ACTIVE', 0, v_now, v_now);
+  VALUES ('${S1_ID}', v_hash, 'ACTIVE', 0, v_now - INTERVAL '10 seconds', v_now - INTERVAL '10 seconds');
 
   -- Insert S1 Scheme (slot 1)
   INSERT INTO public.schemes (id, customer_id, scheme_code, slot_number, monthly_installment_amount, total_installments, target_contribution, bonus_amount, maturity_amount, start_month, end_month, status, created_at, updated_at)
-  VALUES ('${S1_SCHEME_ID}', '${S1_ID}', 'RJ-SCH-2026-SYNTH1', 1, 1000.00, 12, 12000.00, 1000.00, 13000.00, '2026-10-01', '2027-09-30', 'ACTIVE', v_now, v_now);
+  VALUES ('${S1_SCHEME_ID}', '${S1_ID}', 'RJ-SCH-2026-SYNTH1', 1, 1000.00, 12, 12000.00, 1000.00, 13000.00, '2026-10-01', '2027-09-30', 'ACTIVE', v_now - INTERVAL '10 seconds', v_now - INTERVAL '10 seconds');
 
   -- Insert S2 Profile & Customer (SHARES phone with S1, but NO authorization link initially)
   INSERT INTO public.profiles (id, role, phone_number, full_name, is_active, created_at, updated_at)
