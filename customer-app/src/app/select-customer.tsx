@@ -710,7 +710,6 @@ const styles = StyleSheet.create({
   accountCard: {
     borderRadius: 20,
     padding: 16,
-    transitionProperty: 'all',
   },
   accountCardUnselected: {
     backgroundColor: '#FFFFFF',
