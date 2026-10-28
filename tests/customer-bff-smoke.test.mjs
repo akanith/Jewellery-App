@@ -40,7 +40,7 @@ DELETE FROM public.customer_auth WHERE customer_id IN ('${S1_ID}', '${S2_ID}', '
 DELETE FROM public.notifications WHERE customer_id IN ('${S1_ID}', '${S2_ID}', '${S3_ID}');
 DELETE FROM public.scheme_bonuses WHERE customer_id IN ('${S1_ID}', '${S2_ID}', '${S3_ID}');
 DELETE FROM public.scheme_installments WHERE customer_id IN ('${S1_ID}', '${S2_ID}', '${S3_ID}');
-DELETE FROM public.schemes WHERE customer_id IN ('${S1_ID}', '${S2_ID}', '${S3_ID}') OR id = '${S1_SCHEME_ID}';
+DELETE FROM public.schemes WHERE customer_id IN ('${S1_ID}', '${S2_ID}', '${S3_ID}');
 DELETE FROM public.customers WHERE id IN ('${S1_ID}', '${S2_ID}', '${S3_ID}');
 DELETE FROM public.profiles WHERE id IN ('${S1_ID}', '${S2_ID}', '${S3_ID}');
 COMMIT;
@@ -53,7 +53,7 @@ function getSyntheticFixtureCount() {
 SELECT (
   (SELECT count(*) FROM public.customers WHERE id IN ('${S1_ID}', '${S2_ID}', '${S3_ID}')) +
   (SELECT count(*) FROM public.profiles WHERE id IN ('${S1_ID}', '${S2_ID}', '${S3_ID}')) +
-  (SELECT count(*) FROM public.schemes WHERE id = '${S1_SCHEME_ID}' OR customer_id IN ('${S1_ID}', '${S2_ID}', '${S3_ID}')) +
+  (SELECT count(*) FROM public.schemes WHERE customer_id IN ('${S1_ID}', '${S2_ID}', '${S3_ID}')) +
   (SELECT count(*) FROM public.customer_auth WHERE customer_id IN ('${S1_ID}', '${S2_ID}', '${S3_ID}')) +
   (SELECT count(*) FROM public.customer_sessions WHERE customer_id IN ('${S1_ID}', '${S2_ID}', '${S3_ID}') OR authenticated_root_id IN ('${S1_ID}', '${S2_ID}', '${S3_ID}')) +
   (SELECT count(*) FROM public.customer_profile_authorizations WHERE grantor_customer_id IN ('${S1_ID}', '${S2_ID}', '${S3_ID}') OR grantee_customer_id IN ('${S1_ID}', '${S2_ID}', '${S3_ID}'))
@@ -85,7 +85,7 @@ function getPreExistingSchemeIds() {
   const sql = `
 SELECT coalesce(json_agg(id ORDER BY id), '[]'::json)::text
 FROM public.schemes
-WHERE id <> '${S1_SCHEME_ID}' AND customer_id NOT IN ('${S1_ID}', '${S2_ID}', '${S3_ID}');
+WHERE customer_id NOT IN ('${S1_ID}', '${S2_ID}', '${S3_ID}');
 `;
   return JSON.parse(runSql(sql).trim());
 }
