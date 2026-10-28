@@ -155,6 +155,7 @@ async function handleLogin(req: Request): Promise<Response> {
 
   const rawMobile = body?.mobileNumber;
   const password = body?.password;
+  const customerIdentifier = body?.customerCode || body?.customerId || body?.customerIdentifier;
 
   if (!rawMobile || typeof rawMobile !== "string") {
     return jsonResponse(
@@ -185,6 +186,7 @@ async function handleLogin(req: Request): Promise<Response> {
     const { data: loginRes, error: loginErr } = await supabase.rpc("customer_password_login", {
       p_phone_number: normalizedMobile,
       p_password: password,
+      p_customer_identifier: typeof customerIdentifier === "string" ? customerIdentifier.trim() : null,
     });
 
     if (loginErr) {
@@ -214,11 +216,21 @@ async function handleLogin(req: Request): Promise<Response> {
       );
     }
 
-    // Fetch all active customer profiles associated with this verified phone number
+    // Filter profiles strictly by explicit authorization returned by the security RPC
+    const targetId = loginRes?.customer_id;
+    const authorizedProfilesList = Array.isArray(loginRes?.profiles) ? loginRes.profiles : [];
+    const authorizedIds = new Set<string>(
+      authorizedProfilesList.map((p: any) => p.customer_id || p.customerId).filter(Boolean)
+    );
+    if (targetId) {
+      authorizedIds.add(targetId);
+    }
+
+    // Fetch active customer profiles strictly for explicitly authorized IDs
     const { data: customerRows, error: customerErr } = await supabase
       .from("customers")
       .select("id, customer_code, full_name, phone_number, created_at, customer_auth(password_status, locked_until), profiles!inner(is_active)")
-      .eq("phone_number", normalizedMobile)
+      .in("id", Array.from(authorizedIds))
       .eq("profiles.is_active", true)
       .order("created_at", { ascending: true });
 
@@ -233,19 +245,8 @@ async function handleLogin(req: Request): Promise<Response> {
     }
 
     // Determine target primary profile (matching login customer_id if returned by RPC, or first profile)
-    const targetId = loginRes?.customer_id;
     const activeCustomer = customerRows.find((c) => c.id === targetId) || customerRows[0];
-
-    // Filter profiles by explicit authorization returned by the security RPC
-    const authorizedProfilesList = Array.isArray(loginRes?.profiles) ? loginRes.profiles : [];
-    const authorizedIds = new Set<string>(
-      authorizedProfilesList.map((p: any) => p.customer_id || p.customerId).filter(Boolean)
-    );
-    if (activeCustomer?.id) {
-      authorizedIds.add(activeCustomer.id);
-    }
-
-    const filteredCustomerRows = customerRows.filter((c) => authorizedIds.has(c.id));
+    const filteredCustomerRows = customerRows;
 
     const authRecord = Array.isArray(activeCustomer.customer_auth)
       ? activeCustomer.customer_auth[0]
@@ -483,43 +484,23 @@ async function handleSelectProfile(req: Request): Promise<Response> {
       });
     }
 
-    // 2. Direct fallback verification: Target profile MUST be in the same normalized mobile number group or explicitly authorized
+    // 2. Direct fallback verification: Target profile MUST be explicitly authorized via customer_profile_authorizations or self
     const rootId = session.authenticatedRootId || session.customerId;
     const isSelf = targetCustomerId === rootId;
 
     if (!isSelf) {
-      // Check if both profiles belong to the same mobile group
-      const { data: rootCust } = await supabase
-        .from("customers")
-        .select("phone_number")
-        .eq("id", rootId)
-        .single();
+      const { data: authLink, error: authCheckErr } = await supabase
+        .from("customer_profile_authorizations")
+        .select("id")
+        .eq("is_active", true)
+        .or(`and(grantee_customer_id.eq.${rootId},grantor_customer_id.eq.${targetCustomerId}),and(grantor_customer_id.eq.${rootId},grantee_customer_id.eq.${targetCustomerId})`)
+        .maybeSingle();
 
-      const { data: targetCustCheck } = await supabase
-        .from("customers")
-        .select("phone_number")
-        .eq("id", targetCustomerId)
-        .single();
-
-      const rootPhone = normalizeMobileNumber(rootCust?.phone_number || "");
-      const targetPhone = normalizeMobileNumber(targetCustCheck?.phone_number || "");
-
-      const isSameMobileGroup = rootPhone && targetPhone && rootPhone === targetPhone;
-
-      if (!isSameMobileGroup) {
-        const { data: authLink, error: authCheckErr } = await supabase
-          .from("customer_profile_authorizations")
-          .select("id")
-          .eq("is_active", true)
-          .or(`and(grantee_customer_id.eq.${rootId},grantor_customer_id.eq.${targetCustomerId}),and(grantor_customer_id.eq.${rootId},grantee_customer_id.eq.${targetCustomerId})`)
-          .maybeSingle();
-
-        if (authCheckErr || !authLink) {
-          return jsonResponse(
-            { success: false, error: "Security Violation: Unauthorized profile selection." },
-            403
-          );
-        }
+      if (authCheckErr || !authLink) {
+        return jsonResponse(
+          { success: false, error: "Security Violation: Unauthorized profile selection." },
+          403
+        );
       }
     }
 
@@ -584,28 +565,6 @@ async function handleGetProfiles(req: Request): Promise<Response> {
     const supabase = getSupabaseAdminClient();
     const rootId = session.authenticatedRootId || session.customerId;
 
-    // Fetch phone number of root customer
-    const { data: rootCust } = await supabase
-      .from("customers")
-      .select("phone_number")
-      .eq("id", rootId)
-      .single();
-
-    const cleanRootPhone = normalizeMobileNumber(rootCust?.phone_number || "");
-
-    // Fetch all active profiles belonging to this phone number group
-    let mobileGroupIds: string[] = [];
-    if (cleanRootPhone) {
-      const { data: samePhoneCusts } = await supabase
-        .from("customers")
-        .select("id, phone_number, profiles!inner(is_active)")
-        .eq("profiles.is_active", true);
-
-      mobileGroupIds = (samePhoneCusts || [])
-        .filter((c: any) => normalizeMobileNumber(c.phone_number || "") === cleanRootPhone)
-        .map((c: any) => c.id);
-    }
-
     // 1. Fetch all profiles explicitly authorized for the authenticated root identity
     const { data: authLinks } = await supabase
       .from("customer_profile_authorizations")
@@ -613,7 +572,7 @@ async function handleGetProfiles(req: Request): Promise<Response> {
       .eq("is_active", true)
       .or(`grantee_customer_id.eq.${rootId},grantor_customer_id.eq.${rootId}`);
 
-    const authorizedIds = new Set<string>([rootId, ...mobileGroupIds]);
+    const authorizedIds = new Set<string>([rootId]);
     for (const link of authLinks || []) {
       if (link.grantor_customer_id) authorizedIds.add(link.grantor_customer_id);
       if (link.grantee_customer_id) authorizedIds.add(link.grantee_customer_id);

@@ -250,8 +250,8 @@ test('2. Successful login for single-profile account returns direct navigation p
   s3Token = body.token;
 });
 
-test('3. Two accounts sharing phone belong to authenticated mobile-number group and are offered for selection', async () => {
-  // S1 and S2 share phone SHARED_MOBILE
+test('3. Two accounts sharing phone remain strictly isolated unless explicitly showroom-linked', async () => {
+  // S1 and S2 share phone SHARED_MOBILE but have no explicit authorization link yet
   const res = await fetch(`${BFF_URL}/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -266,12 +266,12 @@ test('3. Two accounts sharing phone belong to authenticated mobile-number group 
   assert.equal(body.success, true);
   s1Token = body.token;
 
-  // Under Rule A: Both customer registrations registered under this mobile number are returned
+  // Strict Isolation: Sharing a mobile number alone must NEVER grant access to unlinked profiles
   const profileIds = body.profiles.map((p) => p.customerId);
   assert.ok(profileIds.includes(S1_ID), 'Authenticated customer S1 must be included');
-  assert.ok(profileIds.includes(S2_ID), 'Customer S2 sharing the phone number must be included in mobile group');
-  assert.equal(body.requiresSelection, true, 'Multiple accessible profiles must trigger selection screen');
-  assert.equal(body.profiles.length, 2);
+  assert.ok(!profileIds.includes(S2_ID), 'Customer S2 sharing the phone number must NOT be included without explicit link');
+  assert.equal(body.requiresSelection, false, 'Single accessible profile must not trigger selection screen');
+  assert.equal(body.profiles.length, 1);
 });
 
 test('4. Explicitly authorized family member returns multiple safe profiles for selection screen', async () => {

@@ -380,17 +380,28 @@ ROLLBACK;
 });
 
 // -----------------------------------------------------------------------------
-// REQUIREMENT 6: Shared mobile number supports multiple authorized customer profiles without cross-profile data leakage
+// REQUIREMENT 6: Shared mobile number supports multiple customer profiles with explicit showroom authorization and zero leakage
 // -----------------------------------------------------------------------------
-test('Requirement 6.1: Shared mobile number authorizes linked profiles within group', () => {
+test('Requirement 6.1: Sharing a phone number alone does NOT authorize access without explicit showroom link', () => {
   const sql = `
-SELECT public.is_customer_authorized_for_profile('${FIXTURE_CUST_A}', '${FIXTURE_CUST_B}') AS auth_within_group;
+SELECT public.is_customer_authorized_for_profile('${FIXTURE_CUST_A}', '${FIXTURE_CUST_B}') AS auth_without_link;
 `;
   const result = runSql(sql).split('\n').pop().trim();
-  assert.equal(result, 't', 'Customers sharing the same 10-digit mobile number must be authorized within group');
+  assert.equal(result, 'f', 'Customers sharing a phone number must NOT be authorized without an explicit showroom link');
 });
 
-test('Requirement 6.2: Shared mobile number strictly rejects outside foreign profiles (No cross-profile leakage)', () => {
+test('Requirement 6.2: Explicit showroom authorization link permits verified family profile access', () => {
+  const linkSql = `
+INSERT INTO public.customer_profile_authorizations (grantor_customer_id, grantee_customer_id, relationship_type, is_active, authorized_by)
+VALUES ('${FIXTURE_CUST_A}', '${FIXTURE_CUST_B}', 'FAMILY_MEMBER', TRUE, 'SHOWROOM_VERIFIED')
+ON CONFLICT (grantor_customer_id, grantee_customer_id) DO UPDATE SET is_active = TRUE;
+SELECT public.is_customer_authorized_for_profile('${FIXTURE_CUST_A}', '${FIXTURE_CUST_B}') AS auth_with_link;
+`;
+  const result = runSql(linkSql).split('\n').pop().trim();
+  assert.equal(result, 't', 'Showroom-verified family authorization link must authorize profile access');
+});
+
+test('Requirement 6.3: Shared mobile number strictly rejects outside foreign profiles (No cross-profile leakage)', () => {
   const sql = `
 SELECT public.is_customer_authorized_for_profile('${FIXTURE_CUST_A}', '${FIXTURE_FOREIGN_CUST}') AS auth_outside_group;
 `;

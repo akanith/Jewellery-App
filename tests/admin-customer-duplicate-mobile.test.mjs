@@ -221,20 +221,20 @@ test('3. Confirm both customers remain separate profiles under the shared phone 
   assert.equal(query.schemes_count, 2, 'Each customer must have their own independent scheme');
 });
 
-test('4. Confirm second customer is authorized for shared-mobile profile, but cannot access unrelated stranger profile', () => {
+test('4. Confirm second customer is NOT authorized for Customer A before explicit linking, and cannot switch profiles', () => {
   const sql = `
 DO $$
 DECLARE
-  v_is_authorized_shared BOOLEAN;
+  v_is_authorized_unlinked BOOLEAN;
   v_is_authorized_stranger BOOLEAN;
   v_token_hash TEXT := 'ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff';
   v_caught_42501 BOOLEAN := FALSE;
   v_stranger_id UUID := '99999999-9999-9999-9999-999999999999'::uuid;
 BEGIN
-  -- 1. Check is_customer_authorized_for_profile is TRUE for shared mobile under Rule A
-  v_is_authorized_shared := public.is_customer_authorized_for_profile('${custBId}'::uuid, '${custAId}'::uuid);
-  IF NOT v_is_authorized_shared THEN
-    RAISE EXCEPTION 'Rule A: Customer B must be authorized for Customer A sharing the mobile number!';
+  -- 1. Sharing a phone number alone must NOT grant authorization
+  v_is_authorized_unlinked := public.is_customer_authorized_for_profile('${custBId}'::uuid, '${custAId}'::uuid);
+  IF v_is_authorized_unlinked THEN
+    RAISE EXCEPTION 'SECURITY VIOLATION: Customer B must NOT be authorized for Customer A before explicit linking!';
   END IF;
 
   -- 2. Check is_customer_authorized_for_profile is FALSE for stranger UUID
@@ -247,16 +247,16 @@ BEGIN
   INSERT INTO public.customer_sessions (id, customer_id, authenticated_root_id, token_hash, expires_at) VALUES
     (gen_random_uuid(), '${custBId}'::uuid, '${custBId}'::uuid, v_token_hash, clock_timestamp() + interval '1 day');
 
-  -- 4. Attempting profile switch to stranger must be rejected with 42501
+  -- 4. Attempting profile switch to unlinked Customer A must be rejected with 42501
   BEGIN
-    PERFORM public.switch_customer_profile_session(v_token_hash, v_stranger_id);
+    PERFORM public.switch_customer_profile_session(v_token_hash, '${custAId}'::uuid);
   EXCEPTION
     WHEN SQLSTATE '42501' THEN
       v_caught_42501 := TRUE;
   END;
 
   IF NOT v_caught_42501 THEN
-    RAISE EXCEPTION 'SECURITY VIOLATION: switch_customer_profile_session allowed unauthorized profile switch!';
+    RAISE EXCEPTION 'SECURITY VIOLATION: switch_customer_profile_session allowed unlinked profile switch!';
   END IF;
 END;
 $$;

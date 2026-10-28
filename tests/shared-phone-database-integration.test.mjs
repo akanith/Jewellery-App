@@ -90,7 +90,7 @@ END $test$;
   runInRollbackTransaction(sql);
 });
 
-test('Case 2: A customer authenticating under a shared mobile number receives authorization for all profiles under that mobile number, but NOT for a customer with a different mobile number', () => {
+test('Case 2: A customer authenticating under a shared mobile number receives authorization ONLY for their own profile unless explicitly linked, and CANNOT access unlinked profiles', () => {
   const sql = `
 DO $test$
 DECLARE
@@ -128,16 +128,16 @@ BEGIN
         RAISE EXCEPTION 'Case 2 Failed: Authenticated customer_id mismatch: %', v_login_res;
     END IF;
 
-    -- Under Rule A: Both C1 and C2 belong to shared phone group
+    -- Strict Isolation: Without explicit family link, only C1 is returned in login result
     v_profiles_count := jsonb_array_length(v_login_res->'profiles');
-    IF v_profiles_count <> 2 THEN
-        RAISE EXCEPTION 'Case 2 Failed: Expected exactly 2 profiles in login result, got %: %', v_profiles_count, v_login_res->'profiles';
+    IF v_profiles_count <> 1 THEN
+        RAISE EXCEPTION 'Case 2 Failed: Expected exactly 1 profile in login result for unlinked customer, got %: %', v_profiles_count, v_login_res->'profiles';
     END IF;
 
-    -- Verify RPC authorization function evaluates to TRUE for shared phone profile
+    -- Verify RPC authorization function evaluates to FALSE for unlinked shared-phone customer
     v_auth_bool := public.is_customer_authorized_for_profile(v_c1_id, v_c2_id);
-    IF NOT v_auth_bool THEN
-        RAISE EXCEPTION 'Case 2 Failed: is_customer_authorized_for_profile returned false for shared-phone customer';
+    IF v_auth_bool THEN
+        RAISE EXCEPTION 'Case 2 Failed: is_customer_authorized_for_profile returned true for unlinked shared-phone customer';
     END IF;
 
     -- Verify RPC authorization function evaluates to FALSE for stranger on different phone

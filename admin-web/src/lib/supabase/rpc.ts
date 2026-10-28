@@ -62,6 +62,7 @@ export async function createCustomerWithScheme(
       p_notes: params.p_notes || null,
       p_enroll_scheme: params.p_enroll_scheme !== false,
       p_start_month: params.p_start_month || null,
+      p_link_family_customer_id: params.p_link_family_customer_id || null,
     };
 
     console.log('[RPC Diagnostic] Invoking create_customer_with_scheme with payload:', payload);
