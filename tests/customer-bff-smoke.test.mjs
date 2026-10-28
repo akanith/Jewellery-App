@@ -31,6 +31,65 @@ function runSql(sql) {
   );
 }
 
+function cleanupSyntheticFixtures() {
+  const cleanupSql = `
+BEGIN;
+DELETE FROM public.customer_profile_authorizations WHERE grantor_customer_id IN ('${S1_ID}', '${S2_ID}', '${S3_ID}') OR grantee_customer_id IN ('${S1_ID}', '${S2_ID}', '${S3_ID}');
+DELETE FROM public.customer_sessions WHERE customer_id IN ('${S1_ID}', '${S2_ID}', '${S3_ID}') OR authenticated_root_id IN ('${S1_ID}', '${S2_ID}', '${S3_ID}');
+DELETE FROM public.customer_auth WHERE customer_id IN ('${S1_ID}', '${S2_ID}', '${S3_ID}');
+DELETE FROM public.notifications WHERE customer_id IN ('${S1_ID}', '${S2_ID}', '${S3_ID}');
+DELETE FROM public.scheme_bonuses WHERE customer_id IN ('${S1_ID}', '${S2_ID}', '${S3_ID}');
+DELETE FROM public.scheme_installments WHERE customer_id IN ('${S1_ID}', '${S2_ID}', '${S3_ID}');
+DELETE FROM public.schemes WHERE customer_id IN ('${S1_ID}', '${S2_ID}', '${S3_ID}');
+DELETE FROM public.customers WHERE id IN ('${S1_ID}', '${S2_ID}', '${S3_ID}');
+DELETE FROM public.profiles WHERE id IN ('${S1_ID}', '${S2_ID}', '${S3_ID}');
+COMMIT;
+`;
+  runSql(cleanupSql);
+}
+
+function getSyntheticFixtureCount() {
+  const sql = `
+SELECT (
+  (SELECT count(*) FROM public.customers WHERE id IN ('${S1_ID}', '${S2_ID}', '${S3_ID}')) +
+  (SELECT count(*) FROM public.profiles WHERE id IN ('${S1_ID}', '${S2_ID}', '${S3_ID}')) +
+  (SELECT count(*) FROM public.schemes WHERE customer_id IN ('${S1_ID}', '${S2_ID}', '${S3_ID}')) +
+  (SELECT count(*) FROM public.customer_auth WHERE customer_id IN ('${S1_ID}', '${S2_ID}', '${S3_ID}')) +
+  (SELECT count(*) FROM public.customer_sessions WHERE customer_id IN ('${S1_ID}', '${S2_ID}', '${S3_ID}') OR authenticated_root_id IN ('${S1_ID}', '${S2_ID}', '${S3_ID}')) +
+  (SELECT count(*) FROM public.customer_profile_authorizations WHERE grantor_customer_id IN ('${S1_ID}', '${S2_ID}', '${S3_ID}') OR grantee_customer_id IN ('${S1_ID}', '${S2_ID}', '${S3_ID}'))
+) AS total;
+`;
+  const raw = runSql(sql);
+  return parseInt(raw.trim(), 10);
+}
+
+function getPreExistingCustomerIds() {
+  const sql = `
+SELECT coalesce(json_agg(id ORDER BY id), '[]'::json)::text
+FROM public.customers
+WHERE id NOT IN ('${S1_ID}', '${S2_ID}', '${S3_ID}');
+`;
+  return JSON.parse(runSql(sql).trim());
+}
+
+function getPreExistingProfileIds() {
+  const sql = `
+SELECT coalesce(json_agg(id ORDER BY id), '[]'::json)::text
+FROM public.profiles
+WHERE id NOT IN ('${S1_ID}', '${S2_ID}', '${S3_ID}');
+`;
+  return JSON.parse(runSql(sql).trim());
+}
+
+function getPreExistingSchemeIds() {
+  const sql = `
+SELECT coalesce(json_agg(id ORDER BY id), '[]'::json)::text
+FROM public.schemes
+WHERE customer_id NOT IN ('${S1_ID}', '${S2_ID}', '${S3_ID}');
+`;
+  return JSON.parse(runSql(sql).trim());
+}
+
 function getDatabaseBaseline() {
   const sql = `
 SELECT json_build_object(
@@ -48,33 +107,52 @@ SELECT json_build_object(
   return JSON.parse(raw.trim());
 }
 
+// Ensure process termination cleans up synthetic fixtures
+process.on('exit', () => {
+  try {
+    cleanupSyntheticFixtures();
+  } catch {
+    // Process exit context; ignore errors
+  }
+});
+
 let initialBaseline;
+let initialPreExistingCustomerIds = [];
+let initialPreExistingProfileIds = [];
+let initialPreExistingSchemeIds = [];
 let s1Token = null;
 let s3Token = null;
 
 test.before(() => {
-  initialBaseline = getDatabaseBaseline();
+  // 1. Ensure clean slate before taking baseline or inserting fixtures
+  cleanupSyntheticFixtures();
 
-  // Create isolated synthetic test fixtures
+  // 2. Snapshot baseline state and all pre-existing IDs
+  initialBaseline = getDatabaseBaseline();
+  initialPreExistingCustomerIds = getPreExistingCustomerIds();
+  initialPreExistingProfileIds = getPreExistingProfileIds();
+  initialPreExistingSchemeIds = getPreExistingSchemeIds();
+
+  // 3. Create isolated synthetic test fixtures
   const setupSql = `
 DO $$
 DECLARE
   v_hash TEXT := extensions.crypt('${TEST_PASSWORD}', extensions.gen_salt('bf', 10));
   v_now TIMESTAMPTZ := clock_timestamp();
 BEGIN
-  -- Insert S1 Profile & Customer
+  -- Insert S1 Profile & Customer (Created first chronologically)
   INSERT INTO public.profiles (id, role, phone_number, full_name, is_active, created_at, updated_at)
-  VALUES ('${S1_ID}', 'CUSTOMER', '${SHARED_MOBILE}', 'Synthetic Alice', TRUE, v_now, v_now);
+  VALUES ('${S1_ID}', 'CUSTOMER', '${SHARED_MOBILE}', 'Synthetic Alice', TRUE, v_now - INTERVAL '10 seconds', v_now - INTERVAL '10 seconds');
 
   INSERT INTO public.customers (id, customer_code, phone_number, full_name, city, created_at, updated_at)
-  VALUES ('${S1_ID}', 'RJ2026-SYNTH-001', '${SHARED_MOBILE}', 'Synthetic Alice', 'Dindigul', v_now, v_now);
+  VALUES ('${S1_ID}', 'RJ2026-SYNTH-001', '${SHARED_MOBILE}', 'Synthetic Alice', 'Dindigul', v_now - INTERVAL '10 seconds', v_now - INTERVAL '10 seconds');
 
   INSERT INTO public.customer_auth (customer_id, password_hash, password_status, failed_login_attempts, created_at, updated_at)
-  VALUES ('${S1_ID}', v_hash, 'ACTIVE', 0, v_now, v_now);
+  VALUES ('${S1_ID}', v_hash, 'ACTIVE', 0, v_now - INTERVAL '10 seconds', v_now - INTERVAL '10 seconds');
 
   -- Insert S1 Scheme (slot 1)
   INSERT INTO public.schemes (id, customer_id, scheme_code, slot_number, monthly_installment_amount, total_installments, target_contribution, bonus_amount, maturity_amount, start_month, end_month, status, created_at, updated_at)
-  VALUES ('${S1_SCHEME_ID}', '${S1_ID}', 'RJ-SCH-2026-SYNTH1', 1, 1000.00, 12, 12000.00, 1000.00, 13000.00, '2026-10-01', '2027-09-30', 'ACTIVE', v_now, v_now);
+  VALUES ('${S1_SCHEME_ID}', '${S1_ID}', 'RJ-SCH-2026-SYNTH1', 1, 1000.00, 12, 12000.00, 1000.00, 13000.00, '2026-10-01', '2027-09-30', 'ACTIVE', v_now - INTERVAL '10 seconds', v_now - INTERVAL '10 seconds');
 
   -- Insert S2 Profile & Customer (SHARES phone with S1, but NO authorization link initially)
   INSERT INTO public.profiles (id, role, phone_number, full_name, is_active, created_at, updated_at)
@@ -98,26 +176,37 @@ BEGIN
 END;
 $$;
 `;
-  runSql(setupSql);
+  try {
+    runSql(setupSql);
+  } catch (err) {
+    cleanupSyntheticFixtures();
+    throw err;
+  }
 });
 
 test.after(() => {
-  // Guaranteed cleanup of synthetic test data strictly by exact synthetic UUIDs
-  const cleanupSql = `
-DELETE FROM public.customer_profile_authorizations WHERE grantor_customer_id IN ('${S1_ID}', '${S2_ID}', '${S3_ID}') OR grantee_customer_id IN ('${S1_ID}', '${S2_ID}', '${S3_ID}');
-DELETE FROM public.customer_sessions WHERE customer_id IN ('${S1_ID}', '${S2_ID}', '${S3_ID}') OR authenticated_root_id IN ('${S1_ID}', '${S2_ID}', '${S3_ID}');
-DELETE FROM public.customer_auth WHERE customer_id IN ('${S1_ID}', '${S2_ID}', '${S3_ID}');
-DELETE FROM public.notifications WHERE customer_id IN ('${S1_ID}', '${S2_ID}', '${S3_ID}');
-DELETE FROM public.scheme_bonuses WHERE customer_id IN ('${S1_ID}', '${S2_ID}', '${S3_ID}');
-DELETE FROM public.scheme_installments WHERE customer_id IN ('${S1_ID}', '${S2_ID}', '${S3_ID}');
-DELETE FROM public.schemes WHERE customer_id IN ('${S1_ID}', '${S2_ID}', '${S3_ID}') OR id = '${S1_SCHEME_ID}';
-DELETE FROM public.customers WHERE id IN ('${S1_ID}', '${S2_ID}', '${S3_ID}');
-DELETE FROM public.profiles WHERE id IN ('${S1_ID}', '${S2_ID}', '${S3_ID}');
-`;
-  runSql(cleanupSql);
+  try {
+    // Guaranteed cleanup of synthetic test data strictly by exact synthetic UUIDs
+    cleanupSyntheticFixtures();
+  } finally {
+    // 1. Verify all synthetic test fixtures are completely removed (0 remaining)
+    const remainingSynthetic = getSyntheticFixtureCount();
+    assert.equal(remainingSynthetic, 0, 'All synthetic test fixtures must be completely removed');
 
-  const postBaseline = getDatabaseBaseline();
-  assert.deepEqual(postBaseline, initialBaseline, 'Post-teardown database counts must match initial baseline exactly');
+    // 2. Verify all pre-existing customers, profiles, and schemes are strictly preserved
+    const postCustomerIds = getPreExistingCustomerIds();
+    assert.deepEqual(postCustomerIds, initialPreExistingCustomerIds, 'Pre-existing customer records must be strictly preserved');
+
+    const postProfileIds = getPreExistingProfileIds();
+    assert.deepEqual(postProfileIds, initialPreExistingProfileIds, 'Pre-existing profile records must be strictly preserved');
+
+    const postSchemeIds = getPreExistingSchemeIds();
+    assert.deepEqual(postSchemeIds, initialPreExistingSchemeIds, 'Pre-existing scheme records must be strictly preserved');
+
+    // 3. Verify total database counts match initial baseline
+    const postBaseline = getDatabaseBaseline();
+    assert.deepEqual(postBaseline, initialBaseline, 'Post-teardown database counts must match initial baseline exactly');
+  }
 });
 
 test('1. Invalid credentials return safe 401 error without disclosing account existence or hashes', async () => {
@@ -161,8 +250,8 @@ test('2. Successful login for single-profile account returns direct navigation p
   s3Token = body.token;
 });
 
-test('3. Two accounts sharing phone belong to authenticated mobile-number group and are offered for selection', async () => {
-  // S1 and S2 share phone SHARED_MOBILE
+test('3. Two accounts sharing phone remain strictly isolated unless explicitly showroom-linked', async () => {
+  // S1 and S2 share phone SHARED_MOBILE but have no explicit authorization link yet
   const res = await fetch(`${BFF_URL}/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -177,12 +266,12 @@ test('3. Two accounts sharing phone belong to authenticated mobile-number group 
   assert.equal(body.success, true);
   s1Token = body.token;
 
-  // Under Rule A: Both customer registrations registered under this mobile number are returned
+  // Strict Isolation: Sharing a mobile number alone must NEVER grant access to unlinked profiles
   const profileIds = body.profiles.map((p) => p.customerId);
   assert.ok(profileIds.includes(S1_ID), 'Authenticated customer S1 must be included');
-  assert.ok(profileIds.includes(S2_ID), 'Customer S2 sharing the phone number must be included in mobile group');
-  assert.equal(body.requiresSelection, true, 'Multiple accessible profiles must trigger selection screen');
-  assert.equal(body.profiles.length, 2);
+  assert.ok(!profileIds.includes(S2_ID), 'Customer S2 sharing the phone number must NOT be included without explicit link');
+  assert.equal(body.requiresSelection, false, 'Single accessible profile must not trigger selection screen');
+  assert.equal(body.profiles.length, 1);
 });
 
 test('4. Explicitly authorized family member returns multiple safe profiles for selection screen', async () => {
@@ -352,4 +441,42 @@ test('9. Responses do not contain password hashes, service-role keys, or session
   assert.ok(!rawText.includes('service_role'), 'Response must not contain service_role');
   assert.ok(!rawText.includes('token_hash'), 'Response must not leak token_hash');
   assert.ok(!rawText.includes('SUPABASE_SERVICE_ROLE_KEY'), 'Response must not leak secret keys');
+});
+
+test('10. Regression: Teardown procedure preserves pre-test baseline and cannot delete unrelated records', () => {
+  // 1. Verify pre-existing customer and profile records exist
+  const currentPreExistingCusts = getPreExistingCustomerIds();
+  const currentPreExistingProfs = getPreExistingProfileIds();
+  const currentPreExistingSchemes = getPreExistingSchemeIds();
+
+  assert.ok(currentPreExistingCusts.length > 0, 'Pre-existing customer baseline must not be empty');
+  assert.ok(currentPreExistingProfs.length > 0, 'Pre-existing profile baseline must not be empty');
+  assert.deepEqual(currentPreExistingCusts, initialPreExistingCustomerIds, 'Pre-existing customers must match initial pre-test baseline');
+  assert.deepEqual(currentPreExistingProfs, initialPreExistingProfileIds, 'Pre-existing profiles must match initial pre-test baseline');
+  assert.deepEqual(currentPreExistingSchemes, initialPreExistingSchemeIds, 'Pre-existing schemes must match initial pre-test baseline');
+
+  // 2. Execute teardown cleanup function
+  cleanupSyntheticFixtures();
+
+  // 3. Confirm all synthetic fixtures (S1, S2, S3, S1_SCHEME) are strictly 0
+  const synthCount = getSyntheticFixtureCount();
+  assert.equal(synthCount, 0, 'All synthetic fixtures must be completely cleaned up');
+
+  // 4. Confirm no pre-existing or unrelated records were altered or deleted
+  const postCusts = getPreExistingCustomerIds();
+  const postProfs = getPreExistingProfileIds();
+  const postSchemes = getPreExistingSchemeIds();
+
+  assert.deepEqual(postCusts, initialPreExistingCustomerIds, 'Teardown must not delete or modify any pre-existing customer records');
+  assert.deepEqual(postProfs, initialPreExistingProfileIds, 'Teardown must not delete or modify any pre-existing profile records');
+  assert.deepEqual(postSchemes, initialPreExistingSchemeIds, 'Teardown must not delete or modify any pre-existing scheme records');
+
+  // 5. Test idempotence: executing teardown repeatedly must be safe and never touch unrelated records
+  cleanupSyntheticFixtures();
+  cleanupSyntheticFixtures();
+
+  assert.deepEqual(getPreExistingCustomerIds(), initialPreExistingCustomerIds, 'Repeated teardown must preserve all pre-existing customers');
+  assert.deepEqual(getPreExistingProfileIds(), initialPreExistingProfileIds, 'Repeated teardown must preserve all pre-existing profiles');
+  assert.deepEqual(getPreExistingSchemeIds(), initialPreExistingSchemeIds, 'Repeated teardown must preserve all pre-existing schemes');
+  assert.equal(getSyntheticFixtureCount(), 0, 'Synthetic fixture count must remain strictly 0');
 });

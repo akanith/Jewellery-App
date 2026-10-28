@@ -49,6 +49,8 @@ export default function NewCustomerPage() {
   const [notes, setNotes] = useState('');
 
   const [existingProfilesWithPhone, setExistingProfilesWithPhone] = useState<ExistingProfileSummary[]>([]);
+  const [linkFamilyMember, setLinkFamilyMember] = useState(false);
+  const [selectedFamilyCustomerId, setSelectedFamilyCustomerId] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successData, setSuccessData] = useState<SuccessEnrollmentData | null>(null);
@@ -67,6 +69,9 @@ export default function NewCustomerPage() {
             .eq('phone_number', clean);
           if (isCurrent && data) {
             setExistingProfilesWithPhone(data);
+            if (data.length > 0) {
+              setSelectedFamilyCustomerId((prev) => (prev ? prev : data[0].id));
+            }
           }
         } catch {
           // ignore transient lookup error
@@ -76,6 +81,8 @@ export default function NewCustomerPage() {
       Promise.resolve().then(() => {
         if (isCurrent) {
           setExistingProfilesWithPhone([]);
+          setLinkFamilyMember(false);
+          setSelectedFamilyCustomerId('');
         }
       });
     }
@@ -125,6 +132,7 @@ export default function NewCustomerPage() {
 
     try {
       const startMonthStr = `${todayDate.getFullYear()}-${String(todayDate.getMonth() + 1).padStart(2, '0')}-01`;
+      const linkId = linkFamilyMember && selectedFamilyCustomerId ? selectedFamilyCustomerId : null;
 
       const { data, error, rawError } = await createCustomerWithScheme({
         p_full_name: fullName.trim(),
@@ -138,6 +146,7 @@ export default function NewCustomerPage() {
         p_notes: notes.trim() || null,
         p_enroll_scheme: true,
         p_start_month: startMonthStr,
+        p_link_family_customer_id: linkId,
       });
 
       if (error || !data) {
@@ -162,6 +171,7 @@ export default function NewCustomerPage() {
         customerId: data.customer_id,
         customerCode: data.customer_code,
         schemeCode: data.scheme_code || 'RJ-SCH-ACTIVE',
+        familyLinked: Boolean(linkId),
       });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to register customer.';
@@ -241,6 +251,8 @@ export default function NewCustomerPage() {
                 setAddress('');
                 setNomineeName('');
                 setNotes('');
+                setLinkFamilyMember(false);
+                setSelectedFamilyCustomerId('');
               }}
               className="px-6 py-3 rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200 text-xs font-semibold text-center"
             >
@@ -332,23 +344,60 @@ export default function NewCustomerPage() {
                     />
                   </div>
 
-                  {/* Informative Shared Mobile Number Warning Banner */}
+                  {/* Shared Number Warning & Family Linking Banner */}
                   {existingProfilesWithPhone.length > 0 && (
-                    <div className="mt-2.5 p-3 rounded-xl bg-amber-50/90 border border-amber-200 text-xs text-amber-900 flex items-start gap-2.5 animate-in fade-in duration-150">
+                    <div className="mt-2.5 p-3.5 rounded-xl bg-amber-50/95 border border-amber-200 text-xs text-amber-900 flex items-start gap-2.5 animate-in fade-in duration-150">
                       <Users className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                       <div className="flex-1">
                         <div className="font-bold text-amber-900">
-                          Shared Mobile Notice: Mobile is already assigned to {existingProfilesWithPhone.length} person{existingProfilesWithPhone.length > 1 ? 's' : ''}:
+                          Shared Number Warning: Mobile is already assigned to {existingProfilesWithPhone.length} customer{existingProfilesWithPhone.length > 1 ? 's' : ''}:
                         </div>
-                        <ul className="mt-1 list-disc list-inside space-y-0.5 text-amber-800 font-medium">
+                        <ul className="mt-1.5 list-disc list-inside space-y-0.5 text-amber-800 font-medium">
                           {existingProfilesWithPhone.map((p) => (
                             <li key={p.id}>
                               <span className="font-bold">{p.full_name}</span> ({p.customer_code})
                             </li>
                           ))}
                         </ul>
-                        <div className="mt-2 text-[11px] text-amber-800 leading-relaxed bg-amber-100/70 p-2 rounded-lg border border-amber-200/60">
-                          <span className="font-semibold">Customer App Access:</span> All customer profiles registered under this normalized mobile number will be selectable after successful login. Each registration maintains its own unique Customer ID, separate scheme enrollments, and independent passbook records.
+
+                        <div className="mt-3 pt-2.5 border-t border-amber-200/80">
+                          <label className="flex items-center gap-2 cursor-pointer font-semibold text-amber-950">
+                            <input
+                              type="checkbox"
+                              checked={linkFamilyMember}
+                              onChange={(e) => {
+                                setLinkFamilyMember(e.target.checked);
+                                if (e.target.checked && !selectedFamilyCustomerId && existingProfilesWithPhone.length > 0) {
+                                  setSelectedFamilyCustomerId(existingProfilesWithPhone[0].id);
+                                }
+                              }}
+                              className="w-4 h-4 rounded border-amber-300 text-amber-700 focus:ring-amber-500 cursor-pointer"
+                            />
+                            <span>Link as verified family member</span>
+                          </label>
+
+                          {linkFamilyMember && existingProfilesWithPhone.length > 1 && (
+                            <div className="mt-2.5 pl-6">
+                              <label className="block text-[11px] font-medium text-amber-900 mb-1">
+                                Select family member to link with:
+                              </label>
+                              <select
+                                value={selectedFamilyCustomerId}
+                                onChange={(e) => setSelectedFamilyCustomerId(e.target.value)}
+                                className="w-full px-2.5 py-1.5 bg-white border border-amber-300 rounded-lg text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                              >
+                                {existingProfilesWithPhone.map((p) => (
+                                  <option key={p.id} value={p.id}>
+                                    {p.full_name} ({p.customer_code})
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          )}
+
+                          <div className="mt-2.5 text-[11px] text-amber-800 leading-relaxed bg-amber-100/70 p-2 rounded-lg border border-amber-200/60">
+                            <span className="font-semibold">Security Policy:</span> Linking enables explicit, showroom-verified family profile switching in the customer app. If unlinked, accounts sharing a mobile number remain completely isolated and cannot access each other&apos;s profiles.
+                          </div>
                         </div>
                       </div>
                     </div>

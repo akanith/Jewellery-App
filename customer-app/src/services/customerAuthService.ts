@@ -88,7 +88,11 @@ export const validatePasswordCriteria = (password: string): { isValid: boolean; 
  * Authenticates customer via real Customer BFF /auth/login with mobile number and password.
  * Returns raw server session token, real customer identity, password status, and all authorized profiles.
  */
-export const loginWithMobile = async (mobileNumber: string, password?: string): Promise<CustomerAuthResult> => {
+export const loginWithMobile = async (
+  mobileNumber: string,
+  password?: string,
+  customerIdentifier?: string
+): Promise<CustomerAuthResult> => {
   const validation = validateMobileNumber(mobileNumber);
   if (!validation.isValid) {
     return {
@@ -113,7 +117,11 @@ export const loginWithMobile = async (mobileNumber: string, password?: string): 
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ mobileNumber: cleanedNumber, password: password.trim() }),
+      body: JSON.stringify({
+        mobileNumber: cleanedNumber,
+        password: password.trim(),
+        ...(customerIdentifier?.trim() ? { customerIdentifier: customerIdentifier.trim() } : {}),
+      }),
     });
 
     const json = await response.json().catch(() => null);

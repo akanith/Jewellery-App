@@ -29,6 +29,7 @@ export default function LoginScreen() {
   const insets = useSafeAreaInsets();
   const [mobileNumber, setMobileNumber] = useState('');
   const [password, setPassword] = useState('');
+  const [customerCode, setCustomerCode] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -86,7 +87,7 @@ export default function LoginScreen() {
     setErrorMessage(null);
 
     try {
-      const result = await loginWithMobile(mobileNumber, password);
+      const result = await loginWithMobile(mobileNumber, password, customerCode);
       if (result.success && result.session) {
         if (result.requiresSelection || (result.profiles && result.profiles.length > 1)) {
           router.replace('/select-customer' as any);
@@ -230,6 +231,28 @@ export default function LoginScreen() {
             >
               <Text style={styles.forgotPasswordText}>{t('forgotPassword')}</Text>
             </TouchableOpacity>
+          </View>
+
+          {/* Optional Customer Code Input (For Shared Numbers) */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>
+              Customer ID / Code <Text style={{ fontSize: 11, fontWeight: 'normal', color: '#64748B' }}>(Optional)</Text>
+            </Text>
+            <View style={styles.inputWrapper}>
+              <Ionicons name="card-outline" size={18} color="#64748B" style={{ marginRight: 8 }} />
+              <TextInput
+                style={styles.textInput}
+                placeholder="e.g. RJ2026-001"
+                placeholderTextColor="#94A3B8"
+                autoCapitalize="characters"
+                value={customerCode}
+                onChangeText={(text) => {
+                  setCustomerCode(text.trim());
+                  if (errorMessage) setErrorMessage(null);
+                }}
+                editable={!isLoading}
+              />
+            </View>
           </View>
 
           {/* Primary Login Button */}

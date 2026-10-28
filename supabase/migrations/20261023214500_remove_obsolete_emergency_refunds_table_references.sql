@@ -31,8 +31,12 @@ DECLARE
     v_now TIMESTAMPTZ := pg_catalog.clock_timestamp();
 BEGIN
     -- 1. Authorization Verification (Must be an authenticated administrator)
-    IF NOT private.is_admin() THEN
+    IF COALESCE(private.is_admin(), FALSE) IS NOT TRUE THEN
         RAISE EXCEPTION 'Unauthorized: Only registered administrators can delete customer accounts.';
+    END IF;
+
+    IF p_customer_id IS NULL THEN
+        RAISE EXCEPTION 'Customer ID cannot be NULL.' USING ERRCODE = '22004';
     END IF;
 
     -- 2. Customer Lookup & Concurrency Protection
@@ -123,6 +127,7 @@ SET search_path = ''
 AS $$
 DECLARE
     v_admin_id UUID := auth.uid();
+    v_now TIMESTAMPTZ := pg_catalog.clock_timestamp();
     v_target_codes TEXT[] := ARRAY['RJ2026-001', 'RJ2026-002', 'RJ2026-003', 'RJ2026-005', 'RJ2026-006', 'RJ2026-007'];
     v_protected_codes TEXT[] := ARRAY['RJ2026-004', 'RJ2026-008', 'RJ2026-009', 'RJ2026-010', 'RJ2026-011', 'RJ2026-012'];
     v_target_ids UUID[];
@@ -160,7 +165,7 @@ DECLARE
     v_deleted_profiles INTEGER := 0;
 BEGIN
     -- 1. Authorization Verification (Must be an authenticated administrator)
-    IF NOT private.is_admin() THEN
+    IF COALESCE(private.is_admin(), FALSE) IS NOT TRUE THEN
         RAISE EXCEPTION 'Unauthorized: Only registered administrators can execute cleanup procedures.';
     END IF;
 
@@ -261,8 +266,8 @@ BEGIN
         v_seq_last_val := NULL;
     END;
 
-    -- 7. Return Dry-Run Report if p_execute IS FALSE (allows inspecting refunded schemes without deletion)
-    IF NOT p_execute THEN
+    -- 7. Return Dry-Run Report if p_execute IS NOT TRUE (fails closed on FALSE and NULL)
+    IF COALESCE(p_execute, FALSE) IS NOT TRUE THEN
         RETURN pg_catalog.json_build_object(
             'mode', 'DRY_RUN',
             'executed', false,
@@ -288,7 +293,12 @@ BEGIN
         );
     END IF;
 
-    -- 8. Execution Safety Guard: Strictly block destructive execution if any target customer has an emergency refund
+    -- 8. Execution Safety Guard: Strictly block destructive execution if database is not in the exact 12-test-customer state
+    IF (SELECT COUNT(*) FROM public.customers) <> 12 THEN
+        RAISE EXCEPTION 'Cleanup guard failure: Database contains % customers. Cleanup procedure is only authorized for the specific 12-test-customer fixture.', (SELECT COUNT(*) FROM public.customers);
+    END IF;
+
+    -- Strictly block destructive execution if any target customer has an emergency refund
     IF v_target_emergency_refund_count > 0 THEN
         RAISE EXCEPTION 'Cleanup guard failure: Target test customers contain % emergency refund records on schemes.', v_target_emergency_refund_count;
     END IF;
