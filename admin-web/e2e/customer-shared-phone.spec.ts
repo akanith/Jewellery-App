@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import {
   getAuthenticatedAdminSupabaseClient,
+  getTestServiceRoleClient,
   generateTestMobile,
   deleteTestCustomers,
 } from './helpers/test-utils';
@@ -87,8 +88,10 @@ test.describe('AW-ID-01: Shared Mobile Customer Identity & Profile Management', 
     });
     createdCustomerIds.push(pB.customer_id);
 
-    // 2. Login test without authorization link: Each user sees ONLY their own profile
-    const { data: loginResA, error: loginErrA } = await supabase.rpc('customer_password_login', {
+    // 2. Login test without authorization link: Each user sees ONLY their own profile.
+    // Direct customer-auth RPCs are restricted to the server-side BFF service role.
+    const serviceClient = getTestServiceRoleClient();
+    const { data: loginResA, error: loginErrA } = await serviceClient.rpc('customer_password_login', {
       p_phone_number: sharedMobile,
       p_password: tempPassword,
     });
@@ -105,7 +108,7 @@ test.describe('AW-ID-01: Shared Mobile Customer Identity & Profile Management', 
     expect(linkRes.success).toBe(true);
 
     // 4. Login test with authorization link: Both profiles are now accessible
-    const { data: loginResLinked, error: loginErrLinked } = await supabase.rpc('customer_password_login', {
+    const { data: loginResLinked, error: loginErrLinked } = await serviceClient.rpc('customer_password_login', {
       p_phone_number: sharedMobile,
       p_password: tempPassword,
     });

@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import {
   createTestCustomerWithPastScheme,
+  seedHistoricalSchemePayments,
   deleteTestCustomer,
   generateTestMobile,
   generateTestName,
@@ -35,17 +36,22 @@ test.describe('AW-09: Scheme Maturity Redemption', () => {
 
       const supabase = await getAuthenticatedAdminSupabaseClient();
 
-      // Complete the twelve past-due installments through the guarded financial RPC.
-      for (let installmentNumber = 1; installmentNumber <= 12; installmentNumber += 1) {
-        const { error } = await supabase.rpc('record_installment_payment', {
-          p_scheme_id: customer.scheme_id,
-          p_installment_number: installmentNumber,
-          p_payment_method: 'CASH',
-          p_transaction_reference: `E2E-REDEMPTION-${Date.now()}-${installmentNumber}`,
-          p_notes: 'Isolated Playwright redemption lifecycle test',
-        });
-        expect(error, `installment #${installmentNumber} should be recorded`).toBeNull();
-      }
+      // Seed past installments 1 through 11 in their respective past calendar months.
+      // This respects the database business rule of at most one payment per calendar month.
+      await seedHistoricalSchemePayments(customer.scheme_id, 11);
+
+      // Record the 12th installment for the current month through the guarded financial RPC.
+      // This exercises the real RPC bonus crediting & maturity transition logic.
+      const { data: p12Data, error: p12Error } = await supabase.rpc('record_installment_payment', {
+        p_scheme_id: customer.scheme_id,
+        p_installment_number: 12,
+        p_payment_method: 'CASH',
+        p_transaction_reference: `E2E-REDEMPTION-${Date.now()}-12`,
+        p_notes: 'Isolated Playwright redemption lifecycle test - 12th installment',
+      });
+      expect(p12Error, '12th installment should be recorded via guarded RPC').toBeNull();
+      expect(p12Data?.status).toBe('MATURED');
+      expect(p12Data?.bonus_credited).toBe(true);
 
       const { data: maturedScheme, error: maturedSchemeError } = await supabase
         .from('schemes')
