@@ -260,8 +260,11 @@ BEGIN
 END;
 $$;
 
-REVOKE ALL ON FUNCTION public.customer_password_login(VARCHAR, TEXT, TEXT) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.customer_password_login(VARCHAR, TEXT, TEXT) TO anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION public.customer_password_login(VARCHAR, TEXT, TEXT) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.customer_password_login(VARCHAR, TEXT, TEXT) TO service_role, postgres;
+
+REVOKE ALL ON FUNCTION public.request_customer_password_reset(VARCHAR) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.request_customer_password_reset(VARCHAR) TO service_role, postgres;
 
 -- 3. UPGRADE switch_customer_profile_session
 DROP FUNCTION IF EXISTS public.switch_customer_profile_session(VARCHAR, UUID);

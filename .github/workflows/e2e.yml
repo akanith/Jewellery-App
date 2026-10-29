@@ -81,6 +81,13 @@ jobs:
         run: node -e "require.resolve('@tailwindcss/oxide-linux-x64-gnu')"
         working-directory: admin-web
 
+      - name: Reserve Isolated Ports and Pre-cleanup
+        run: |
+          sudo sysctl -w net.ipv4.ip_local_reserved_ports="54320-54335"
+          sysctl net.ipv4.ip_local_reserved_ports
+          sudo systemctl stop postgresql 2>/dev/null || true
+          sudo fuser -k 54320/tcp 54321/tcp 54322/tcp 54323/tcp 54324/tcp 54327/tcp 2>/dev/null || true
+
       - name: Install Playwright Browsers
         run: npx playwright install --with-deps
         working-directory: admin-web
@@ -90,15 +97,26 @@ jobs:
         with:
           version: latest
 
+      - name: Verify Supabase CLI
+        run: supabase --version
+
       - name: Start Isolated Local Supabase
-        run: npx supabase start
+        run: |
+          supabase stop --no-backup 2>/dev/null || true
+          supabase start || {
+            echo "::warning::Initial Supabase startup failed. Cleaning up and retrying..."
+            supabase stop --no-backup || true
+            sleep 5
+            supabase start
+          }
 
       - name: Extract Isolated Supabase Credentials
         id: supabase-env
         run: |
-          SUPABASE_URL=$(npx supabase status -o json | jq -r '.API_URL')
-          SUPABASE_ANON_KEY=$(npx supabase status -o json | jq -r '.ANON_KEY')
-          SUPABASE_SERVICE_KEY=$(npx supabase status -o json | jq -r '.SERVICE_ROLE_KEY')
+          STATUS_JSON=$(supabase status -o json)
+          SUPABASE_URL=$(echo "$STATUS_JSON" | jq -r '.API_URL')
+          SUPABASE_ANON_KEY=$(echo "$STATUS_JSON" | jq -r '.ANON_KEY')
+          SUPABASE_SERVICE_KEY=$(echo "$STATUS_JSON" | jq -r '.SERVICE_ROLE_KEY')
           
           echo "NEXT_PUBLIC_SUPABASE_URL=$SUPABASE_URL" >> $GITHUB_ENV
           echo "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=$SUPABASE_ANON_KEY" >> $GITHUB_ENV
@@ -244,3 +262,7 @@ jobs:
           name: playwright-report
           path: admin-web/playwright-report/
           retention-days: 14
+
+      - name: Teardown Isolated Local Supabase
+        if: always()
+        run: supabase stop --no-backup 2>/dev/null || true

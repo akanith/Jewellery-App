@@ -209,7 +209,12 @@ export function getTestServiceRoleClient() {
   const targetUrl = SUPABASE_URL;
   assertNotProductionSupabase(targetUrl);
 
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+  const serviceKey =
+    process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ||
+    (targetUrl.includes('127.0.0.1') || targetUrl.includes('localhost')
+      ? 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU'
+      : undefined);
+
   if (!serviceKey) {
     throw new Error(
       '[E2E Test Fixture Error] SUPABASE_SERVICE_ROLE_KEY environment variable is missing. Set it explicitly for the isolated local/CI test environment.'
@@ -222,6 +227,133 @@ export function getTestServiceRoleClient() {
       autoRefreshToken: false,
     },
   });
+}
+
+/**
+ * Test fixture helper to seed historical paid installments for past calendar months
+ * on a scheme in the isolated test environment.
+ * Respects the database business rule of at most one payment per calendar month
+ * by backdating each payment's payment_date and updated_at to the installment's calendar_month.
+ *
+ * Uses the service-role client strictly within the Node test runner (with fatal production safety guard).
+ */
+export async function seedHistoricalSchemePayments(
+  schemeId: string,
+  countToPay: number = 11
+): Promise<void> {
+  if (!schemeId || typeof schemeId !== 'string') {
+    throw new Error(`[E2E Test Fixture Error] Invalid schemeId provided: ${schemeId}`);
+  }
+  if (countToPay < 1 || countToPay > 12) {
+    throw new Error(`[E2E Test Fixture Error] countToPay must be between 1 and 12, got: ${countToPay}`);
+  }
+
+  const adminServiceClient = getTestServiceRoleClient();
+
+  // 1. Fetch scheme details
+  const { data: scheme, error: schemeErr } = await adminServiceClient
+    .from('schemes')
+    .select('id, customer_id, monthly_installment_amount')
+    .eq('id', schemeId)
+    .single();
+
+  if (schemeErr || !scheme) {
+    throw new Error(`[E2E Test Fixture Error] Scheme ${schemeId} not found: ${schemeErr?.message}`);
+  }
+
+  // 2. Fetch installment records for this scheme ordered by installment_number
+  const { data: installments, error: instErr } = await adminServiceClient
+    .from('scheme_installments')
+    .select('id, installment_number, calendar_month, installment_amount, due_date')
+    .eq('scheme_id', schemeId)
+    .order('installment_number', { ascending: true });
+
+  if (instErr || !installments) {
+    throw new Error(`[E2E Test Fixture Error] Failed to fetch installments for scheme ${schemeId}: ${instErr?.message}`);
+  }
+
+  // 3. Get recorded_by admin user ID
+  const { data: adminUser } = await adminServiceClient
+    .from('admin_users')
+    .select('id')
+    .limit(1)
+    .single();
+
+  const recordedBy = adminUser?.id;
+  if (!recordedBy) {
+    throw new Error('[E2E Test Fixture Error] No admin_users found to record historical payments.');
+  }
+
+  const targetInstallments = installments.slice(0, countToPay);
+
+  for (const inst of targetInstallments) {
+    const paymentTimestamp = `${inst.calendar_month}T10:00:00.000Z`;
+    const year = inst.calendar_month.slice(0, 4);
+    const receiptNumber = `RJ-RCP-${year}-HIST${inst.installment_number}${Math.floor(1000 + Math.random() * 9000)}`;
+    const amount = Number(inst.installment_amount) || Number(scheme.monthly_installment_amount) || 1000.00;
+
+    // Insert payment row
+    const { error: payErr } = await adminServiceClient.from('payments').insert({
+      receipt_number: receiptNumber,
+      customer_id: scheme.customer_id,
+      scheme_id: scheme.id,
+      installment_id: inst.id,
+      installment_number: inst.installment_number,
+      amount: amount,
+      payment_date: paymentTimestamp,
+      payment_method: 'CASH',
+      transaction_reference: `E2E-HIST-${inst.installment_number}`,
+      payment_status: 'SUCCESS',
+      recorded_by: recordedBy,
+      notes: 'Historical E2E test fixture payment',
+      created_at: paymentTimestamp,
+      updated_at: paymentTimestamp,
+    });
+
+    if (payErr) {
+      throw new Error(`[E2E Test Fixture Error] Failed to insert payment for installment ${inst.installment_number}: ${payErr.message}`);
+    }
+
+    // Update scheme_installments row
+    const { error: updateInstErr } = await adminServiceClient
+      .from('scheme_installments')
+      .update({
+        status: 'PAID',
+        paid_amount: amount,
+        paid_date: paymentTimestamp,
+        updated_at: paymentTimestamp,
+      })
+      .eq('id', inst.id);
+
+    if (updateInstErr) {
+      throw new Error(`[E2E Test Fixture Error] Failed to update installment ${inst.installment_number}: ${updateInstErr.message}`);
+    }
+  }
+
+  // If all 12 installments are seeded, credit bonus and transition scheme to MATURED
+  if (countToPay === 12) {
+    const nowIso = new Date().toISOString();
+    await adminServiceClient
+      .from('scheme_bonuses')
+      .upsert({
+        scheme_id: scheme.id,
+        customer_id: scheme.customer_id,
+        bonus_amount: 1000.00,
+        is_eligible: true,
+        status: 'CREDITED',
+        credited_date: nowIso,
+        credited_by: recordedBy,
+        updated_at: nowIso,
+      }, { onConflict: 'scheme_id' });
+
+    await adminServiceClient
+      .from('schemes')
+      .update({
+        status: 'MATURED',
+        updated_at: nowIso,
+      })
+      .eq('id', scheme.id);
+  }
 }
 
 /**
