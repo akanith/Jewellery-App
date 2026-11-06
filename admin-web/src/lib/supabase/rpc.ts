@@ -5,6 +5,11 @@
 
 import { getSupabaseBrowserClient } from './client';
 import {
+  isMaintenanceModeActive,
+  getMaintenanceNotice,
+  MAINTENANCE_ERROR_CODE,
+} from '@/lib/maintenance';
+import {
   CreateCustomerWithSchemeParams,
   CreateCustomerWithSchemeResult,
   EnrollCustomerSchemeParams,
@@ -42,12 +47,35 @@ export interface RpcResponse<T> {
 }
 
 /**
+ * Validates whether the application is in maintenance mode before executing a mutating RPC.
+ * Blocks execution with a structured error when active.
+ */
+function checkMaintenanceGuard<T>(operationName: string): RpcResponse<T> | null {
+  if (isMaintenanceModeActive()) {
+    const notice = getMaintenanceNotice();
+    console.warn(`[MAINTENANCE_GUARD] Blocked administrator write operation: ${operationName}`);
+    return {
+      data: null,
+      error: notice,
+      rawError: {
+        code: MAINTENANCE_ERROR_CODE,
+        message: notice,
+      },
+    };
+  }
+  return null;
+}
+
+/**
  * Creates a new customer profile and customer record, optionally enrolling them
  * into the 12-Month Diwali Savings Scheme atomically.
  */
 export async function createCustomerWithScheme(
   params: CreateCustomerWithSchemeParams
 ): Promise<RpcResponse<CreateCustomerWithSchemeResult>> {
+  const guard = checkMaintenanceGuard<CreateCustomerWithSchemeResult>('createCustomerWithScheme');
+  if (guard) return guard;
+
   try {
     const supabase = getSupabaseBrowserClient();
     const payload = {
@@ -105,6 +133,9 @@ export async function createCustomerWithScheme(
 export async function enrollCustomerScheme(
   params: EnrollCustomerSchemeParams
 ): Promise<RpcResponse<EnrollCustomerSchemeResult>> {
+  const guard = checkMaintenanceGuard<EnrollCustomerSchemeResult>('enrollCustomerScheme');
+  if (guard) return guard;
+
   try {
     const supabase = getSupabaseBrowserClient();
     const { data, error } = await supabase.rpc('enroll_customer_scheme', {
@@ -131,6 +162,9 @@ export async function enrollCustomerScheme(
 export async function recordInstallmentPayment(
   params: RecordInstallmentPaymentParams
 ): Promise<RpcResponse<RecordInstallmentPaymentResult>> {
+  const guard = checkMaintenanceGuard<RecordInstallmentPaymentResult>('recordInstallmentPayment');
+  if (guard) return guard;
+
   try {
     const supabase = getSupabaseBrowserClient();
     const { data, error } = await supabase.rpc('record_installment_payment', {
@@ -158,6 +192,9 @@ export async function recordInstallmentPayment(
 export async function recordSchemeRedemption(
   params: RecordSchemeRedemptionParams
 ): Promise<RpcResponse<RecordSchemeRedemptionResult>> {
+  const guard = checkMaintenanceGuard<RecordSchemeRedemptionResult>('recordSchemeRedemption');
+  if (guard) return guard;
+
   try {
     const supabase = getSupabaseBrowserClient();
     const { data, error } = await supabase.rpc('record_scheme_redemption', {
@@ -186,6 +223,9 @@ export async function recordSchemeRedemption(
 export async function processEmergencyRefund(
   params: ProcessEmergencyRefundParams
 ): Promise<RpcResponse<ProcessEmergencyRefundResult>> {
+  const guard = checkMaintenanceGuard<ProcessEmergencyRefundResult>('processEmergencyRefund');
+  if (guard) return guard;
+
   try {
     const supabase = getSupabaseBrowserClient();
     const { data, error } = await supabase.rpc('process_emergency_refund', {
@@ -212,6 +252,9 @@ export async function processEmergencyRefund(
 export async function adminResetCustomerPassword(
   params: AdminResetCustomerPasswordParams
 ): Promise<RpcResponse<AdminResetCustomerPasswordResult>> {
+  const guard = checkMaintenanceGuard<AdminResetCustomerPasswordResult>('adminResetCustomerPassword');
+  if (guard) return guard;
+
   try {
     const supabase = getSupabaseBrowserClient();
     const { data, error } = await supabase.rpc('admin_reset_customer_password', {
@@ -258,6 +301,9 @@ export async function getPendingCustomerPasswordResetRequests(): Promise<
 export async function completeCustomerPasswordResetRequest(
   p_request_id: string
 ): Promise<RpcResponse<CompleteCustomerPasswordResetRequestResult>> {
+  const guard = checkMaintenanceGuard<CompleteCustomerPasswordResetRequestResult>('completeCustomerPasswordResetRequest');
+  if (guard) return guard;
+
   try {
     const supabase = getSupabaseBrowserClient();
     const { data, error } = await supabase.rpc('complete_customer_password_reset_request', {
@@ -282,6 +328,9 @@ export async function completeCustomerPasswordResetRequest(
 export async function cancelCustomerPasswordResetRequest(
   p_request_id: string
 ): Promise<RpcResponse<CancelCustomerPasswordResetRequestResult>> {
+  const guard = checkMaintenanceGuard<CancelCustomerPasswordResetRequestResult>('cancelCustomerPasswordResetRequest');
+  if (guard) return guard;
+
   try {
     const supabase = getSupabaseBrowserClient();
     const { data, error } = await supabase.rpc('cancel_customer_password_reset_request', {
@@ -306,6 +355,9 @@ export async function cancelCustomerPasswordResetRequest(
 export async function deleteCustomerAccount(
   params: DeleteCustomerAccountParams
 ): Promise<RpcResponse<DeleteCustomerAccountResult>> {
+  const guard = checkMaintenanceGuard<DeleteCustomerAccountResult>('deleteCustomerAccount');
+  if (guard) return guard;
+
   try {
     const supabase = getSupabaseBrowserClient();
     const { data, error } = await supabase.rpc('delete_customer_account', {
@@ -330,6 +382,9 @@ export async function deleteCustomerAccount(
 export async function updateCustomerProfile(
   params: UpdateCustomerProfileParams
 ): Promise<RpcResponse<UpdateCustomerProfileResult>> {
+  const guard = checkMaintenanceGuard<UpdateCustomerProfileResult>('updateCustomerProfile');
+  if (guard) return guard;
+
   try {
     const supabase = getSupabaseBrowserClient();
     const { data, error } = await supabase.rpc('update_customer_profile', {
@@ -364,6 +419,9 @@ export async function updateCustomerProfile(
 export async function linkCustomerFamilyProfiles(
   params: LinkCustomerFamilyProfilesParams
 ): Promise<RpcResponse<LinkCustomerFamilyProfilesResult>> {
+  const guard = checkMaintenanceGuard<LinkCustomerFamilyProfilesResult>('linkCustomerFamilyProfiles');
+  if (guard) return guard;
+
   try {
     const supabase = getSupabaseBrowserClient();
     const { data, error } = await supabase.rpc('link_customer_family_profiles', {
@@ -371,6 +429,7 @@ export async function linkCustomerFamilyProfiles(
       p_customer_id_2: params.p_customer_id_2,
       p_relationship: params.p_relationship || 'FAMILY_MEMBER',
       p_notes: params.p_notes || null,
+      p_consent_confirmed: params.p_consent_confirmed,
     });
 
     if (error) {
@@ -391,6 +450,9 @@ export async function linkCustomerFamilyProfiles(
 export async function unlinkCustomerFamilyProfiles(
   params: UnlinkCustomerFamilyProfilesParams
 ): Promise<RpcResponse<UnlinkCustomerFamilyProfilesResult>> {
+  const guard = checkMaintenanceGuard<UnlinkCustomerFamilyProfilesResult>('unlinkCustomerFamilyProfiles');
+  if (guard) return guard;
+
   try {
     const supabase = getSupabaseBrowserClient();
     const { data, error } = await supabase.rpc('unlink_customer_family_profiles', {
