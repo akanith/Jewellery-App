@@ -400,11 +400,19 @@ export interface LinkCustomerFamilyProfilesParams {
   p_customer_id_2: string;
   p_relationship?: string;
   p_notes?: string | null;
+  p_consent_confirmed: boolean;
 }
 
 export interface LinkCustomerFamilyProfilesResult {
   success: boolean;
   message: string;
+  grantor_customer_id?: string;
+  grantee_customer_id?: string;
+  relationship?: string;
+  authorized_by?: string;
+  consent_confirmed?: boolean;
+  acting_admin?: string;
+  linked_at?: string;
 }
 
 export interface UnlinkCustomerFamilyProfilesParams {

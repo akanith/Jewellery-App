@@ -8,17 +8,11 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-  TrendingUp,
   Download,
-  Users,
   Award,
-  Sparkles,
-  Loader2,
   AlertCircle,
   Receipt,
-  Calendar,
-  BarChart3,
-  Building2
+  BarChart3
 } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/lib/formatters';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';

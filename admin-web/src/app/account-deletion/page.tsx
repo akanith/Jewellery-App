@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { Phone, MessageSquare, Clock, MapPin, Shield, ChevronLeft } from 'lucide-react';
+import { Phone, MessageSquare, Clock, MapPin, Shield } from 'lucide-react';
 
 export const metadata: Metadata = {
   title: 'Request Account Deletion - Ramyas Jeweller',

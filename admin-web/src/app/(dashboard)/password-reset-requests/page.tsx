@@ -22,7 +22,6 @@ import {
   Check,
   Loader2,
   XCircle,
-  User
 } from 'lucide-react';
 import { formatDate, formatTime, formatPhoneNumber } from '@/lib/formatters';
 import {

@@ -102,6 +102,7 @@ test.describe('AW-ID-01: Shared Mobile Customer Identity & Profile Management', 
     const { data: linkRes, error: linkErr } = await supabase.rpc('link_customer_family_profiles', {
       p_customer_id_1: pA.customer_id,
       p_customer_id_2: pB.customer_id,
+      p_consent_confirmed: true,
       p_relationship: 'SPOUSE',
     });
     expect(linkErr).toBeNull();

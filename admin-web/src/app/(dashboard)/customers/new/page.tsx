@@ -18,7 +18,7 @@ import {
   AlertCircle,
   Users
 } from 'lucide-react';
-import { createCustomerWithScheme } from '@/lib/supabase/rpc';
+import { createCustomerWithScheme, linkCustomerFamilyProfiles } from '@/lib/supabase/rpc';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 
 interface SuccessEnrollmentData {
@@ -132,8 +132,8 @@ export default function NewCustomerPage() {
 
     try {
       const startMonthStr = `${todayDate.getFullYear()}-${String(todayDate.getMonth() + 1).padStart(2, '0')}-01`;
-      const linkId = linkFamilyMember && selectedFamilyCustomerId ? selectedFamilyCustomerId : null;
 
+      // 1. Separate Customer Registration: creates independent customer profile and scheme only
       const { data, error, rawError } = await createCustomerWithScheme({
         p_full_name: fullName.trim(),
         p_phone_number: cleanPhone,
@@ -146,7 +146,7 @@ export default function NewCustomerPage() {
         p_notes: notes.trim() || null,
         p_enroll_scheme: true,
         p_start_month: startMonthStr,
-        p_link_family_customer_id: linkId,
+        p_link_family_customer_id: null, // Registration alone never links profiles
       });
 
       if (error || !data) {
@@ -167,11 +167,36 @@ export default function NewCustomerPage() {
         throw new Error(error || 'Failed to register customer.');
       }
 
+      // 2. Separate Explicit Admin-Authorized Family Linking Workflow
+      let familyLinked = false;
+      let familyLinkError: string | null = null;
+
+      if (linkFamilyMember && selectedFamilyCustomerId) {
+        try {
+          const { data: linkData, error: linkErr } = await linkCustomerFamilyProfiles({
+            p_customer_id_1: data.customer_id,
+            p_customer_id_2: selectedFamilyCustomerId,
+            p_relationship: 'FAMILY_MEMBER',
+            p_notes: 'Showroom in-person consent verified by administrator during registration workflow.',
+            p_consent_confirmed: true,
+          });
+
+          if (linkErr || (linkData && !linkData.success)) {
+            familyLinkError = linkErr || 'Failed to establish verified family link.';
+          } else {
+            familyLinked = true;
+          }
+        } catch (linkEx: unknown) {
+          familyLinkError = linkEx instanceof Error ? linkEx.message : 'Family linking workflow error.';
+        }
+      }
+
       setSuccessData({
         customerId: data.customer_id,
         customerCode: data.customer_code,
         schemeCode: data.scheme_code || 'RJ-SCH-ACTIVE',
-        familyLinked: Boolean(linkId),
+        familyLinked,
+        familyLinkError,
       });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to register customer.';
@@ -361,7 +386,7 @@ export default function NewCustomerPage() {
                         </ul>
 
                         <div className="mt-3 pt-2.5 border-t border-amber-200/80">
-                          <label className="flex items-center gap-2 cursor-pointer font-semibold text-amber-950">
+                          <label className="flex items-start gap-2.5 cursor-pointer font-semibold text-amber-950">
                             <input
                               type="checkbox"
                               checked={linkFamilyMember}
@@ -371,9 +396,14 @@ export default function NewCustomerPage() {
                                   setSelectedFamilyCustomerId(existingProfilesWithPhone[0].id);
                                 }
                               }}
-                              className="w-4 h-4 rounded border-amber-300 text-amber-700 focus:ring-amber-500 cursor-pointer"
+                              className="w-4 h-4 mt-0.5 rounded border-amber-300 text-amber-700 focus:ring-amber-500 cursor-pointer shrink-0"
                             />
-                            <span>Link as verified family member</span>
+                            <div>
+                              <span>Link as verified family member</span>
+                              <p className="text-[11px] font-normal text-amber-800 mt-0.5">
+                                I confirm in-person showroom consent has been obtained from both customer profile holders to authorize shared access.
+                              </p>
+                            </div>
                           </label>
 
                           {linkFamilyMember && existingProfilesWithPhone.length > 1 && (
