@@ -256,6 +256,7 @@ BEGIN
             is_eligible,
             status,
             credited_date,
+            credited_by,
             created_at,
             updated_at
         ) VALUES (
@@ -265,14 +266,39 @@ BEGIN
             TRUE,
             'CREDITED',
             v_now,
+            v_admin_id,
             v_now,
             v_now
-        ) RETURNING * INTO v_bonus;
+        )
+        ON CONFLICT (scheme_id) DO UPDATE
+        SET is_eligible = TRUE,
+            status = 'CREDITED',
+            bonus_amount = COALESCE(v_scheme.bonus_amount, 1000.00),
+            credited_date = v_now,
+            credited_by = v_admin_id,
+            updated_at = v_now
+        RETURNING * INTO v_bonus;
 
         UPDATE public.schemes
-        SET status = 'COMPLETED',
+        SET status = 'MATURED',
             updated_at = v_now
         WHERE id = p_scheme_id;
+
+        INSERT INTO public.notifications (
+            customer_id,
+            scheme_id,
+            title,
+            message,
+            notification_type,
+            created_at
+        ) VALUES (
+            v_scheme.customer_id,
+            p_scheme_id,
+            'Scheme Matured!',
+            'Congratulations! You have completed all 12 installments. Your ₹1,000 bonus has been credited and your scheme is now matured with a total value of ₹13,000.',
+            'SCHEME_MATURED',
+            v_now
+        );
 
         v_bonus_credited := TRUE;
     END IF;
@@ -315,6 +341,7 @@ BEGIN
         'actual_payment_date', v_resolved_actual_date,
         'payment_date', v_payment_timestamptz,
         'recorded_at', v_now,
+        'status', CASE WHEN v_paid_count = 12 AND v_bonus_credited THEN 'MATURED' ELSE 'ACTIVE' END,
         'message', CASE 
             WHEN v_bonus_credited THEN 'Installment #' || p_installment_number || ' paid (' || CASE WHEN v_is_historical THEN 'Historical' ELSE 'Regular' END || '). Scheme completed! 100% bonus credited (+₹1,000).'
             ELSE 'Installment #' || p_installment_number || ' paid successfully (' || CASE WHEN v_is_historical THEN 'Historical' ELSE 'Regular' END || ').'

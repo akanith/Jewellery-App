@@ -30,8 +30,8 @@ test.describe('AW-09: Safe Delete Customer Account', () => {
     let customerId: string | null = null;
 
     try {
-      // Create a customer with a scheme and record 1 payment
-      const result = await createTestCustomerWithPastScheme(testName, testMobile, 11);
+      // Create a customer with a scheme starting in the current month and record 1 regular payment
+      const result = await createTestCustomerWithPastScheme(testName, testMobile, 0);
       customerId = result.customer_id;
 
       // Record 1 installment payment so financial history exists
