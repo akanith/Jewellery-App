@@ -5,8 +5,6 @@
 --              explicit table privilege denial on schema public for role 'anon'.
 -- ==============================================================================
 
-\set ON_ERROR_STOP on
-
 SET ROLE postgres;
 
 BEGIN;
