@@ -18,6 +18,9 @@
         "ACCESS_NETWORK_STATE",
         "VIBRATE"
       ],
+      "blockedPermissions": [
+        "android.permission.SYSTEM_ALERT_WINDOW"
+      ],
       "adaptiveIcon": {
         "backgroundColor": "#750B13",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
