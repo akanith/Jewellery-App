@@ -13,6 +13,11 @@
     "android": {
       "package": "com.ramyas.jewelleryapp",
       "versionCode": 1,
+      "permissions": [
+        "INTERNET",
+        "ACCESS_NETWORK_STATE",
+        "VIBRATE"
+      ],
       "adaptiveIcon": {
         "backgroundColor": "#750B13",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
