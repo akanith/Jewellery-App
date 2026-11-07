@@ -2,6 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { execSync } from 'node:child_process';
 import crypto from 'node:crypto';
+import path from 'node:path';
+
+const DOCKER_EXE = path.resolve('scripts/bin/docker.exe');
 
 /**
  * RAMYAS JEWELLER — END-TO-END RAZORPAY PAYMENT RECONCILIATION TEST SUITE
@@ -49,7 +52,7 @@ const TEST_PASSWORD = 'Password123!';
 
 function runSql(sql) {
   return execSync(
-    'docker exec -i supabase_db_Jewellery_App psql -U postgres -d postgres -v ON_ERROR_STOP=1 -q -t',
+    `"${DOCKER_EXE}" exec -i supabase_db_Jewellery_App psql -U postgres -d postgres -v ON_ERROR_STOP=1 -q -t`,
     {
       input: `\\set ON_ERROR_STOP on\n${sql}`,
       encoding: 'utf-8',

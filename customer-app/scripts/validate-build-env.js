@@ -7,6 +7,9 @@
  * and ensures live production Supabase database cannot be targeted by preview test builds.
  */
 
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 const KNOWN_PRODUCTION_HOST = 'yjpbswsgtbmgageburmy.supabase.co';
 const DEFAULT_HOSTED_BFF_URL = 'https://yjpbswsgtbmgageburmy.supabase.co/functions/v1';
 
@@ -142,9 +145,6 @@ export function validateBuildEnvironment(env = process.env) {
     environment: 'unspecified',
   };
 }
-
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 
 // Direct CLI execution
 const currentFilePath = fileURLToPath(import.meta.url);

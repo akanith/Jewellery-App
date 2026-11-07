@@ -5,7 +5,7 @@
  * Matches Mockup Design #2.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import {
   ArrowLeft,
@@ -91,26 +91,34 @@ export default function NewCustomerPage() {
     };
   }, [phoneNumber]);
 
+  // Scheme Start Month Selection (Defaults to October 2026 for Diwali Scheme Launch)
+  const [schemeStartMonth, setSchemeStartMonth] = useState('2026-10');
+
   // Scheme Calculations
-  const todayDate = new Date();
+  const todayDate = useMemo(() => new Date(), []);
   const joiningDateFormatted = todayDate.toLocaleDateString('en-IN', {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
   });
 
-  const lastDayOfMonth = new Date(todayDate.getFullYear(), todayDate.getMonth() + 1, 0);
-  const firstDueDateFormatted = lastDayOfMonth.toLocaleDateString('en-IN', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-  });
+  const { firstDueDateFormatted, maturityDateFormatted } = useMemo(() => {
+    const [year, month] = schemeStartMonth.split('-').map(Number);
+    const firstDue = new Date(year, month, 0);
+    const maturity = new Date(year, month - 1 + 11, 1);
 
-  const maturityDate = new Date(todayDate.getFullYear() + 1, todayDate.getMonth(), 0);
-  const maturityDateFormatted = maturityDate.toLocaleDateString('en-IN', {
-    month: 'long',
-    year: 'numeric',
-  });
+    return {
+      firstDueDateFormatted: firstDue.toLocaleDateString('en-IN', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+      }),
+      maturityDateFormatted: maturity.toLocaleDateString('en-IN', {
+        month: 'long',
+        year: 'numeric',
+      }),
+    };
+  }, [schemeStartMonth]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -131,7 +139,7 @@ export default function NewCustomerPage() {
     setIsSubmitting(true);
 
     try {
-      const startMonthStr = `${todayDate.getFullYear()}-${String(todayDate.getMonth() + 1).padStart(2, '0')}-01`;
+      const startMonthStr = `${schemeStartMonth}-01`;
 
       // 1. Separate Customer Registration: creates independent customer profile and scheme only
       const { data, error, rawError } = await createCustomerWithScheme({
@@ -566,8 +574,25 @@ export default function NewCustomerPage() {
               </div>
 
               <div>
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                  Scheme Start Month
+                </label>
+                <select
+                  value={schemeStartMonth}
+                  onChange={(e) => setSchemeStartMonth(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-white border border-blue-200 rounded-xl text-sm font-semibold text-blue-950 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 shadow-2xs cursor-pointer"
+                >
+                  <option value="2026-10">October 2026 (Diwali Scheme Start — Month 1)</option>
+                  <option value="2026-11">November 2026 (Current Month — Month 1)</option>
+                </select>
+                <p className="text-[11px] text-slate-500 mt-1">
+                  Select October 2026 for customers whose Diwali savings scheme started in October and are entering past payments.
+                </p>
+              </div>
+
+              <div>
                 <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
-                  Joining Date
+                  Registration Date
                 </label>
                 <input
                   type="text"
@@ -585,6 +610,18 @@ export default function NewCustomerPage() {
                   type="text"
                   disabled
                   value={firstDueDateFormatted}
+                  className="w-full px-3.5 py-2.5 bg-slate-100 border border-slate-200 rounded-xl text-sm font-medium text-slate-800"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                  Scheme Maturity
+                </label>
+                <input
+                  type="text"
+                  disabled
+                  value={maturityDateFormatted}
                   className="w-full px-3.5 py-2.5 bg-slate-100 border border-slate-200 rounded-xl text-sm font-medium text-slate-800"
                 />
               </div>

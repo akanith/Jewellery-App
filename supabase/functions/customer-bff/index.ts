@@ -1674,9 +1674,10 @@ async function handleInitiatePayment(req: Request): Promise<Response> {
     // 3.1. Enforce Monthly Scheme Payment Limit (Asia/Kolkata calendar month)
     const { data: monthPayments } = await supabase
       .from("payments")
-      .select("id, payment_date")
+      .select("id, payment_date, is_historical")
       .eq("scheme_id", scheme.id)
-      .eq("payment_status", "SUCCESS");
+      .eq("payment_status", "SUCCESS")
+      .eq("is_historical", false);
 
     const nowKolkata = new Intl.DateTimeFormat("en-CA", {
       timeZone: "Asia/Kolkata",
@@ -2142,7 +2143,12 @@ function getBffEnv(key: string): string | undefined {
 }
 
 export function isBffMaintenanceActive(): boolean {
-  const mode = (getBffEnv("MAINTENANCE_MODE") || getBffEnv("BFF_MAINTENANCE_MODE") || "")
+  const mode = (
+    getBffEnv("MAINTENANCE_MODE") ||
+    getBffEnv("BFF_MAINTENANCE_MODE") ||
+    getBffEnv("RAMYAS_BFF_MAINTENANCE_MODE") ||
+    ""
+  )
     .trim()
     .toLowerCase();
   return mode === "true" || mode === "1" || mode === "yes" || mode === "enabled";

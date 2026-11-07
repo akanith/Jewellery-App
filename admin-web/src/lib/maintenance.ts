@@ -35,6 +35,7 @@ export function isMaintenanceModeActive(): boolean {
   const envVal = (
     process.env.NEXT_PUBLIC_MAINTENANCE_MODE ||
     process.env.NEXT_PUBLIC_APP_MAINTENANCE_MODE ||
+    process.env.NEXT_PUBLIC_RAMYAS_MAINTENANCE_MODE ||
     ''
   )
     .trim()
@@ -110,6 +111,7 @@ export function getMaintenanceStatus(): MaintenanceStatus {
   const envVal = (
     process.env.NEXT_PUBLIC_MAINTENANCE_MODE ||
     process.env.NEXT_PUBLIC_APP_MAINTENANCE_MODE ||
+    process.env.NEXT_PUBLIC_RAMYAS_MAINTENANCE_MODE ||
     ''
   )
     .trim()

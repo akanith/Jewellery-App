@@ -173,6 +173,9 @@ export async function recordInstallmentPayment(
       p_payment_method: params.p_payment_method,
       p_transaction_reference: params.p_transaction_reference || null,
       p_notes: params.p_notes || null,
+      p_actual_payment_date: params.p_actual_payment_date || null,
+      p_is_historical: params.p_is_historical ?? false,
+      p_historical_reason: params.p_historical_reason || null,
     });
 
     if (error) {

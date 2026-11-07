@@ -175,7 +175,8 @@ export const loginWithMobile = async (
       requiresSelection,
       profiles: profilesList,
     };
-  } catch {
+  } catch (err: unknown) {
+    console.error('[CustomerAuth] loginWithMobile failed:', err);
     return {
       success: false,
       message:

@@ -1,7 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { execSync } from 'node:child_process';
+import path from 'node:path';
 import { buildPassbookHtml } from '../customer-app/src/services/passbookHtmlBuilder.ts';
+
+const DOCKER_EXE = path.resolve('scripts/bin/docker.exe');
 
 /**
  * RAMYAS JEWELLER — Completed Passbook PDF Download & Backend Eligibility Test Suite
@@ -58,7 +61,7 @@ const CUSTOMERS = [
 
 function runSql(sql) {
   return execSync(
-    'docker exec -i supabase_db_Jewellery_App psql -U postgres -d postgres -v ON_ERROR_STOP=1 -q -t',
+    `"${DOCKER_EXE}" exec -i supabase_db_Jewellery_App psql -U postgres -d postgres -v ON_ERROR_STOP=1 -q -t`,
     {
       input: `\\set ON_ERROR_STOP on\n${sql}`,
       encoding: 'utf-8',

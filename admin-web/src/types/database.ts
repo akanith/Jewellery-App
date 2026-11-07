@@ -140,6 +140,9 @@ export interface Payment {
   payment_status: PaymentStatus;
   recorded_by: string;
   notes: string | null;
+  is_historical?: boolean;
+  historical_reason?: string | null;
+  actual_payment_date?: string | null;
   created_at: string;
   updated_at: string;
   customer?: Customer;
@@ -275,6 +278,9 @@ export interface RecordInstallmentPaymentParams {
   p_payment_method: PaymentMethod;
   p_transaction_reference?: string | null;
   p_notes?: string | null;
+  p_actual_payment_date?: string | null;
+  p_is_historical?: boolean;
+  p_historical_reason?: string | null;
 }
 
 export interface RecordInstallmentPaymentResult {
