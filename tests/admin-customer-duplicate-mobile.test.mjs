@@ -139,7 +139,7 @@ $$;
   assert.ok(row.id, 'Customer A ID must be present');
   assert.equal(row.full_name, 'Aarav Sharma');
   assert.equal(row.phone_number, SHARED_PHONE);
-  assert.match(row.customer_code, /^RJ2026-\d{3}$/, 'Customer code must follow RJ2026-XXX format');
+  assert.match(row.customer_code, /^RJ2026-\d{3,}$/, 'Customer code must follow RJ2026-XXX format');
 
   custAId = row.id;
   custACode = row.customer_code;
@@ -201,7 +201,7 @@ $$;
   assert.equal(row.phone_number, SHARED_PHONE);
   assert.notEqual(row.id, custAId, 'Customer B must have a distinct immutable UUID from Customer A');
   assert.notEqual(row.customer_code, custACode, 'Customer B must have a distinct customer code');
-  assert.match(row.customer_code, /^RJ2026-\d{3}$/, 'Customer B code must follow RJ2026-XXX format');
+  assert.match(row.customer_code, /^RJ2026-\d{3,}$/, 'Customer B code must follow RJ2026-XXX format');
 
   custBId = row.id;
   custBCode = row.customer_code;
@@ -282,6 +282,7 @@ BEGIN
   v_res := public.link_customer_family_profiles(
     p_customer_id_1 := '${custAId}',
     p_customer_id_2 := '${custBId}',
+    p_consent_confirmed := TRUE,
     p_relationship := 'SPOUSE',
     p_notes := 'Verified showroom family link'
   );

@@ -43,6 +43,9 @@ interface PaymentItem {
   transaction_reference: string | null;
   recorded_by: string;
   status: string;
+  is_historical?: boolean;
+  historical_reason?: string | null;
+  actual_payment_date?: string | null;
 }
 
 interface PendingInstallmentItem {
@@ -105,6 +108,9 @@ export default function PaymentsPage() {
           transaction_reference,
           recorded_by,
           payment_status,
+          is_historical,
+          historical_reason,
+          actual_payment_date,
           customers (
             id,
             full_name,
@@ -163,6 +169,9 @@ export default function PaymentsPage() {
         transaction_reference: string | null;
         recorded_by: string;
         payment_status: string;
+        is_historical?: boolean;
+        historical_reason?: string | null;
+        actual_payment_date?: string | null;
         customers?: { id: string; full_name: string; customer_code: string; phone_number: string };
         schemes?: { id: string; scheme_code: string };
       }>;
@@ -183,6 +192,9 @@ export default function PaymentsPage() {
         transaction_reference: p.transaction_reference,
         recorded_by: 'Admin',
         status: p.payment_status || 'SUCCESS',
+        is_historical: p.is_historical ?? false,
+        historical_reason: p.historical_reason ?? null,
+        actual_payment_date: p.actual_payment_date ?? null,
       }));
 
       setPayments(mappedPayments);
@@ -678,6 +690,14 @@ export default function PaymentsPage() {
                         <td className="py-4 px-5">
                           <div className="font-medium text-slate-900">{formatDate(p.payment_date)}</div>
                           <div className="text-[11px] text-slate-500">{formatTime(p.payment_date)}</div>
+                          {p.is_historical && (
+                            <span
+                              className="inline-block mt-1 px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 text-[10px] font-bold"
+                              title={p.historical_reason || 'Historical prior-month payment'}
+                            >
+                              HISTORICAL
+                            </span>
+                          )}
                         </td>
 
                         {/* Customer */}

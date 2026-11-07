@@ -35,6 +35,7 @@ test.describe('Phase 5 — Customer Authentication & Password API Tests', () => 
       p_password: 'WrongPassword999!',
     });
 
+    expect(error).toBeNull();
     expect(data.success).toBe(false);
     expect(['INVALID_CREDENTIALS', 'ACCOUNT_LOCKED']).toContain(data.error);
   });

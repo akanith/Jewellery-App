@@ -272,13 +272,14 @@ test('13. customer-app/eas.json separates production and preview, and removes li
   assert.equal(eas.build.preview.env?.EXPO_PUBLIC_HOSTED_BFF_BASE_URL, undefined, 'preview must not hardcode production BFF URL');
 });
 
-test('14. customer-app/.env.local preserves local development configuration', () => {
+test('14. customer-app/.env.local preserves valid development and hosted configuration', () => {
   const envLocalPath = path.join(PROJECT_ROOT, 'customer-app', '.env.local');
   assert.equal(fs.existsSync(envLocalPath), true, '.env.local must exist');
 
   const content = fs.readFileSync(envLocalPath, 'utf-8');
-  assert.match(content, /EXPO_PUBLIC_APP_ENV=local/, '.env.local must have EXPO_PUBLIC_APP_ENV=local');
+  assert.match(content, /EXPO_PUBLIC_APP_ENV=(hosted|local)/, '.env.local must specify valid EXPO_PUBLIC_APP_ENV');
   assert.match(content, /EXPO_PUBLIC_LOCAL_BFF_BASE_URL=http:\/\/127\.0\.0\.1:54321/, '.env.local must have local Docker URL');
+  assert.match(content, /EXPO_PUBLIC_HOSTED_BFF_BASE_URL=https:\/\/yjpbswsgtbmgageburmy\.supabase\.co/, '.env.local must have hosted Supabase BFF URL');
 });
 
 test('15. Client build configurations never contain server secrets or service-role keys', () => {

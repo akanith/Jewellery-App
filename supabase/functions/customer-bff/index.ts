@@ -190,6 +190,8 @@ async function handleLogin(req: Request): Promise<Response> {
     });
 
     if (loginErr) {
+      const sanitizedPhone = `***-***-${normalizedMobile.slice(-4)}`;
+      console.error(`[AUTH_DIAGNOSTIC] customer_password_login RPC error for mobile ${sanitizedPhone}:`, loginErr.message || loginErr);
       const errMsg = loginErr.message || "";
       if (errMsg.includes("LOCKED") || errMsg.includes("attempts")) {
         return jsonResponse(
@@ -216,25 +218,42 @@ async function handleLogin(req: Request): Promise<Response> {
       );
     }
 
-    // Filter profiles strictly by explicit authorization returned by the security RPC
+    // -------------------------------------------------------------------------
+    // Construct authorized customer session directly from validated RPC result.
+    // customer_password_login already enforced active profile status (p.is_active = TRUE),
+    // evaluated password credentials, scoped candidate accounts, calculated scheme_count,
+    // and applied strict showroom authorization (is_customer_authorized_for_profile).
+    // Eliminates fragile, redundant PostgREST multi-table embedding that masked errors.
+    // -------------------------------------------------------------------------
     const targetId = loginRes?.customer_id;
-    const authorizedProfilesList = Array.isArray(loginRes?.profiles) ? loginRes.profiles : [];
-    const authorizedIds = new Set<string>(
-      authorizedProfilesList.map((p: any) => p.customer_id || p.customerId).filter(Boolean)
-    );
-    if (targetId) {
-      authorizedIds.add(targetId);
+    const rawProfiles = Array.isArray(loginRes?.profiles) ? loginRes.profiles : [];
+
+    const profiles = rawProfiles.map((p: any) => ({
+      customerId: p.customer_id || p.customerId,
+      customerCode: p.customer_code || p.customerCode,
+      fullName: p.full_name || p.fullName,
+      mobileNumber: p.phone_number || p.mobileNumber || normalizedMobile,
+      passwordStatus: p.password_status || p.passwordStatus || loginRes?.password_status || "ACTIVE",
+      schemeCount: Number(p.scheme_count ?? p.schemeCount ?? 0),
+    }));
+
+    // Fallback if profiles list is empty but primary customer_id was returned
+    if (profiles.length === 0 && targetId) {
+      profiles.push({
+        customerId: targetId,
+        customerCode: loginRes?.customer_code || "",
+        fullName: loginRes?.full_name || "",
+        mobileNumber: normalizedMobile,
+        passwordStatus: loginRes?.password_status || "ACTIVE",
+        schemeCount: 0,
+      });
     }
 
-    // Fetch active customer profiles strictly for explicitly authorized IDs
-    const { data: customerRows, error: customerErr } = await supabase
-      .from("customers")
-      .select("id, customer_code, full_name, phone_number, created_at, customer_auth(password_status, locked_until), profiles!inner(is_active)")
-      .in("id", Array.from(authorizedIds))
-      .eq("profiles.is_active", true)
-      .order("created_at", { ascending: true });
+    const activeCustomer = profiles.find((p) => p.customerId === targetId) || profiles[0];
 
-    if (customerErr || !customerRows || customerRows.length === 0) {
+    if (!activeCustomer || !activeCustomer.customerId) {
+      const sanitizedPhone = `***-***-${normalizedMobile.slice(-4)}`;
+      console.error(`[AUTH_DIAGNOSTIC] RPC succeeded but no valid customer profile returned for mobile ${sanitizedPhone}.`);
       return jsonResponse(
         {
           success: false,
@@ -244,14 +263,7 @@ async function handleLogin(req: Request): Promise<Response> {
       );
     }
 
-    // Determine target primary profile (matching login customer_id if returned by RPC, or first profile)
-    const activeCustomer = customerRows.find((c) => c.id === targetId) || customerRows[0];
-    const filteredCustomerRows = customerRows;
-
-    const authRecord = Array.isArray(activeCustomer.customer_auth)
-      ? activeCustomer.customer_auth[0]
-      : activeCustomer.customer_auth;
-    const pwdStatus = authRecord?.password_status || loginRes?.password_status || "ACTIVE";
+    const pwdStatus = activeCustomer.passwordStatus || loginRes?.password_status || "ACTIVE";
 
     if (pwdStatus === "LOCKED") {
       return jsonResponse(
@@ -260,31 +272,6 @@ async function handleLogin(req: Request): Promise<Response> {
       );
     }
 
-    // Fetch active schemes count only for authorized profiles
-    const customerIds = filteredCustomerRows.map((c) => c.id);
-    const { data: schemesData } = await supabase
-      .from("schemes")
-      .select("id, customer_id, status")
-      .in("customer_id", customerIds)
-      .in("status", ["ACTIVE", "COMPLETED", "MATURED", "PARTIALLY_REDEEMED"]);
-
-    const schemeCountMap = new Map<string, number>();
-    for (const s of schemesData || []) {
-      schemeCountMap.set(s.customer_id, (schemeCountMap.get(s.customer_id) || 0) + 1);
-    }
-
-    const profiles = filteredCustomerRows.map((c) => {
-      const cAuth = Array.isArray(c.customer_auth) ? c.customer_auth[0] : c.customer_auth;
-      return {
-        customerId: c.id,
-        customerCode: c.customer_code,
-        fullName: c.full_name,
-        mobileNumber: c.phone_number,
-        passwordStatus: cAuth?.password_status || "ACTIVE",
-        schemeCount: schemeCountMap.get(c.id) || 0,
-      };
-    });
-
     const requiresSelection = profiles.length > 1;
 
     const rawToken = generateRawToken();
@@ -292,14 +279,14 @@ async function handleLogin(req: Request): Promise<Response> {
     const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
 
     const { error: rpcErr } = await supabase.rpc("create_customer_session", {
-      p_customer_id: activeCustomer.id,
-      p_authenticated_root_id: activeCustomer.id,
+      p_customer_id: activeCustomer.customerId,
+      p_authenticated_root_id: activeCustomer.customerId,
       p_token_hash: tokenHash,
       p_expires_at: expiresAt,
     });
 
     if (rpcErr) {
-      console.error("RPC error during create_customer_session execution:", rpcErr);
+      console.error("[AUTH_DIAGNOSTIC] create_customer_session RPC failure for customer_id:", activeCustomer.customerId, rpcErr.message || rpcErr);
       return jsonResponse(
         { success: false, error: "Unable to complete session creation." },
         500
@@ -311,12 +298,12 @@ async function handleLogin(req: Request): Promise<Response> {
       token: rawToken,
       requiresSelection,
       customer: {
-        customerId: activeCustomer.id,
-        customerCode: activeCustomer.customer_code,
-        fullName: activeCustomer.full_name,
-        mobileNumber: activeCustomer.phone_number,
+        customerId: activeCustomer.customerId,
+        customerCode: activeCustomer.customerCode,
+        fullName: activeCustomer.fullName,
+        mobileNumber: activeCustomer.mobileNumber,
         passwordStatus: pwdStatus,
-        schemeCount: schemeCountMap.get(activeCustomer.id) || 0,
+        schemeCount: activeCustomer.schemeCount,
       },
       profiles,
     });
@@ -1687,9 +1674,10 @@ async function handleInitiatePayment(req: Request): Promise<Response> {
     // 3.1. Enforce Monthly Scheme Payment Limit (Asia/Kolkata calendar month)
     const { data: monthPayments } = await supabase
       .from("payments")
-      .select("id, payment_date")
+      .select("id, payment_date, is_historical")
       .eq("scheme_id", scheme.id)
-      .eq("payment_status", "SUCCESS");
+      .eq("payment_status", "SUCCESS")
+      .eq("is_historical", false);
 
     const nowKolkata = new Intl.DateTimeFormat("en-CA", {
       timeZone: "Asia/Kolkata",
@@ -2142,15 +2130,84 @@ async function handleRazorpayWebhook(req: Request): Promise<Response> {
 }
 
 /**
+ * Maintenance Mode Configuration & Handlers
+ */
+function getBffEnv(key: string): string | undefined {
+  if (typeof Deno !== "undefined" && Deno?.env?.get) {
+    return Deno.env.get(key);
+  }
+  if (typeof process !== "undefined" && process?.env) {
+    return process.env[key];
+  }
+  return undefined;
+}
+
+export function isBffMaintenanceActive(): boolean {
+  const mode = (
+    getBffEnv("MAINTENANCE_MODE") ||
+    getBffEnv("BFF_MAINTENANCE_MODE") ||
+    getBffEnv("RAMYAS_BFF_MAINTENANCE_MODE") ||
+    ""
+  )
+    .trim()
+    .toLowerCase();
+  return mode === "true" || mode === "1" || mode === "yes" || mode === "enabled";
+}
+
+export function bffMaintenanceResponse(): Response {
+  return new Response(
+    JSON.stringify({
+      success: false,
+      error: "System is temporarily offline for scheduled database maintenance. Please check back shortly.",
+      maintenance: true,
+      code: "SERVICE_MAINTENANCE",
+      retryAfter: 1800,
+    }),
+    {
+      status: 503,
+      headers: {
+        ...corsHeaders,
+        "Content-Type": "application/json",
+        "Retry-After": "1800",
+      },
+    }
+  );
+}
+
+/**
  * Main HTTP Server Request Dispatcher
  */
-Deno.serve(async (req: Request) => {
+export async function handleBffRequest(req: Request): Promise<Response> {
+  // CORS Preflight: Always return 200 with CORS headers to keep client preflights valid
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
 
   const url = new URL(req.url);
   const path = url.pathname.replace(/\/+$/, "");
+
+  const maintenanceActive = isBffMaintenanceActive();
+
+  // Route: GET /health or /healthz or /status (excluding /payment/status)
+  // Authorized operational health check: Always accessible to verify service health & maintenance state
+  if ((path.endsWith("/health") || path.endsWith("/healthz") || path.endsWith("/status")) && !path.includes("/payment")) {
+    if (req.method !== "GET") {
+      return jsonResponse({ success: false, error: "Method not allowed." }, 405);
+    }
+    return jsonResponse({
+      status: maintenanceActive ? "maintenance" : "healthy",
+      service: "customer-bff",
+      maintenance: maintenanceActive,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  // Maintenance Guard: When active, reject all customer mutations and queries with HTTP 503
+  // Safely rejects without logging tokens, phone numbers, or request bodies
+  if (maintenanceActive) {
+    console.log(`[MAINTENANCE_GATE] Blocked ${req.method} ${path} during active maintenance mode.`);
+    return bffMaintenanceResponse();
+  }
 
   // Route: POST /auth/login
   if (path.endsWith("/auth/login")) {
@@ -2282,4 +2339,9 @@ Deno.serve(async (req: Request) => {
   }
 
   return jsonResponse({ success: false, error: "Endpoint not found." }, 404);
-});
+}
+
+// Start HTTP server if running in Deno runtime
+if (typeof Deno !== "undefined" && typeof (Deno as any).serve === "function") {
+  (Deno as any).serve(handleBffRequest);
+}

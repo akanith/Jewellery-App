@@ -165,6 +165,7 @@ export default function RecordInstallmentDrawer({
   });
   const [transactionRef, setTransactionRef] = useState('');
   const [notes, setNotes] = useState('');
+  const [historicalReason, setHistoricalReason] = useState('Diwali scheme launch historical payment');
 
   // Submission & Feedback State
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -190,6 +191,7 @@ export default function RecordInstallmentDrawer({
       setSelectedMethod('CASH');
       setTransactionRef('');
       setNotes('');
+      setHistoricalReason('Diwali scheme launch historical payment');
       setErrorMessage(null);
       setSuccessMessage(null);
       setIsSubmitting(false);
@@ -386,6 +388,103 @@ export default function RecordInstallmentDrawer({
   const activeCustomerPhone = preselectedCustomer?.phone || selectedCustomer?.phone_number || '';
   const hasSelectedCustomer = Boolean(preselectedCustomer || selectedCustomer);
 
+  // Load preselected scheme with full installments if provided as a prop
+  useEffect(() => {
+    if (!isOpen || !preselectedScheme?.id) return;
+
+    let isMounted = true;
+    async function fetchSchemeDetails() {
+      try {
+        const supabase = getSupabaseBrowserClient();
+        const { data, error } = await supabase
+          .from('schemes')
+          .select(`
+            id,
+            customer_id,
+            scheme_code,
+            slot_number,
+            status,
+            monthly_installment_amount,
+            total_installments,
+            target_contribution,
+            bonus_amount,
+            maturity_amount,
+            start_month,
+            end_month,
+            created_at,
+            scheme_installments (
+              id,
+              scheme_id,
+              customer_id,
+              installment_number,
+              calendar_month,
+              due_date,
+              status,
+              installment_amount,
+              paid_amount,
+              paid_date
+            )
+          `)
+          .eq('id', preselectedScheme!.id)
+          .single();
+
+        if (error || !data || !isMounted) return;
+
+        const rawInsts = (data.scheme_installments || []) as RawInstallmentQueryRow[];
+        const mappedInsts: DrawerInstallment[] = rawInsts.map((inst) => ({
+          id: inst.id,
+          scheme_id: inst.scheme_id,
+          customer_id: inst.customer_id,
+          installment_number: Number(inst.installment_number),
+          calendar_month: inst.calendar_month,
+          due_date: inst.due_date,
+          status: inst.status === 'PAID' ? 'PAID' : 'PENDING',
+          installment_amount: Number(inst.installment_amount) || 1000,
+          paid_amount: Number(inst.paid_amount) || 0,
+          paid_date: inst.paid_date || null,
+        }));
+        mappedInsts.sort((a, b) => a.installment_number - b.installment_number);
+
+        const mappedScheme: DrawerScheme = {
+          id: data.id,
+          customer_id: data.customer_id,
+          scheme_code: data.scheme_code,
+          slot_number: typeof data.slot_number === 'number' ? data.slot_number : (data.slot_number ? Number(data.slot_number) : null),
+          status: data.status,
+          monthly_installment_amount: Number(data.monthly_installment_amount) || 1000,
+          total_installments: Number(data.total_installments) || 12,
+          target_contribution: Number(data.target_contribution) || 12000,
+          bonus_amount: Number(data.bonus_amount) || 1000,
+          maturity_amount: Number(data.maturity_amount) || 13000,
+          start_month: data.start_month,
+          end_month: data.end_month,
+          created_at: data.created_at,
+          scheme_installments: mappedInsts,
+        };
+
+        if (isMounted) {
+          setSelectedScheme(mappedScheme);
+          if (preselectedScheme?.currentInstallmentNumber) {
+            setSelectedInstallmentNumber(preselectedScheme.currentInstallmentNumber);
+            const target = mappedInsts.find((i) => i.installment_number === preselectedScheme.currentInstallmentNumber);
+            if (target && target.calendar_month < currentMonthStr) {
+              setPaymentDate(target.due_date);
+              setHistoricalReason((prev) => prev || `Diwali scheme ${formatMonthYear(target.calendar_month)} historical payment`);
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load preselected scheme details:', err);
+      }
+    }
+
+    fetchSchemeDetails();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isOpen, preselectedScheme, currentMonthStr]);
+
   // Active Scheme Resolution
   const activeSchemeId = preselectedScheme?.id || selectedScheme?.id || '';
   const activeSchemeCode = preselectedCustomer?.schemeName || selectedScheme?.scheme_code || 'RJ-SCH-2026';
@@ -504,6 +603,39 @@ export default function RecordInstallmentDrawer({
     return activeSchemeInstallments.find((i) => i.installment_number === activeInstallmentNumber);
   }, [activeSchemeInstallments, activeInstallmentNumber]);
 
+  const isSelectedHistorical = useMemo(() => {
+    if (!currentInstallmentObj) return false;
+    return currentInstallmentObj.calendar_month < currentMonthStr;
+  }, [currentInstallmentObj, currentMonthStr]);
+
+  const isSelectedInstallmentPayable = useMemo(() => {
+    if (currentInstallmentObj) {
+      return currentInstallmentObj.status === 'PENDING' && currentInstallmentObj.calendar_month <= currentMonthStr;
+    }
+    return !isCurrentMonthPaid;
+  }, [currentInstallmentObj, isCurrentMonthPaid, currentMonthStr]);
+
+  // Handler: Select installment and update corresponding date defaults
+  const handleSelectInstallment = useCallback(
+    (installmentNum: number | null) => {
+      setSelectedInstallmentNumber(installmentNum);
+      setErrorMessage(null);
+      if (installmentNum === null) return;
+
+      const inst = activeSchemeInstallments.find((i) => i.installment_number === installmentNum);
+      if (inst) {
+        if (inst.calendar_month < currentMonthStr) {
+          setPaymentDate(inst.due_date);
+          setHistoricalReason((prev) => prev || `Diwali scheme ${formatMonthYear(inst.calendar_month)} historical payment`);
+        } else {
+          const todayStr = new Date().toISOString().split('T')[0];
+          setPaymentDate(todayStr);
+        }
+      }
+    },
+    [activeSchemeInstallments, currentMonthStr]
+  );
+
   const currentMonthDisplayName = useMemo(() => {
     if (currentInstallmentObj) {
       return `${formatMonthYear(currentInstallmentObj.calendar_month)} (Due: ${formatDate(currentInstallmentObj.due_date)})`;
@@ -547,9 +679,9 @@ export default function RecordInstallmentDrawer({
     );
 
     if (eligible.length > 0) {
-      setSelectedInstallmentNumber(eligible[0].installment_number);
+      handleSelectInstallment(eligible[0].installment_number);
     } else {
-      setSelectedInstallmentNumber(null);
+      handleSelectInstallment(null);
     }
   };
 
@@ -607,16 +739,11 @@ export default function RecordInstallmentDrawer({
     }
 
     // 5. Cross-validate installment with selected scheme
-    if (selectedScheme) {
-      const targetInst = activeSchemeInstallments.find(
-        (i) => i.installment_number === activeInstallmentNumber
-      );
+    const targetInst = activeSchemeInstallments.find(
+      (i) => i.installment_number === activeInstallmentNumber
+    );
 
-      if (!targetInst) {
-        setErrorMessage(`Installment #${activeInstallmentNumber} not found in this scheme.`);
-        return;
-      }
-
+    if (selectedScheme && targetInst) {
       if (targetInst.scheme_id !== selectedScheme.id) {
         setErrorMessage('Validation error: Installment does not belong to the selected scheme.');
         return;
@@ -633,9 +760,30 @@ export default function RecordInstallmentDrawer({
         );
         return;
       }
-    } else if (isCurrentMonthPaid) {
-      setErrorMessage("Current calendar month's installment is already paid.");
+    } else if (!isSelectedInstallmentPayable) {
+      setErrorMessage("Selected installment cannot be paid at this time.");
       return;
+    }
+
+    // Validate payment date
+    const todayStr = new Date().toISOString().split('T')[0];
+    if (paymentDate > todayStr) {
+      setErrorMessage('Actual payment date cannot be in the future.');
+      return;
+    }
+
+    const isHistorical = targetInst ? targetInst.calendar_month < currentMonthStr : isSelectedHistorical;
+    if (isHistorical) {
+      if (selectedScheme && paymentDate < selectedScheme.start_month) {
+        setErrorMessage(
+          `Actual payment date (${formatDate(paymentDate)}) cannot precede scheme start month (${formatDate(selectedScheme.start_month)}).`
+        );
+        return;
+      }
+      if (!historicalReason.trim() || historicalReason.trim().length < 5) {
+        setErrorMessage('A historical reason (minimum 5 characters) is required for recording prior-month payments.');
+        return;
+      }
     }
 
     // 6. Execute Supabase RPC
@@ -648,6 +796,9 @@ export default function RecordInstallmentDrawer({
       p_payment_method: selectedMethod,
       p_transaction_reference: transactionRef.trim() || `${selectedMethod}-COUNTER`,
       p_notes: notes.trim() || null,
+      p_actual_payment_date: paymentDate || null,
+      p_is_historical: isHistorical,
+      p_historical_reason: isHistorical ? historicalReason.trim() : null,
     });
 
     setIsSubmitting(false);
@@ -1125,7 +1276,7 @@ export default function RecordInstallmentDrawer({
                         </label>
                         <select
                           value={activeInstallmentNumber}
-                          onChange={(e) => setSelectedInstallmentNumber(Number(e.target.value))}
+                          onChange={(e) => handleSelectInstallment(Number(e.target.value))}
                           className="w-full px-3.5 py-2 text-xs font-bold text-slate-900 rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
                         >
                           {activeSchemeInstallments.map((inst) => {
@@ -1165,7 +1316,7 @@ export default function RecordInstallmentDrawer({
                                 key={inst.id}
                                 type="button"
                                 disabled={isPaid || isFuture}
-                                onClick={() => setSelectedInstallmentNumber(inst.installment_number)}
+                                onClick={() => handleSelectInstallment(inst.installment_number)}
                                 className={`p-1.5 rounded-lg border text-center transition flex flex-col items-center justify-center gap-0.5 ${
                                   isSelected
                                     ? 'border-blue-600 bg-blue-50 text-blue-900 ring-2 ring-blue-600/20 font-bold'
@@ -1192,35 +1343,82 @@ export default function RecordInstallmentDrawer({
                       </div>
                     )}
 
-                    {/* Amount & Payment Date Fields */}
-                    <div className="flex items-center justify-between text-xs text-slate-600 pt-1">
-                      <span>Due Period:</span>
-                      <span className="font-bold text-slate-900">{currentMonthDisplayName}</span>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3 pt-1">
-                      <div>
-                        <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                          Amount (Fixed)
-                        </label>
-                        <input
-                          type="text"
-                          disabled
-                          value="₹ 1,000"
-                          className="w-full px-3.5 py-2 text-xs font-bold text-slate-900 rounded-xl border border-slate-200 bg-slate-100"
-                        />
+                    {/* Installment Month & Actual Payment Date Breakdown */}
+                    <div className="space-y-3 pt-2">
+                      <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/80 space-y-2">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="font-semibold text-slate-500">Installment Allocation:</span>
+                          <span className="font-bold text-slate-900">
+                            {currentInstallmentObj
+                              ? `Month #${currentInstallmentObj.installment_number} (${formatMonthYear(currentInstallmentObj.calendar_month)})`
+                              : currentMonthDisplayName}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="font-semibold text-slate-500">Installment Due Date:</span>
+                          <span className="text-slate-700 font-mono">
+                            {currentInstallmentObj ? formatDate(currentInstallmentObj.due_date) : '-'}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="font-semibold text-slate-500">Entry System Time:</span>
+                          <span className="text-slate-500 font-mono text-[11px]">
+                            Today (Un-falsified Audit Log)
+                          </span>
+                        </div>
                       </div>
 
-                      <div>
-                        <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                          Payment Date
-                        </label>
-                        <input
-                          type="date"
-                          value={paymentDate}
-                          onChange={(e) => setPaymentDate(e.target.value)}
-                          className="w-full px-3.5 py-2 text-xs font-semibold text-slate-900 rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
-                        />
+                      {/* Historical Payment Banner & Reason */}
+                      {isSelectedHistorical && (
+                        <div className="p-3 bg-amber-50/80 rounded-xl border border-amber-200/80 space-y-2">
+                          <div className="flex items-center gap-1.5 text-amber-900 font-bold text-xs">
+                            <Calendar className="w-3.5 h-3.5 text-amber-700" />
+                            <span>Historical Prior-Month Payment</span>
+                          </div>
+                          <p className="text-[11px] text-amber-800 leading-relaxed">
+                            This installment belongs to <strong>{currentInstallmentObj ? formatMonthYear(currentInstallmentObj.calendar_month) : 'prior month'}</strong>.
+                            Recording this payment will allocate it to Month #{activeInstallmentNumber} without conflicting with November&apos;s monthly installment limit.
+                          </p>
+                          <div>
+                            <label className="block text-[10px] font-bold text-amber-900 uppercase tracking-wider mb-1">
+                              Historical Reason / Audit Note *
+                            </label>
+                            <input
+                              type="text"
+                              value={historicalReason}
+                              onChange={(e) => setHistoricalReason(e.target.value)}
+                              placeholder="e.g. Diwali scheme launch payment prior to system registration"
+                              className="w-full px-3 py-1.5 bg-white border border-amber-300 rounded-lg text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500/20"
+                            />
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Amount & Actual Payment Date Fields */}
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                            Amount (Fixed)
+                          </label>
+                          <input
+                            type="text"
+                            disabled
+                            value="₹ 1,000"
+                            className="w-full px-3.5 py-2 text-xs font-bold text-slate-900 rounded-xl border border-slate-200 bg-slate-100"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                            Actual Payment Date *
+                          </label>
+                          <input
+                            type="date"
+                            value={paymentDate}
+                            onChange={(e) => setPaymentDate(e.target.value)}
+                            className="w-full px-3.5 py-2 text-xs font-semibold text-slate-900 rounded-xl border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
+                          />
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -1228,7 +1426,7 @@ export default function RecordInstallmentDrawer({
               </div>
 
               {/* PAYMENT METHOD SELECTOR (7 Selectable Cards) */}
-              {!isCurrentMonthPaid && (
+              {isSelectedInstallmentPayable && (
                 <div className="space-y-2">
                   <label className="block text-xs font-bold text-slate-800 uppercase tracking-wider">
                     SELECT PAYMENT METHOD
@@ -1264,7 +1462,7 @@ export default function RecordInstallmentDrawer({
               )}
 
               {/* TRANSACTION REFERENCE & NOTES */}
-              {!isCurrentMonthPaid && (
+              {isSelectedInstallmentPayable && (
                 <div className="space-y-3">
                   <div>
                     <label className="block text-[11px] font-semibold text-slate-600 mb-1">
@@ -1312,7 +1510,7 @@ export default function RecordInstallmentDrawer({
             <button
               type="button"
               onClick={handleSubmit}
-              disabled={isSubmitting || isCurrentMonthPaid || !activeSchemeId || !activeInstallmentNumber}
+              disabled={isSubmitting || !isSelectedInstallmentPayable || !activeSchemeId || !activeInstallmentNumber}
               className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-xs font-bold shadow-xs transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isSubmitting ? (

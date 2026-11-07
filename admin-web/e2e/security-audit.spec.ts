@@ -6,11 +6,12 @@ import {
   createAuthenticatedNonAdminFixture,
   createAuthenticatedAdminFixture,
   createAuthenticatedInactiveAdminFixture,
+  SUPABASE_URL,
+  isLocalSupabase,
 } from './helpers/test-utils';
 
 test.describe('Phase 6 — Supabase & BFF Security Audit Tests', () => {
   const supabase = getTestSupabaseClient();
-  const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'http://127.0.0.1:54321';
 
   test('SEC-02: Anonymous direct RLS lockdown on customer data', async ({ request }) => {
     // Attempt direct REST query to protected customers table using anon key
@@ -238,7 +239,7 @@ test.describe('Phase 6 — Supabase & BFF Security Audit Tests', () => {
   });
 
   test('SEC-10: Authenticated non-admin and deactivated administrator callers are rejected from administrative RPCs', async () => {
-    test.skip(!process.env.SUPABASE_SERVICE_ROLE_KEY, 'Fixture creation requires isolated SUPABASE_SERVICE_ROLE_KEY in local/CI environment');
+    test.skip(!process.env.SUPABASE_SERVICE_ROLE_KEY && !isLocalSupabase, 'Fixture creation requires isolated SUPABASE_SERVICE_ROLE_KEY or local Supabase environment');
 
     const serviceClient = getTestServiceRoleClient();
     const targetCustomerId = '00000000-0000-0000-0000-000000000001';
@@ -345,7 +346,7 @@ test.describe('Phase 6 — Supabase & BFF Security Audit Tests', () => {
   });
 
   test('SEC-11: Legitimate administrator and super-admin authorization is strictly preserved', async () => {
-    test.skip(!process.env.SUPABASE_SERVICE_ROLE_KEY, 'Fixture creation requires isolated SUPABASE_SERVICE_ROLE_KEY in local/CI environment');
+    test.skip(!process.env.SUPABASE_SERVICE_ROLE_KEY && !isLocalSupabase, 'Fixture creation requires isolated SUPABASE_SERVICE_ROLE_KEY or local Supabase environment');
 
     let activeNonSuperAdminFixture: Awaited<ReturnType<typeof createAuthenticatedAdminFixture>> | null = null;
 

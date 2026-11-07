@@ -11,25 +11,24 @@ import {
   Sliders,
   CreditCard,
   Receipt,
-  Bell,
   Shield,
-  Database,
   CheckCircle2,
-  Info,
   ExternalLink,
   MapPin,
-  Phone,
-  Clock,
   UserCheck
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 
 export default function SettingsPage() {
+  // Preserved state for unfinished feature: Admin session profile display in Tab 3
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { profile, adminProfile } = useAuth();
   const [activeTab, setActiveTab] = useState('SHOP_INFO');
 
   // Official Verified Shop Information (Part 9)
   const [shopName, setShopName] = useState("RAMYA'S JEWELLER");
+  // Preserved state for unfinished feature: Store title customization
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [displayTitle, setDisplayTitle] = useState("RAMYA'S JEWELLER - Savings Scheme Management");
   const [mobileNumber, setMobileNumber] = useState('+91 98421 43307');
   const [physicalAddress, setPhysicalAddress] = useState(
@@ -60,8 +59,10 @@ export default function SettingsPage() {
     '1. Gold rate applicable on date of payment. 2. Redemption strictly after 12 months. 3. 100% 1-Month bonus eligible on on-time completion.'
   );
 
-  // Security Toggles
+  // Preserved state for unfinished feature: Security controls (2FA & Session timeout)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [twoFactorAuth, setTwoFactorAuth] = useState(true);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [sessionTimeout] = useState('15 Minutes');
 
   const [savedSuccess, setSavedSuccess] = useState(false);
@@ -266,7 +267,7 @@ export default function SettingsPage() {
                     <input
                       type="text"
                       disabled
-                      value="₹ 1,000 (Fixed Standard)"
+                      value={`₹ ${monthlyAmount.toLocaleString('en-IN')} (Fixed Standard)`}
                       className="w-full px-3.5 py-2.5 bg-slate-100 border border-slate-200 rounded-xl text-slate-700 font-bold font-mono"
                     />
                   </div>
@@ -278,7 +279,7 @@ export default function SettingsPage() {
                     <input
                       type="text"
                       disabled
-                      value="12 Months"
+                      value={`${tenureMonths} Months`}
                       className="w-full px-3.5 py-2.5 bg-slate-100 border border-slate-200 rounded-xl text-slate-700 font-bold"
                     />
                   </div>
@@ -290,7 +291,7 @@ export default function SettingsPage() {
                     <input
                       type="text"
                       disabled
-                      value="+₹ 1,000 (100% 1-Month Bonus)"
+                      value={`+₹ ${shopBonus.toLocaleString('en-IN')} (100% 1-Month Bonus)`}
                       className="w-full px-3.5 py-2.5 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 font-bold font-mono"
                     />
                   </div>

@@ -52,6 +52,16 @@ test-results/
 # Production database dumps & backups
 backups/
 *.sql.bak
+local-*.sql
+production-backup-*/
+full_backup_script.ps1
+scratch/
+scripts/bin/
+*.log.txt
+*.log
+customer-app/*.log.txt
+customer-app/ramyas-android-log.txt
+migration-review.txt
 
 # Expo local development artifacts
 .expo/

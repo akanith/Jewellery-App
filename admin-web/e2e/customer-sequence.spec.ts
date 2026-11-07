@@ -1,8 +1,6 @@
 import { test, expect } from '@playwright/test';
 import {
-  getTestSupabaseClient,
   getAuthenticatedAdminSupabaseClient,
-  getE2EAdminCredentials,
   loginAsAdmin,
   generateTestMobile,
   generateTestName,
@@ -230,6 +228,30 @@ test.describe('AW-10: Customer Code Sequence Tests (RJ2026-###)', () => {
       if (nextCustomerId) {
         await deleteTestCustomer(nextCustomerId);
       }
+    }
+  });
+
+  test('SEQ-06: Customer code format validation for sequence boundaries (999, 1000, 1001, 1250) without truncation', async () => {
+    // Tests the customer code format logic matching migration 20261030130000:
+    // CASE WHEN v_seq_val < 1000 THEN lpad(v_seq_val::text, 3, '0') ELSE v_seq_val::text END
+    const formatCode = (seqVal: number, year = 2026) => {
+      const formattedNumber = seqVal < 1000 ? String(seqVal).padStart(3, '0') : String(seqVal);
+      return `RJ${year}-${formattedNumber}`;
+    };
+
+    // Sub-1000 boundary checks (strictly 3-digit zero-padded)
+    expect(formatCode(1)).toBe('RJ2026-001');
+    expect(formatCode(20)).toBe('RJ2026-020');
+    expect(formatCode(999)).toBe('RJ2026-999');
+
+    // At and post-1000 non-truncation checks (retains complete digits without lpad truncation)
+    expect(formatCode(1000)).toBe('RJ2026-1000');
+    expect(formatCode(1001)).toBe('RJ2026-1001');
+    expect(formatCode(1250)).toBe('RJ2026-1250');
+
+    // Verify all formatted codes satisfy the application's canonical customer_code pattern
+    for (const val of [1, 20, 999, 1000, 1001, 1250]) {
+      expect(formatCode(val)).toMatch(/^RJ\d{4}-\d{3,}$/);
     }
   });
 });

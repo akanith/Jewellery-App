@@ -5,7 +5,7 @@
  * Matches Mockup Design #2.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import {
   ArrowLeft,
@@ -18,7 +18,7 @@ import {
   AlertCircle,
   Users
 } from 'lucide-react';
-import { createCustomerWithScheme } from '@/lib/supabase/rpc';
+import { createCustomerWithScheme, linkCustomerFamilyProfiles } from '@/lib/supabase/rpc';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 
 interface SuccessEnrollmentData {
@@ -91,26 +91,34 @@ export default function NewCustomerPage() {
     };
   }, [phoneNumber]);
 
+  // Scheme Start Month Selection (Defaults to October 2026 for Diwali Scheme Launch)
+  const [schemeStartMonth, setSchemeStartMonth] = useState('2026-10');
+
   // Scheme Calculations
-  const todayDate = new Date();
+  const todayDate = useMemo(() => new Date(), []);
   const joiningDateFormatted = todayDate.toLocaleDateString('en-IN', {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
   });
 
-  const lastDayOfMonth = new Date(todayDate.getFullYear(), todayDate.getMonth() + 1, 0);
-  const firstDueDateFormatted = lastDayOfMonth.toLocaleDateString('en-IN', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-  });
+  const { firstDueDateFormatted, maturityDateFormatted } = useMemo(() => {
+    const [year, month] = schemeStartMonth.split('-').map(Number);
+    const firstDue = new Date(year, month, 0);
+    const maturity = new Date(year, month - 1 + 11, 1);
 
-  const maturityDate = new Date(todayDate.getFullYear() + 1, todayDate.getMonth(), 0);
-  const maturityDateFormatted = maturityDate.toLocaleDateString('en-IN', {
-    month: 'long',
-    year: 'numeric',
-  });
+    return {
+      firstDueDateFormatted: firstDue.toLocaleDateString('en-IN', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+      }),
+      maturityDateFormatted: maturity.toLocaleDateString('en-IN', {
+        month: 'long',
+        year: 'numeric',
+      }),
+    };
+  }, [schemeStartMonth]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -131,9 +139,9 @@ export default function NewCustomerPage() {
     setIsSubmitting(true);
 
     try {
-      const startMonthStr = `${todayDate.getFullYear()}-${String(todayDate.getMonth() + 1).padStart(2, '0')}-01`;
-      const linkId = linkFamilyMember && selectedFamilyCustomerId ? selectedFamilyCustomerId : null;
+      const startMonthStr = `${schemeStartMonth}-01`;
 
+      // 1. Separate Customer Registration: creates independent customer profile and scheme only
       const { data, error, rawError } = await createCustomerWithScheme({
         p_full_name: fullName.trim(),
         p_phone_number: cleanPhone,
@@ -146,7 +154,7 @@ export default function NewCustomerPage() {
         p_notes: notes.trim() || null,
         p_enroll_scheme: true,
         p_start_month: startMonthStr,
-        p_link_family_customer_id: linkId,
+        p_link_family_customer_id: null, // Registration alone never links profiles
       });
 
       if (error || !data) {
@@ -167,11 +175,36 @@ export default function NewCustomerPage() {
         throw new Error(error || 'Failed to register customer.');
       }
 
+      // 2. Separate Explicit Admin-Authorized Family Linking Workflow
+      let familyLinked = false;
+      let familyLinkError: string | null = null;
+
+      if (linkFamilyMember && selectedFamilyCustomerId) {
+        try {
+          const { data: linkData, error: linkErr } = await linkCustomerFamilyProfiles({
+            p_customer_id_1: data.customer_id,
+            p_customer_id_2: selectedFamilyCustomerId,
+            p_relationship: 'FAMILY_MEMBER',
+            p_notes: 'Showroom in-person consent verified by administrator during registration workflow.',
+            p_consent_confirmed: true,
+          });
+
+          if (linkErr || (linkData && !linkData.success)) {
+            familyLinkError = linkErr || 'Failed to establish verified family link.';
+          } else {
+            familyLinked = true;
+          }
+        } catch (linkEx: unknown) {
+          familyLinkError = linkEx instanceof Error ? linkEx.message : 'Family linking workflow error.';
+        }
+      }
+
       setSuccessData({
         customerId: data.customer_id,
         customerCode: data.customer_code,
         schemeCode: data.scheme_code || 'RJ-SCH-ACTIVE',
-        familyLinked: Boolean(linkId),
+        familyLinked,
+        familyLinkError,
       });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to register customer.';
@@ -361,7 +394,7 @@ export default function NewCustomerPage() {
                         </ul>
 
                         <div className="mt-3 pt-2.5 border-t border-amber-200/80">
-                          <label className="flex items-center gap-2 cursor-pointer font-semibold text-amber-950">
+                          <label className="flex items-start gap-2.5 cursor-pointer font-semibold text-amber-950">
                             <input
                               type="checkbox"
                               checked={linkFamilyMember}
@@ -371,9 +404,14 @@ export default function NewCustomerPage() {
                                   setSelectedFamilyCustomerId(existingProfilesWithPhone[0].id);
                                 }
                               }}
-                              className="w-4 h-4 rounded border-amber-300 text-amber-700 focus:ring-amber-500 cursor-pointer"
+                              className="w-4 h-4 mt-0.5 rounded border-amber-300 text-amber-700 focus:ring-amber-500 cursor-pointer shrink-0"
                             />
-                            <span>Link as verified family member</span>
+                            <div>
+                              <span>Link as verified family member</span>
+                              <p className="text-[11px] font-normal text-amber-800 mt-0.5">
+                                I confirm in-person showroom consent has been obtained from both customer profile holders to authorize shared access.
+                              </p>
+                            </div>
                           </label>
 
                           {linkFamilyMember && existingProfilesWithPhone.length > 1 && (
@@ -536,8 +574,25 @@ export default function NewCustomerPage() {
               </div>
 
               <div>
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                  Scheme Start Month
+                </label>
+                <select
+                  value={schemeStartMonth}
+                  onChange={(e) => setSchemeStartMonth(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-white border border-blue-200 rounded-xl text-sm font-semibold text-blue-950 focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 shadow-2xs cursor-pointer"
+                >
+                  <option value="2026-10">October 2026 (Diwali Scheme Start — Month 1)</option>
+                  <option value="2026-11">November 2026 (Current Month — Month 1)</option>
+                </select>
+                <p className="text-[11px] text-slate-500 mt-1">
+                  Select October 2026 for customers whose Diwali savings scheme started in October and are entering past payments.
+                </p>
+              </div>
+
+              <div>
                 <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
-                  Joining Date
+                  Registration Date
                 </label>
                 <input
                   type="text"
@@ -555,6 +610,18 @@ export default function NewCustomerPage() {
                   type="text"
                   disabled
                   value={firstDueDateFormatted}
+                  className="w-full px-3.5 py-2.5 bg-slate-100 border border-slate-200 rounded-xl text-sm font-medium text-slate-800"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                  Scheme Maturity
+                </label>
+                <input
+                  type="text"
+                  disabled
+                  value={maturityDateFormatted}
                   className="w-full px-3.5 py-2.5 bg-slate-100 border border-slate-200 rounded-xl text-sm font-medium text-slate-800"
                 />
               </div>

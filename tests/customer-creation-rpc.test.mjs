@@ -191,6 +191,7 @@ BEGIN
   v_res := public.link_customer_family_profiles(
     p_customer_id_1 := '${createdCustAId}',
     p_customer_id_2 := '${createdCustBId}',
+    p_consent_confirmed := TRUE,
     p_relationship := 'FAMILY_MEMBER',
     p_notes := 'Linked during customer creation flow'
   );
@@ -219,6 +220,7 @@ test('4. link_customer_family_profiles strictly enforces admin authorization and
   const { data, error } = await anonClient.rpc('link_customer_family_profiles', {
     p_customer_id_1: createdCustAId,
     p_customer_id_2: createdCustBId,
+    p_consent_confirmed: true,
     p_relationship: 'FAMILY_MEMBER',
   });
 

@@ -13,14 +13,11 @@ import {
   CheckCircle2,
   Sparkles,
   X,
-  Printer,
   Loader2,
   AlertCircle,
   PackageCheck,
-  Building2,
-  ArrowRight
 } from 'lucide-react';
-import { formatCurrency, formatDate } from '@/lib/formatters';
+import { formatCurrency } from '@/lib/formatters';
 import { ItemCategory } from '@/types/database';
 import { recordSchemeRedemption } from '@/lib/supabase/rpc';
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';

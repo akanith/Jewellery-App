@@ -79,7 +79,6 @@ export default function DashboardPage() {
 
   // Dynamic Current Calendar Month Strings
   const now = new Date();
-  const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
   const currentMonthDisplay = now.toLocaleDateString('en-IN', {
     month: 'long',
     year: 'numeric',

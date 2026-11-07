@@ -33,16 +33,16 @@ export default function EditCustomerModal({
   customer,
   onSuccess,
 }: EditCustomerModalProps) {
-  const [fullName, setFullName] = useState(customer.full_name);
-  const [phoneNumber, setPhoneNumber] = useState(customer.phone_number);
-  const [address, setAddress] = useState(customer.address);
-  const [city, setCity] = useState(customer.city);
-  const [pincode, setPincode] = useState(customer.pincode);
-  const [nomineeName, setNomineeName] = useState(customer.nominee_name);
+  const [fullName, setFullName] = useState(customer.full_name || "");
+  const [phoneNumber, setPhoneNumber] = useState(customer.phone_number || "");
+  const [address, setAddress] = useState(customer.address || "");
+  const [city, setCity] = useState(customer.city || "");
+  const [pincode, setPincode] = useState(customer.pincode || "");
+  const [nomineeName, setNomineeName] = useState(customer.nominee_name || "");
   const [nomineeRelationship, setNomineeRelationship] = useState(
     customer.nominee_relationship || 'Spouse'
   );
-  const [notes, setNotes] = useState(customer.notes);
+  const [notes, setNotes] = useState(customer.notes || "");
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -73,7 +73,7 @@ export default function EditCustomerModal({
         p_full_name: fullName.trim(),
         p_phone_number: cleanPhone,
         p_address: address.trim() || null,
-        p_city: city.trim() || 'Coimbatore',
+        p_city: city.trim() || 'Dindigul',
         p_pincode: pincode.trim() || null,
         p_nominee_name: nomineeName.trim() || null,
         p_nominee_relationship: nomineeRelationship || null,
@@ -164,15 +164,29 @@ export default function EditCustomerModal({
 
             <div>
               <label className="block font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                City / Town
+                PIN Code
               </label>
               <input
                 type="text"
-                value={city}
-                onChange={(e) => setCity(e.target.value)}
-                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900"
+                maxLength={6}
+                value={pincode}
+                onChange={(e) => setPincode(e.target.value)}
+                placeholder="624001"
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-mono"
               />
             </div>
+          </div>
+
+          <div>
+            <label className="block font-semibold text-slate-700 uppercase tracking-wider mb-1">
+              City / Town
+            </label>
+            <input
+              type="text"
+              value={city}
+              onChange={(e) => setCity(e.target.value)}
+              className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900"
+            />
           </div>
 
           <div>

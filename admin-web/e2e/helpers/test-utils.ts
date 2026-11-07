@@ -1,8 +1,9 @@
 import { createClient } from '@supabase/supabase-js';
 import { Page, expect } from '@playwright/test';
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() || 'http://127.0.0.1:54321';
-const SUPABASE_PUBLISHABLE_KEY = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY?.trim() || 'sb_publishable_bYOw6Eq1dE-7ARfmhCjc5A_YGLFalvD';
+export const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() || 'http://127.0.0.1:54321';
+export const SUPABASE_PUBLISHABLE_KEY = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY?.trim() || 'sb_publishable_bYOw6Eq1dE-7ARfmhCjc5A_YGLFalvD';
+export const isLocalSupabase = SUPABASE_URL.includes('127.0.0.1') || SUPABASE_URL.includes('localhost');
 
 export function assertNotProductionSupabase(url?: string): asserts url is string {
   if (!url || url.trim() === '') {

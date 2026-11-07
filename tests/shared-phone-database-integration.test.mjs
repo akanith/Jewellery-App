@@ -1,3 +1,4 @@
+
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { execSync } from 'node:child_process';
@@ -552,7 +553,7 @@ BEGIN
 
     -- 1. Attempt linking without admin session -> MUST FAIL
     BEGIN
-        PERFORM public.link_customer_family_profiles(v_c1_id, v_c2_id, 'FAMILY_MEMBER', 'Unauthorized attempt');
+        PERFORM public.link_customer_family_profiles(v_c1_id, v_c2_id, TRUE, 'FAMILY_MEMBER', 'Unauthorized attempt');
     EXCEPTION WHEN OTHERS THEN
         v_caught := TRUE;
     END;
@@ -564,7 +565,7 @@ BEGIN
     PERFORM set_config('request.jwt.claim.sub', v_admin_id::text, true);
 
     -- 3. Execute link with admin authorization
-    v_res := public.link_customer_family_profiles(v_c1_id, v_c2_id, 'FAMILY_MEMBER', 'Authorized test link');
+    v_res := public.link_customer_family_profiles(v_c1_id, v_c2_id, TRUE, 'FAMILY_MEMBER', 'Authorized test link');
     IF NOT (v_res->>'success')::boolean THEN
         RAISE EXCEPTION 'Case 10 Failed: link_customer_family_profiles failed under admin: %', v_res;
     END IF;
