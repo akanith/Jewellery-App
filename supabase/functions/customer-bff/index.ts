@@ -774,6 +774,10 @@ async function handleDashboard(req: Request): Promise<Response> {
         maturityAmount: sMaturityAmount,
         bonusAmount: sBonusAmount,
         maturityDate: formatMonthYear(s.end_month),
+        startMonth: formatMonthYear(s.start_month),
+        startDate: s.start_month,
+        endMonth: formatMonthYear(s.end_month),
+        endDate: s.end_month,
         progressPercentage: sProgressPercentage,
         status: s.status,
         currentInstallment: sNextPending

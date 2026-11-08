@@ -88,7 +88,7 @@ export function validateBuildEnvironment(env = process.env) {
   }
 
   // 2. PRODUCTION / HOSTED VALIDATION
-  if (appEnv === 'hosted' || appEnv === 'production' || buildProfile === 'production') {
+  if (appEnv === 'hosted' || appEnv === 'production' || buildProfile === 'production' || buildProfile === 'production-apk') {
     const prodUrl = (env.EXPO_PUBLIC_HOSTED_BFF_BASE_URL || DEFAULT_HOSTED_BFF_URL).trim();
 
     if (!prodUrl) {

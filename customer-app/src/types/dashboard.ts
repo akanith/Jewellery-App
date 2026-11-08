@@ -24,6 +24,10 @@ export interface SchemeSummary {
   maturityAmount: number;
   bonusAmount: number;
   maturityDate: string;
+  startMonth?: string;
+  startDate?: string;
+  endMonth?: string;
+  endDate?: string;
   progressPercentage: number;
   status: SchemeLifecycleStatus;
   currentInstallment?: CurrentInstallment | null;

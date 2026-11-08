@@ -34,6 +34,19 @@
       "android": {
         "buildType": "app-bundle"
       }
+    },
+    "production-apk": {
+      "developmentClient": false,
+      "distribution": "internal",
+      "environment": "production",
+      "env": {
+        "EXPO_PUBLIC_APP_ENV": "hosted",
+        "EXPO_PUBLIC_HOSTED_SUPABASE_URL": "https://yjpbswsgtbmgageburmy.supabase.co",
+        "EXPO_PUBLIC_HOSTED_BFF_BASE_URL": "https://yjpbswsgtbmgageburmy.supabase.co/functions/v1"
+      },
+      "android": {
+        "buildType": "apk"
+      }
     }
   }
 }

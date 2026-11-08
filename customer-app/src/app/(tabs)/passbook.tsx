@@ -16,7 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import Svg, { Circle } from 'react-native-svg';
 import { useLanguage } from '@/i18n';
 import { CustomerHeader } from '@/components/CustomerHeader';
-import { CustomerPassbookData, PassbookInstallment } from '@/types/passbook';
+import { CustomerPassbookData } from '@/types/passbook';
 import { SchemeSummary } from '@/types/dashboard';
 import { formatCurrency } from '@/lib/formatters';
 import {
@@ -34,6 +34,7 @@ import {
   clearPersistedPendingPaymentAttempt,
 } from '@/services/paymentService';
 import { exportPassbookPdf } from '@/services/passbookPdfService';
+import { getMaturityMonthStr } from '@/lib/schemeTimeline';
 
 
 const initialPassbookData: CustomerPassbookData = {
@@ -50,37 +51,6 @@ const initialPassbookData: CustomerPassbookData = {
   status: 'ACTIVE',
   progressPercentage: 0,
   installments: [],
-};
-
-/**
- * Computes maturity month string (Month after installment 12).
- */
-const getMaturityMonthStr = (installments: PassbookInstallment[]): string => {
-  if (!installments || installments.length === 0) return 'March 2027';
-  const lastInst = installments[installments.length - 1];
-  if (!lastInst?.calendarMonth) return 'March 2027';
-
-  const parts = lastInst.calendarMonth.trim().split(' ');
-  if (parts.length < 2) return 'March 2027';
-
-  const monthNames = [
-    'January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December',
-  ];
-  const mIndex = monthNames.findIndex(
-    (m) => m.toLowerCase() === parts[0].toLowerCase()
-  );
-  let year = parseInt(parts[1], 10);
-
-  if (mIndex === -1 || isNaN(year)) return 'March 2027';
-
-  let nextMIndex = mIndex + 1;
-  if (nextMIndex >= 12) {
-    nextMIndex = 0;
-    year += 1;
-  }
-
-  return `${monthNames[nextMIndex]} ${year}`;
 };
 
 export default function CustomerPassbookScreen() {

@@ -14,7 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { CustomerHeader } from '@/components/CustomerHeader';
 import { CustomerHomeData, SchemeSummary } from '@/types/dashboard';
 import { formatCurrency } from '../../lib/formatters';
-import { useLanguage, TranslationKey } from '@/i18n';
+import { useLanguage } from '@/i18n';
 import { getStoredCustomerSession, getAuthorizedProfiles } from '@/services/customerAuthService';
 import { getCustomerDashboard, checkOnlinePaymentStatus } from '@/services/customerDataService';
 import { useResponsiveMetrics } from '@/constants/responsive';
@@ -24,6 +24,7 @@ import {
   getPersistedPendingPaymentAttempt,
   clearPersistedPendingPaymentAttempt,
 } from '@/services/paymentService';
+import { generateSavingsJourneyMonths } from '@/lib/schemeTimeline';
 
 // Isolated fallback structure if network is offline before first sync
 const initialHomeData: CustomerHomeData = {
@@ -36,8 +37,6 @@ const initialHomeData: CustomerHomeData = {
   recentPayments: [],
   announcement: 'Shop closed on Sunday. Happy Holidays!',
 };
-
-const MONTH_KEYS: TranslationKey[] = ['sep', 'oct', 'nov', 'dec', 'jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug'];
 
 export default function CustomerHomeScreen() {
   const router = useRouter();
@@ -171,6 +170,12 @@ export default function CustomerHomeScreen() {
     currentInst?.amount ?? (monthlyAmount > 0 ? monthlyAmount : 1000);
   const dueCalendarMonth = currentInst?.calendarMonth || 'Current Month';
   const dueInstNum = currentInst?.installmentNumber;
+
+  const journeySteps = generateSavingsJourneyMonths({
+    scheme: activeScheme,
+    paidCount,
+    totalCount,
+  });
 
   const handleOpenCashModal = () => {
     setIsCashModalOpen(true);
@@ -529,37 +534,34 @@ export default function CustomerHomeScreen() {
             <View style={styles.bubblesContainer}>
               {/* Row 1: Months 1 to 6 */}
               <View style={styles.bubbleRow}>
-                {MONTH_KEYS.slice(0, 6).map((monthKey, idx) => {
-                  const stepNum = idx + 1;
-                  const isCompleted = stepNum <= paidCount;
-                  const isCurrent = stepNum === paidCount + 1;
-                  const monthLabel = t(monthKey);
+                {journeySteps.slice(0, 6).map((step) => {
+                  const monthLabel = t(step.monthKey);
                   return (
-                    <View key={monthKey} style={styles.bubbleCol}>
+                    <View key={`journey-step-${step.installmentNumber}`} style={styles.bubbleCol}>
                       <View
                         style={[
                           styles.bubbleCircle,
-                          isCurrent && styles.bubbleCircleCurrent,
-                          isCompleted && styles.bubbleCircleCompleted,
+                          step.isCurrent && styles.bubbleCircleCurrent,
+                          step.isCompleted && styles.bubbleCircleCompleted,
                         ]}
                       >
-                        {isCompleted ? (
+                        {step.isCompleted ? (
                           <Ionicons name="checkmark" size={16} color="#FFFFFF" />
                         ) : (
                           <Text
                             style={[
                               styles.bubbleNumberText,
-                              isCurrent && styles.bubbleNumberTextCurrent,
+                              step.isCurrent && styles.bubbleNumberTextCurrent,
                             ]}
                           >
-                            {stepNum}
+                            {step.installmentNumber}
                           </Text>
                         )}
                       </View>
                       <Text
                         style={[
                           styles.bubbleMonthLabel,
-                          isCurrent && styles.bubbleMonthLabelCurrent,
+                          step.isCurrent && styles.bubbleMonthLabelCurrent,
                         ]}
                       >
                         {monthLabel}
@@ -571,42 +573,38 @@ export default function CustomerHomeScreen() {
 
               {/* Row 2: Months 7 to 12 */}
               <View style={styles.bubbleRow}>
-                {MONTH_KEYS.slice(6, 12).map((monthKey, idx) => {
-                  const stepNum = idx + 7;
-                  const isCompleted = stepNum <= paidCount;
-                  const isCurrent = stepNum === paidCount + 1;
-                  const isMaturityStep = stepNum === 12;
-                  const monthLabel = t(monthKey);
+                {journeySteps.slice(6, 12).map((step) => {
+                  const monthLabel = t(step.monthKey);
 
                   return (
-                    <View key={monthKey} style={styles.bubbleCol}>
+                    <View key={`journey-step-${step.installmentNumber}`} style={styles.bubbleCol}>
                       <View
                         style={[
                           styles.bubbleCircle,
-                          isMaturityStep && !isCompleted && !isCurrent && styles.bubbleCircleMaturity,
-                          isCurrent && styles.bubbleCircleCurrent,
-                          isCompleted && styles.bubbleCircleCompleted,
+                          step.isMaturityStep && !step.isCompleted && !step.isCurrent && styles.bubbleCircleMaturity,
+                          step.isCurrent && styles.bubbleCircleCurrent,
+                          step.isCompleted && styles.bubbleCircleCompleted,
                         ]}
                       >
-                        {isMaturityStep && !isCompleted ? (
+                        {step.isMaturityStep && !step.isCompleted ? (
                           <Ionicons name="ribbon" size={18} color="#70001E" />
-                        ) : isCompleted ? (
+                        ) : step.isCompleted ? (
                           <Ionicons name="checkmark" size={16} color="#FFFFFF" />
                         ) : (
                           <Text
                             style={[
                               styles.bubbleNumberText,
-                              isCurrent && styles.bubbleNumberTextCurrent,
+                              step.isCurrent && styles.bubbleNumberTextCurrent,
                             ]}
                           >
-                            {stepNum}
+                            {step.installmentNumber}
                           </Text>
                         )}
                       </View>
                       <Text
                         style={[
                           styles.bubbleMonthLabel,
-                          isCurrent && styles.bubbleMonthLabelCurrent,
+                          step.isCurrent && styles.bubbleMonthLabelCurrent,
                         ]}
                       >
                         {monthLabel}
