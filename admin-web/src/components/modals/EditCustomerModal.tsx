@@ -149,10 +149,11 @@ export default function EditCustomerModal({
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block font-semibold text-slate-700 uppercase tracking-wider mb-1">
+              <label htmlFor="edit-customer-phone" className="block font-semibold text-slate-700 uppercase tracking-wider mb-1">
                 Mobile Number
               </label>
               <input
+                id="edit-customer-phone"
                 type="tel"
                 required
                 maxLength={10}
@@ -176,6 +177,10 @@ export default function EditCustomerModal({
               />
             </div>
           </div>
+
+          <p className="text-[11px] text-slate-500 -mt-2">
+            Changing a mobile number preserves any existing family links and never automatically links customers sharing the new number. Manage family access explicitly on Customer Details.
+          </p>
 
           <div>
             <label className="block font-semibold text-slate-700 uppercase tracking-wider mb-1">

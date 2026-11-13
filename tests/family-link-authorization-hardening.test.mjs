@@ -642,6 +642,265 @@ END $test$;
   runInRollbackTransaction(sql);
 });
 
+test('Test 12: Existing customers registered on separate mobiles can be explicitly linked once their normalized mobile numbers match, without auto-linking or merging', () => {
+  const sql = `
+DO $test$
+DECLARE
+    v_admin_id UUID;
+    v_phone_a TEXT := '9111100001';
+    v_phone_b TEXT := '9222200002';
+    v_res1 JSONB;
+    v_res2 JSONB;
+    v_c1_id UUID;
+    v_c2_id UUID;
+    v_c1_code TEXT;
+    v_c2_code TEXT;
+    v_scheme1_id UUID;
+    v_scheme2_id UUID;
+    v_upd JSONB;
+    v_ctx JSONB;
+    v_link JSONB;
+    v_login_b JSONB;
+    v_switch JSONB;
+    v_token_b TEXT := repeat('f', 64);
+    v_dup_state TEXT;
+BEGIN
+    SELECT id INTO v_admin_id FROM public.profiles WHERE role = 'ADMIN' LIMIT 1;
+    PERFORM set_config('request.jwt.claim.sub', v_admin_id::text, true);
+    PERFORM set_config('request.jwt.claim.role', 'authenticated', true);
+
+    v_res1 := public.create_customer_with_scheme(
+        p_full_name := 'Existing Member One',
+        p_phone_number := v_phone_a,
+        p_address := '10 Gold Bazaar',
+        p_city := 'Dindigul',
+        p_pincode := '624001',
+        p_alternate_phone := NULL,
+        p_nominee_name := NULL,
+        p_nominee_relationship := NULL,
+        p_notes := NULL,
+        p_enroll_scheme := TRUE,
+        p_start_month := '2026-10-01'::DATE
+    );
+    v_res2 := public.create_customer_with_scheme(
+        p_full_name := 'Existing Member Two',
+        p_phone_number := v_phone_b,
+        p_address := '10 Gold Bazaar',
+        p_city := 'Dindigul',
+        p_pincode := '624001',
+        p_alternate_phone := NULL,
+        p_nominee_name := NULL,
+        p_nominee_relationship := NULL,
+        p_notes := NULL,
+        p_enroll_scheme := TRUE,
+        p_start_month := '2026-10-01'::DATE
+    );
+
+    v_c1_id := (v_res1->>'customer_id')::uuid;
+    v_c2_id := (v_res2->>'customer_id')::uuid;
+    v_c1_code := v_res1->>'customer_code';
+    v_c2_code := v_res2->>'customer_code';
+    v_scheme1_id := (v_res1->>'scheme_id')::uuid;
+    v_scheme2_id := (v_res2->>'scheme_id')::uuid;
+
+    -- Update Member Two phone number to match Member One
+    v_upd := public.update_customer_profile(
+        p_customer_id := v_c2_id,
+        p_full_name := 'Existing Member Two',
+        p_phone_number := v_phone_a::varchar
+    );
+    IF NOT COALESCE((v_upd->>'success')::boolean, false) THEN
+        RAISE EXCEPTION 'Test 12 Failed: update_customer_profile did not succeed: %', v_upd;
+    END IF;
+
+    -- Updating phone MUST NOT auto-link them
+    IF public.is_customer_authorized_for_profile(v_c1_id, v_c2_id) THEN
+        RAISE EXCEPTION 'Test 12 Failed: Phone update must NEVER auto-link existing customers';
+    END IF;
+
+    -- get_customer_family_context exposes Member Two as an unlinked shared-phone candidate
+    v_ctx := public.get_customer_family_context(v_c1_id);
+    IF jsonb_array_length(v_ctx->'linked_members') <> 0 THEN
+        RAISE EXCEPTION 'Test 12 Failed: Expected 0 linked members before linking, got %', v_ctx;
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1
+        FROM jsonb_array_elements(v_ctx->'shared_phone_candidates') cand
+        WHERE (cand->>'customer_id')::uuid = v_c2_id
+    ) THEN
+        RAISE EXCEPTION 'Test 12 Failed: Member Two missing from shared_phone_candidates: %', v_ctx;
+    END IF;
+
+    -- Explicit linking succeeds across normalized +91 and 10-digit formats
+    v_link := public.link_customer_family_profiles(
+        p_customer_id_1 := v_c1_id,
+        p_customer_id_2 := v_c2_id,
+        p_consent_confirmed := TRUE,
+        p_relationship := 'SPOUSE',
+        p_notes := 'Showroom consent for existing profiles'
+    );
+    IF NOT COALESCE((v_link->>'success')::boolean, false) THEN
+        RAISE EXCEPTION 'Test 12 Failed: link_customer_family_profiles failed: %', v_link;
+    END IF;
+
+    -- Duplicate active link attempt must raise SQLSTATE 23505
+    BEGIN
+        PERFORM public.link_customer_family_profiles(v_c1_id, v_c2_id, TRUE, 'SPOUSE', NULL);
+        RAISE EXCEPTION 'Test 12 Failed: Duplicate active link should have been rejected';
+    EXCEPTION WHEN OTHERS THEN
+        GET STACKED DIAGNOSTICS v_dup_state = RETURNED_SQLSTATE;
+        IF v_dup_state <> '23505' THEN
+            RAISE EXCEPTION 'Test 12 Failed: Expected SQLSTATE 23505 on duplicate link, got % (%)', v_dup_state, SQLERRM;
+        END IF;
+    END;
+
+    -- Both customer IDs and scheme IDs remain intact and distinct
+    IF (SELECT count(*) FROM public.schemes WHERE id IN (v_scheme1_id, v_scheme2_id)) <> 2 THEN
+        RAISE EXCEPTION 'Test 12 Failed: Original scheme records must remain preserved and distinct';
+    END IF;
+
+    -- Login using Member Two temp password (last 4 of original phone v_phone_b) sees both linked profiles
+    v_login_b := public.customer_password_login(v_phone_a, right(v_phone_b, 4), NULL);
+    IF NOT COALESCE((v_login_b->>'success')::boolean, false)
+       OR (v_login_b->>'customer_id')::uuid <> v_c2_id
+       OR jsonb_array_length(v_login_b->'profiles') <> 2 THEN
+        RAISE EXCEPTION 'Test 12 Failed: Unexpected login response after family linking: %', v_login_b;
+    END IF;
+
+    -- Switch session from Member Two to Member One and verify phone_number & active_customer_id metadata
+    INSERT INTO public.customer_sessions (customer_id, authenticated_root_id, token_hash, expires_at)
+    VALUES (v_c2_id, v_c2_id, v_token_b, clock_timestamp() + interval '1 day');
+
+    v_switch := public.switch_customer_profile_session(v_token_b, v_c1_id);
+    IF (v_switch->>'customer_id')::uuid <> v_c1_id
+       OR (v_switch->>'active_customer_id')::uuid <> v_c1_id
+       OR v_switch->>'customer_code' <> v_c1_code
+       OR v_switch->>'phone_number' <> v_phone_a THEN
+        RAISE EXCEPTION 'Test 12 Failed: Unexpected switch payload: %', v_switch;
+    END IF;
+END $test$;
+`;
+  runInRollbackTransaction(sql);
+});
+
+test('Test 13: Preserving family link across later phone change, blocking cross-phone bridging, and isolating unlinked third customer on same phone', () => {
+  const sql = `
+DO $test$
+DECLARE
+    v_admin_id UUID;
+    v_phone_shared TEXT := '9333300001';
+    v_phone_new TEXT := '9444400002';
+    v_res1 JSONB;
+    v_res2 JSONB;
+    v_res3 JSONB;
+    v_c1_id UUID;
+    v_c2_id UUID;
+    v_c3_id UUID;
+    v_ctx JSONB;
+    v_login_c1 JSONB;
+    v_login_c2 JSONB;
+    v_login_c3 JSONB;
+    v_switch JSONB;
+    v_token_c1 TEXT := repeat('a', 64);
+    v_token_c3 TEXT := repeat('b', 64);
+    v_rejected BOOLEAN := FALSE;
+    v_session_customer UUID;
+BEGIN
+    SELECT id INTO v_admin_id FROM public.profiles WHERE role = 'ADMIN' LIMIT 1;
+    PERFORM set_config('request.jwt.claim.sub', v_admin_id::text, true);
+    PERFORM set_config('request.jwt.claim.role', 'authenticated', true);
+
+    v_res1 := public.create_customer_with_scheme('Partner A', v_phone_shared, NULL, 'Dindigul', NULL, NULL, NULL, NULL, NULL, TRUE, '2026-10-01'::DATE);
+    v_res2 := public.create_customer_with_scheme('Partner B', v_phone_shared, NULL, 'Dindigul', NULL, NULL, NULL, NULL, NULL, TRUE, '2026-10-01'::DATE);
+    v_res3 := public.create_customer_with_scheme('Unlinked Bystander', v_phone_shared, NULL, 'Dindigul', NULL, NULL, NULL, NULL, NULL, FALSE, NULL);
+
+    v_c1_id := (v_res1->>'customer_id')::uuid;
+    v_c2_id := (v_res2->>'customer_id')::uuid;
+    v_c3_id := (v_res3->>'customer_id')::uuid;
+
+    -- Explicitly link Partner A and Partner B ONLY (Unlinked Bystander remains excluded)
+    PERFORM public.link_customer_family_profiles(v_c1_id, v_c2_id, TRUE, 'FAMILY_MEMBER', 'Partner link');
+
+    -- Partner B updates phone to v_phone_new later
+    PERFORM public.update_customer_profile(
+        p_customer_id := v_c2_id,
+        p_full_name := 'Partner B',
+        p_phone_number := v_phone_new::varchar
+    );
+
+    -- Family link MUST remain preserved after mobile change
+    IF NOT public.is_customer_authorized_for_profile(v_c1_id, v_c2_id) THEN
+        RAISE EXCEPTION 'Test 13 Failed: Existing family link was lost after Partner B phone update';
+    END IF;
+
+    v_ctx := public.get_customer_family_context(v_c1_id);
+    IF NOT EXISTS (
+        SELECT 1 FROM jsonb_array_elements(v_ctx->'linked_members') m
+        WHERE (m->>'customer_id')::uuid = v_c2_id AND (m->>'shares_current_phone')::boolean = false
+    ) THEN
+        RAISE EXCEPTION 'Test 13 Failed: Expected Partner B preserved with shares_current_phone=false: %', v_ctx;
+    END IF;
+
+    -- Cross-phone group bridging check: linking Partner A (with cross-phone Partner B) to Bystander (v_phone_shared) must be rejected
+    BEGIN
+        PERFORM public.link_customer_family_profiles(v_c1_id, v_c3_id, TRUE, 'OTHER', 'Attempt cross-phone bridge');
+    EXCEPTION WHEN OTHERS THEN
+        v_rejected := TRUE;
+    END;
+    IF NOT v_rejected THEN
+        RAISE EXCEPTION 'Test 13 Failed: Inconsistent cross-phone multi-member group bridging must be rejected';
+    END IF;
+
+    -- Partner A logs in with v_phone_shared, Partner B logs in with v_phone_new; switch returns Partner B's NEW mobile number
+    PERFORM public.customer_change_password(v_c1_id, right(v_phone_shared, 4), 'PartnerA#2026');
+    PERFORM public.customer_change_password(v_c2_id, right(v_phone_shared, 4), 'PartnerB#2026');
+
+    v_login_c1 := public.customer_password_login(v_phone_shared, 'PartnerA#2026', NULL);
+    v_login_c2 := public.customer_password_login(v_phone_new, 'PartnerB#2026', NULL);
+    IF jsonb_array_length(v_login_c1->'profiles') <> 2 OR jsonb_array_length(v_login_c2->'profiles') <> 2 THEN
+        RAISE EXCEPTION 'Test 13 Failed: Both partners should access both linked profiles after phone split';
+    END IF;
+
+    -- Phone-based login for Bystander MUST NOT see Partner A or Partner B
+    v_login_c3 := public.customer_password_login(v_phone_shared, right(v_phone_shared, 4), NULL);
+    IF jsonb_array_length(v_login_c3->'profiles') <> 1 OR (v_login_c3->>'customer_id')::uuid <> v_c3_id THEN
+        RAISE EXCEPTION 'Test 13 Failed: Bystander gained unauthorized access via shared phone login: %', v_login_c3;
+    END IF;
+
+    INSERT INTO public.customer_sessions (customer_id, authenticated_root_id, token_hash, expires_at)
+    VALUES (v_c1_id, v_c1_id, v_token_c1, clock_timestamp() + interval '1 day');
+    v_switch := public.switch_customer_profile_session(v_token_c1, v_c2_id);
+    IF v_switch->>'mobile_number' <> v_phone_new THEN
+        RAISE EXCEPTION 'Test 13 Failed: Switch must return target partner current phone %, got %', v_phone_new, v_switch;
+    END IF;
+
+    -- Verify Bystander cannot switch to Partner A or Partner B even though Bystander shares v_phone_shared with Partner A
+    INSERT INTO public.customer_sessions (customer_id, authenticated_root_id, token_hash, expires_at)
+    VALUES (v_c3_id, v_c3_id, v_token_c3, clock_timestamp() + interval '1 day');
+    v_rejected := FALSE;
+    BEGIN
+        PERFORM public.switch_customer_profile_session(v_token_c3, v_c1_id);
+    EXCEPTION WHEN SQLSTATE '42501' THEN
+        v_rejected := TRUE;
+    END;
+    IF NOT v_rejected THEN
+        RAISE EXCEPTION 'Test 13 Failed: Bystander must be denied profile switch (42501)';
+    END IF;
+
+    -- Unlinking snaps open switched session back to authenticated_root_id immediately
+    PERFORM public.unlink_customer_family_profiles(v_c1_id, v_c2_id);
+    SELECT customer_id INTO v_session_customer FROM public.customer_sessions WHERE token_hash = v_token_c1;
+    IF v_session_customer <> v_c1_id THEN
+        RAISE EXCEPTION 'Test 13 Failed: Open switched session did not revert to root after unlink: %', v_session_customer;
+    END IF;
+    IF EXISTS (SELECT 1 FROM public.verify_customer_session(v_token_c1) WHERE customer_id <> v_c1_id) THEN
+        RAISE EXCEPTION 'Test 13 Failed: verify_customer_session leaked unlinked partner profile';
+    END IF;
+END $test$;
+`;
+  runInRollbackTransaction(sql);
+});
+
 test('Post-check: Verify baseline database record counts remain 100% unchanged', () => {
   const postBaseline = getDatabaseBaseline();
   assert.deepEqual(postBaseline, initialBaseline, 'Database counts must return exactly to baseline');

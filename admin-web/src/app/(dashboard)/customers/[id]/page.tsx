@@ -35,6 +35,7 @@ import EditCustomerModal from '@/components/modals/EditCustomerModal';
 import ResetPasswordModal from '@/components/modals/ResetPasswordModal';
 import DeleteCustomerModal from '@/components/modals/DeleteCustomerModal';
 import EnrollSchemeModal from '@/components/modals/EnrollSchemeModal';
+import FamilyAccessCard from '@/components/customers/FamilyAccessCard';
 
 interface CustomerDetailPageProps {
   params: Promise<{ id: string }>;
@@ -195,6 +196,7 @@ export default function CustomerDetailPage({ params }: CustomerDetailPageProps) 
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isEnrollModalOpen, setIsEnrollModalOpen] = useState(false);
+  const [familyRefreshKey, setFamilyRefreshKey] = useState(0);
 
   // 1. Isolated Schemes Fetcher with Pre-Migration Schema Fallback
   const fetchSchemesForCustomer = useCallback(async (custUuid: string) => {
@@ -798,6 +800,17 @@ export default function CustomerDetailPage({ params }: CustomerDetailPageProps) 
         </div>
       </div>
 
+      {/* Family Access & Linked Profiles Section */}
+      <FamilyAccessCard
+        customer={{
+          id: customer.id,
+          customer_code: customer.customer_code,
+          full_name: customer.full_name,
+          phone_number: customer.phone_number,
+        }}
+        refreshKey={familyRefreshKey}
+      />
+
       {/* Passbook Installment Timeline (12 Months) */}
       {scheme && (
         <div className="luxury-card p-6 shadow-sm">
@@ -916,6 +929,7 @@ export default function CustomerDetailPage({ params }: CustomerDetailPageProps) 
           }}
           onSuccess={() => {
             setIsEditModalOpen(false);
+            setFamilyRefreshKey((k) => k + 1);
             fetchCustomerDetails();
           }}
         />

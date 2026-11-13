@@ -33,6 +33,7 @@ import {
   LinkCustomerFamilyProfilesResult,
   UnlinkCustomerFamilyProfilesParams,
   UnlinkCustomerFamilyProfilesResult,
+  CustomerFamilyContextResult,
 } from '@/types/database';
 
 export interface RpcResponse<T> {
@@ -470,6 +471,30 @@ export async function unlinkCustomerFamilyProfiles(
     return { data: data as UnlinkCustomerFamilyProfilesResult, error: null };
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unable to unlink customer family profiles.';
+    return { data: null, error: message };
+  }
+}
+
+/**
+ * Fetches linked family members and unlinked shared-phone candidates for a customer.
+ * Invokes SECURITY DEFINER procedure public.get_customer_family_context(p_customer_id).
+ */
+export async function getCustomerFamilyContext(
+  customerId: string
+): Promise<RpcResponse<CustomerFamilyContextResult>> {
+  try {
+    const supabase = getSupabaseBrowserClient();
+    const { data, error } = await supabase.rpc('get_customer_family_context', {
+      p_customer_id: customerId,
+    });
+
+    if (error) {
+      return { data: null, error: error.message };
+    }
+
+    return { data: data as CustomerFamilyContextResult, error: null };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unable to load customer family links.';
     return { data: null, error: message };
   }
 }

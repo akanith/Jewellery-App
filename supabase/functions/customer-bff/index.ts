@@ -460,12 +460,17 @@ async function handleSelectProfile(req: Request): Promise<Response> {
     });
 
     if (!rpcErr && rpcRes && rpcRes.success) {
+      const normalizedTargetPhone =
+        typeof rpcRes.mobile_number === "string" || typeof rpcRes.phone_number === "string"
+          ? normalizeMobileNumber(String(rpcRes.mobile_number || rpcRes.phone_number || ""))
+          : "";
       return jsonResponse({
         success: true,
         customer: {
           customerId: rpcRes.customer_id,
           customerCode: rpcRes.customer_code,
           fullName: rpcRes.full_name,
+          ...(normalizedTargetPhone ? { mobileNumber: normalizedTargetPhone } : {}),
           passwordStatus: rpcRes.password_status,
         },
       });
@@ -491,11 +496,13 @@ async function handleSelectProfile(req: Request): Promise<Response> {
       }
     }
 
-    // Fetch target customer profile and verify active status
+    // Fetch target customer profile and verify active status & CUSTOMER role
     const { data: targetCust, error: targetErr } = await supabase
       .from("customers")
-      .select("id, customer_code, full_name, phone_number, customer_auth(password_status)")
+      .select("id, customer_code, full_name, phone_number, customer_auth(password_status), profiles!inner(is_active, role)")
       .eq("id", targetCustomerId)
+      .eq("profiles.is_active", true)
+      .eq("profiles.role", "CUSTOMER")
       .single();
 
     if (targetErr || !targetCust) {
@@ -528,6 +535,7 @@ async function handleSelectProfile(req: Request): Promise<Response> {
         customerId: targetCust.id,
         customerCode: targetCust.customer_code,
         fullName: targetCust.full_name,
+        mobileNumber: normalizeMobileNumber(targetCust.phone_number || ""),
         passwordStatus: authRec?.password_status || "ACTIVE",
       },
     });
@@ -565,12 +573,13 @@ async function handleGetProfiles(req: Request): Promise<Response> {
       if (link.grantee_customer_id) authorizedIds.add(link.grantee_customer_id);
     }
 
-    // 2. Fetch profile details strictly for authorized customer IDs
+    // 2. Fetch profile details strictly for authorized active CUSTOMER IDs
     const { data: customerRows, error: custErr } = await supabase
       .from("customers")
-      .select("id, customer_code, full_name, phone_number, created_at, customer_auth(password_status), profiles!inner(is_active)")
+      .select("id, customer_code, full_name, phone_number, created_at, customer_auth(password_status), profiles!inner(is_active, role)")
       .in("id", Array.from(authorizedIds))
       .eq("profiles.is_active", true)
+      .eq("profiles.role", "CUSTOMER")
       .order("created_at", { ascending: true });
 
     if (custErr || !customerRows) {
@@ -596,7 +605,7 @@ async function handleGetProfiles(req: Request): Promise<Response> {
         customerId: c.id,
         customerCode: c.customer_code,
         fullName: c.full_name,
-        mobileNumber: c.phone_number,
+        mobileNumber: normalizeMobileNumber(c.phone_number || ""),
         passwordStatus: cAuth?.password_status || "ACTIVE",
         schemeCount: schemeCountMap.get(c.id) || 0,
         isSelected: c.id === session.customerId,
