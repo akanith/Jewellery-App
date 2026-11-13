@@ -428,5 +428,40 @@ export interface UnlinkCustomerFamilyProfilesParams {
 
 export interface UnlinkCustomerFamilyProfilesResult {
   success: boolean;
+  unlinked_rows?: number;
   message: string;
+}
+
+export interface CustomerFamilyLinkedMember {
+  customer_id: string;
+  customer_code: string;
+  full_name: string;
+  phone_number: string;
+  normalized_phone: string;
+  city: string | null;
+  relationship_type: string;
+  authorized_by: string;
+  notes: string | null;
+  linked_at: string;
+  shares_current_phone: boolean;
+  is_bidirectional?: boolean;
+}
+
+export interface CustomerFamilyCandidate {
+  customer_id: string;
+  customer_code: string;
+  full_name: string;
+  phone_number: string;
+  normalized_phone: string;
+  city: string | null;
+  created_at: string;
+  has_conflicting_cross_phone_link?: boolean;
+}
+
+export interface CustomerFamilyContextResult {
+  success: boolean;
+  customer_id: string;
+  normalized_phone: string;
+  linked_members: CustomerFamilyLinkedMember[];
+  shared_phone_candidates: CustomerFamilyCandidate[];
 }

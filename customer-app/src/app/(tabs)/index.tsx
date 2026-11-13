@@ -80,14 +80,15 @@ export default function CustomerHomeScreen() {
           setSession(currentSession);
         }
 
-        // Keep authorizedProfiles refreshed to ensure Switch Profile button in header is always accurate
+        // Keep authorizedProfiles and active customer metadata synchronized with server
         getAuthorizedProfiles()
-          .then((profiles) => {
-            if (isMounted && profiles) {
-              setSession((prev: any) =>
-                prev ? { ...prev, authorizedProfiles: profiles } : prev
-              );
-            }
+          .then(async (profiles) => {
+            if (!isMounted) return;
+            const refreshedSession = await getStoredCustomerSession();
+            if (!isMounted) return;
+            setSession((prev: any) =>
+              refreshedSession || (prev ? { ...prev, authorizedProfiles: profiles } : prev)
+            );
           })
           .catch(() => {});
 

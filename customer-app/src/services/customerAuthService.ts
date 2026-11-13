@@ -224,8 +224,15 @@ export const changePassword = async (
       };
     }
 
-    // Update stored session passwordStatus to ACTIVE
+    // Update stored session passwordStatus to ACTIVE and keep cached authorizedProfiles in sync
     session.passwordStatus = 'ACTIVE';
+    if (Array.isArray(session.authorizedProfiles)) {
+      session.authorizedProfiles = session.authorizedProfiles.map((p) =>
+        p.customerId === session.customerId
+          ? { ...p, passwordStatus: 'ACTIVE' }
+          : p
+      );
+    }
     await AsyncStorage.setItem(CUSTOMER_SESSION_KEY, JSON.stringify(session));
 
     return {
@@ -378,18 +385,40 @@ export const selectCustomerProfile = async (
       };
     }
 
-    // Update stored active customer identity
-    const updatedCustomer = json.customer;
-    session.customerId = updatedCustomer.customerId || targetCustomerId;
-    session.customerCode = updatedCustomer.customerCode || session.customerCode;
-    session.fullName = updatedCustomer.fullName || session.fullName;
-    session.passwordStatus = updatedCustomer.passwordStatus || session.passwordStatus;
+    // Update stored active customer identity and keep mobileNumber / authorizedProfiles synchronized
+    const updatedCustomer = json.customer || {};
+    const nextCustomerId = updatedCustomer.customerId || targetCustomerId;
+    const matchedProfile = session.authorizedProfiles?.find(
+      (p) => p.customerId === nextCustomerId
+    );
+    const nextMobile = sanitizeMobileNumber(
+      updatedCustomer.mobileNumber || matchedProfile?.mobileNumber || session.mobileNumber || ''
+    );
+
+    session.customerId = nextCustomerId;
+    session.customerCode = updatedCustomer.customerCode || matchedProfile?.customerCode || session.customerCode;
+    session.fullName = updatedCustomer.fullName || matchedProfile?.fullName || session.fullName;
+    session.passwordStatus = updatedCustomer.passwordStatus || matchedProfile?.passwordStatus || session.passwordStatus;
+    if (nextMobile.length >= 10) {
+      session.mobileNumber = nextMobile;
+    }
 
     if (session.authorizedProfiles) {
-      session.authorizedProfiles = session.authorizedProfiles.map((p) => ({
-        ...p,
-        isSelected: p.customerId === session.customerId,
-      }));
+      session.authorizedProfiles = session.authorizedProfiles.map((p) =>
+        p.customerId === session.customerId
+          ? {
+              ...p,
+              customerCode: session.customerCode,
+              fullName: session.fullName,
+              mobileNumber: session.mobileNumber || p.mobileNumber,
+              passwordStatus: session.passwordStatus,
+              isSelected: true,
+            }
+          : {
+              ...p,
+              isSelected: false,
+            }
+      );
     }
 
     await AsyncStorage.setItem(CUSTOMER_SESSION_KEY, JSON.stringify(session));
@@ -417,20 +446,38 @@ export const getAuthorizedProfiles = async (): Promise<CustomerProfileOption[]> 
 
     const json = await response.json().catch(() => null);
     if (response.ok && json?.success && Array.isArray(json.profiles)) {
-      const freshProfiles = json.profiles.map((p: any) => ({
+      const freshProfiles: CustomerProfileOption[] = json.profiles.map((p: any) => ({
         customerId: p.customerId,
         customerCode: p.customerCode,
         fullName: p.fullName,
-        mobileNumber: p.mobileNumber,
+        mobileNumber: sanitizeMobileNumber(p.mobileNumber || p.phone_number || ''),
         passwordStatus: p.passwordStatus,
         schemeCount: p.schemeCount,
-        isSelected: p.customerId === session.customerId,
+        isSelected: Boolean(p.isSelected ?? (p.customerId === session.customerId)),
       }));
 
-      // Cache on session
-      session.authorizedProfiles = freshProfiles;
+      // Keep active session identity synchronized with server-selected/authorized profiles
+      const activeMatch =
+        freshProfiles.find((p) => p.isSelected) ||
+        freshProfiles.find((p) => p.customerId === session.customerId) ||
+        freshProfiles[0];
+
+      if (activeMatch) {
+        session.customerId = activeMatch.customerId;
+        session.customerCode = activeMatch.customerCode || session.customerCode;
+        session.fullName = activeMatch.fullName || session.fullName;
+        session.passwordStatus = activeMatch.passwordStatus || session.passwordStatus;
+        if (activeMatch.mobileNumber) {
+          session.mobileNumber = activeMatch.mobileNumber;
+        }
+      }
+
+      session.authorizedProfiles = freshProfiles.map((p) => ({
+        ...p,
+        isSelected: p.customerId === session.customerId,
+      }));
       await AsyncStorage.setItem(CUSTOMER_SESSION_KEY, JSON.stringify(session));
-      return freshProfiles;
+      return session.authorizedProfiles;
     }
 
     return session.authorizedProfiles || [];

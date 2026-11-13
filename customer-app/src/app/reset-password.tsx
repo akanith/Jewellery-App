@@ -40,7 +40,12 @@ export default function ResetPasswordScreen() {
   useEffect(() => {
     async function verifySession() {
       const session = await getStoredCustomerSession();
-      const cleanedMobile = session?.mobileNumber ? sanitizeMobileNumber(session.mobileNumber) : '';
+      const activeProfile = session?.authorizedProfiles?.find(
+        (p) => p.customerId === session.customerId
+      );
+      const cleanedMobile = sanitizeMobileNumber(
+        activeProfile?.mobileNumber || session?.mobileNumber || ''
+      );
       if (!session || !cleanedMobile || cleanedMobile.length < 10) {
         setErrorMessage('Session expired or mobile identity missing. Please log in again.');
       }
@@ -68,7 +73,12 @@ export default function ResetPasswordScreen() {
 
     try {
       const session = await getStoredCustomerSession();
-      const rawMobile = session?.mobileNumber ? sanitizeMobileNumber(session.mobileNumber) : '';
+      const activeProfile = session?.authorizedProfiles?.find(
+        (p) => p.customerId === session.customerId
+      );
+      const rawMobile = sanitizeMobileNumber(
+        activeProfile?.mobileNumber || session?.mobileNumber || ''
+      );
       const oldPass = currentPassword.trim() || (rawMobile.length >= 4 ? rawMobile.slice(-4) : '');
 
       if (!oldPass || oldPass.length < 4) {
